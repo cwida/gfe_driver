@@ -1,0 +1,19 @@
+# Eclipse project files
+/.cproject
+/.project
+/.settings/
+/eclipse_symbols.xml
+
+# IntelliJ IDEA / CLion project files
+*.idea
+*.iml
+_Deparsed_XSubs.pm
+
+# Autoconf
+/autom4te.cache/
+/configure
+
+# Build directories
+/build/
+/Debug/
+/Release/

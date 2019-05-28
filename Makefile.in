@@ -1,0 +1,126 @@
+#############################################################################
+# Autoconf variables
+
+# builddir: where to build the final artifacts
+builddir := .
+# objectdir: container of the objects
+objectdir := objects
+
+# Current position
+srcdir := @srcdir@
+VPATH := @srcdir@
+top_srcdir := @top_srcdir@
+
+# Compiler programs & flags
+# !!! It assumes that ${top_srcdir} has been defined in the container file !!!
+CC := @CC@
+CXX := @CXX@
+CPPFLAGS := @CPPFLAGS@ 
+EXTRA_CPPFLAGS := @EXTRA_CPPFLAGS@ # extra flags defined by autoconf, similar to AM_CPPFLAGS
+SRC_CPPFLAGS := -I@top_srcdir@/ -I@top_srcdir@/third-party/libcommon/include/lib/
+ALL_CPPFLAGS := ${CPPFLAGS} ${EXTRA_CPPFLAGS} ${SRC_CPPFLAGS}
+CFLAGS := @CFLAGS@ 
+EXTRA_CFLAGS := @EXTRA_CFLAGS@ # extra flags defined by autoconf, similar to AM_CFLAGS
+ALL_CFLAGS := ${ALL_CPPFLAGS} ${EXTRA_CFLAGS} ${CFLAGS}
+CXXFLAGS := @CXXFLAGS@
+EXTRA_CXXFLAGS := @EXTRA_CXXFLAGS@ # extra flags defined by autoconf, similar to AM_CXXFLAGS
+ALL_CXXFLAGS := ${ALL_CPPFLAGS} ${EXTRA_CXXFLAGS} ${CXXFLAGS}
+
+# Dependencies
+libcommon := third-party/libcommon/obj/libcommon.a
+libbacktrace := third-party/libcommon/lib/backtrace/lib/libbacktrace.a
+dependencies := ${libcommon} ${libbacktrace}
+
+# Linker
+LIBS := @LIBS@ 
+LDFLAGS := @LIBS@
+
+#############################################################################
+# List of the sources to compile
+
+sources := \
+	configuration.cpp \
+	main.cpp
+	
+#############################################################################
+# The executables to create
+artifact := driver
+
+#############################################################################
+# Helper variables
+makedepend_c = @$(CC) -MM $(ALL_CFLAGS) -MP -MT $@ -MF $(basename $@).d $<
+makedepend_cxx = @$(CXX) -MM $(ALL_CXXFLAGS) -MP -MT $@ -MF $(basename $@).d $<
+# Library objects
+objectdirs := $(patsubst %./, %, $(sort $(addprefix ${objectdir}/, $(dir ${sources}))))
+objects_c := $(addprefix ${objectdir}/, $(patsubst %.c, %.o, $(filter %.c, ${sources})))
+objects_cxx := $(addprefix ${objectdir}/, $(patsubst %.cpp, %.o, $(filter %.cpp, ${sources})))
+objects := ${objects_c} ${objects_cxx}
+
+.DEFAULT_GOAL = all
+.PHONY: all
+
+all: Makefile ${builddir}/${artifact}
+
+#############################################################################
+# Artifacts to build
+${builddir}/${artifact}: ${objects} ${dependencies} | ${builddir}
+	${CXX} ${LDFLAGS} $^ -o $@
+	
+#############################################################################
+# Compiling the objects
+
+# Objects from C files
+${objects_c} : ${objectdir}/%.o : %.c | ${objectdirs}
+	${makedepend_c}
+	${CC} -c ${ALL_CFLAGS} $< -o $@
+
+# Objects from C++ files
+${objects_cxx}: ${objectdir}/%.o : %.cpp | ${objectdirs}
+	${makedepend_cxx}
+	$(CXX) -c $(ALL_CXXFLAGS) $< -o $@
+
+# Create the build directories
+${builddir} ${objectdirs}:
+	mkdir -pv $@
+	
+	
+#############################################################################
+# libcommon
+.PHONY: libcommon
+libcommon: ${libcommon}
+libcommon_path := third-party/libcommon
+libcommon_build_path := $(abspath ${builddir})/${libcommon_path}
+
+# `common' is the target name for the rule in the libcommon project
+${libcommon}: ${libcommon_build_path}
+	make -C $< common
+
+${libcommon_build_path}:	
+	mkdir -pv $@
+	cd ${builddir}/third-party/libcommon && \
+		cmake -DBUILD_TEST=OFF -DCMAKE_BUILD_TYPE=@CMAKE_BUILD_TYPE@ $(abspath ${srcdir})/third-party/libcommon
+
+${libbacktrace}: ${libcommon}
+
+#############################################################################
+# Remove everything from the current build
+.PHONY: clean
+clean:
+	rm -rf ${builddir}/${artifact}
+	rm -rf ${builddir}/${objectdir}
+	rm -rf ${builddir}/third-party/libcommon
+	
+#############################################################################
+# Regenerate the Makefile when the configuration has been changed
+$(srcdir)/configure: configure.ac aclocal.m4
+	cd '$(srcdir)' && autoconf
+	
+config.status: configure
+	./config.status --recheck
+	
+Makefile: Makefile.in config.status
+	./config.status
+	
+#############################################################################
+# Dependencies to update the translation units if a header has been altered
+-include ${objects:.o=.d}
