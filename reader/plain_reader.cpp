@@ -15,28 +15,34 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "edge.hpp"
+#include "plain_reader.hpp"
 
+#include <fstream>
+#include <string>
+#include "graph/edge.hpp"
+#include "configuration.hpp"
+#include "utility.hpp"
 
 using namespace std;
 
-namespace graph {
+#undef CURRENT_ERROR_TYPE
+#define CURRENT_ERROR_TYPE reader::ReaderError
 
+namespace reader {
 
-WeightedEdge::WeightedEdge() : WeightedEdge(0,0,0){ }
-WeightedEdge::WeightedEdge(uint64_t source, uint64_t destination, uint32_t weight) : Edge{source, destination}, m_weight(weight){
-
+PlainWeightedReader::PlainWeightedReader(const string& path) : m_handle(init_fstream(path)){
+    LOG("[PlainWeightedReader] Reading `" << path << "' ...");
 }
 
-ostream& operator<<(std::ostream& out, const Edge& e) {
-    out << "[src: " << e.source() << ", dst: " << e.destination() << "]";
-    return out;
+PlainWeightedReader::~PlainWeightedReader(){
+    m_handle.close();
 }
 
-
-std::ostream& operator<<(std::ostream& out, const WeightedEdge& e){
-    out << "[" << e.source() << ", dst: " << e.destination() << ", weight: " << e.weight() << "]";
-    return out;
+bool PlainWeightedReader::read(graph::WeightedEdge& edge) {
+    if(m_handle.eof()) return false;
+    m_handle >> edge.m_source >> edge.m_destination >> edge.m_weight;
+    if(m_handle.fail()) ERROR("Error while processing the input file");
+    return true;
 }
 
-} // namespace graph
+} // namespace reader

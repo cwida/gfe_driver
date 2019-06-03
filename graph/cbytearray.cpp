@@ -27,6 +27,10 @@ size_t CByteArray::compute_bytes_per_elements(size_t value){
     return size_t(bytes);
 }
 
+size_t CByteArray::get_bytes_per_element() const{
+    return m_bytes_per_element;
+}
+
 CByteArray::CByteArray(size_t capacity) : CByteArray(compute_bytes_per_elements(capacity), capacity) { }
 
 CByteArray::CByteArray(size_t bytes_per_element, size_t capacity) : m_bytes_per_element(bytes_per_element), m_capacity(capacity), m_array(nullptr){

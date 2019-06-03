@@ -17,7 +17,11 @@
 
 #pragma once
 
+#include <fstream>
 #include "reader.hpp"
+
+
+namespace graph { class WeightedEdge; } // forward decl.
 
 namespace reader {
 
@@ -26,10 +30,21 @@ namespace reader {
  * of an edge per line: src dst weight.
  */
 class PlainWeightedReader : public Reader {
+    std::fstream m_handle; // internal file handle
 
 public:
+    /**
+     * Read the edge list from the given file
+     */
+    PlainWeightedReader(const std::string& path);
 
+    /**
+     * Destructor
+     */
+    ~PlainWeightedReader();
 
+    // interface
+    bool read(graph::WeightedEdge&) override;
 };
 
 

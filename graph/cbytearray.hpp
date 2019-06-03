@@ -198,6 +198,11 @@ public:
      * Compute the number of bytes required to stored the given value.
      */
     static size_t compute_bytes_per_elements(size_t value);
+
+    /**
+     * Retrieve the amount of bytes used for each element
+     */
+    size_t get_bytes_per_element() const;
 };
 
 } // namespace graph

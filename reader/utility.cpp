@@ -15,28 +15,29 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "edge.hpp"
+#include "reader.hpp"
+#include "utility.hpp"
 
+#include <fstream>
+#include "common/filesystem.hpp"
 
 using namespace std;
 
-namespace graph {
+#undef CURRENT_ERROR_TYPE
+#define CURRENT_ERROR_TYPE reader::ReaderError
 
+namespace reader {
 
-WeightedEdge::WeightedEdge() : WeightedEdge(0,0,0){ }
-WeightedEdge::WeightedEdge(uint64_t source, uint64_t destination, uint32_t weight) : Edge{source, destination}, m_weight(weight){
-
+fstream init_fstream(const string& path){
+    fstream handle(path.c_str(), ios_base::in);
+    if(!handle.good()){ // some error occurred
+        if(!common::filesystem::file_exists(path)){
+            ERROR("The file `" << path << "' does not exist");
+        } else {
+            ERROR("Cannot read the file: `" << path << "'");
+        }
+    }
+    return handle;
 }
 
-ostream& operator<<(std::ostream& out, const Edge& e) {
-    out << "[src: " << e.source() << ", dst: " << e.destination() << "]";
-    return out;
-}
-
-
-std::ostream& operator<<(std::ostream& out, const WeightedEdge& e){
-    out << "[" << e.source() << ", dst: " << e.destination() << ", weight: " << e.weight() << "]";
-    return out;
-}
-
-} // namespace graph
+} // namespace reader

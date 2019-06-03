@@ -17,10 +17,28 @@
 
 #include "reader.hpp"
 
+#include "format.hpp"
+#include "plain_reader.hpp"
+
+#undef CURRENT_ERROR_TYPE
+#define CURRENT_ERROR_TYPE reader::ReaderError
+
+using namespace std;
+
 namespace reader {
 
 Reader::Reader(){ }
 Reader::~Reader(){ }
+
+std::unique_ptr<Reader> Reader::open(const std::string& path){
+    auto format = get_graph_format(path);
+    switch(format){
+    case Format::PLAIN_WEIGHTED:
+        return make_unique<PlainWeightedReader>(path);
+    default:
+        ERROR("Unrecognised graph format for the file: `" << path << "'");
+    }
+}
 
 } // namespace reader
 

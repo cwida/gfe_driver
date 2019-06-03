@@ -18,34 +18,23 @@
 #pragma once
 
 #include <cinttypes>
-#include <ostream>
+#include <memory>
+#include <vector>
 
-namespace graph {
+#include "graph/edge.hpp"
+#include "graph/edge_stream.hpp"
+#include "library/interface.hpp"
+#include "third-party/libcuckoo/cuckoohash_map.hh"
 
-// Simple  representation of an edge as a pair <source, destination>
-class Edge {
-public:
-    uint64_t m_source;
-    uint64_t m_destination;
+namespace experiment {
 
-    uint64_t source() const { return m_source; }
-    uint64_t destination() const { return m_destination; }
+class Aging {
+    std::shared_ptr<library::UpdateInterface> m_interface; // the library where vertices and edges will be inserted
+
+    cuckoohash_map<uint64_t, bool> m_vertices_present; // current list of vertices present
+    cuckoohash_map<graph::Edge, bool> m_edges_present; // the current list of edges present in the map
+
 };
 
-// Simple representation of an edge as a tuple <source, destination, weight>
-class WeightedEdge : public Edge{
-public:
-    WeightedEdge();
-    WeightedEdge(uint64_t source, uint64_t destination, uint32_t weight);
-
-    uint32_t m_weight;
-    uint32_t weight() const { return m_weight; }
-};
-
-std::ostream& operator<<(std::ostream& out, const Edge& e);
-std::ostream& operator<<(std::ostream& out, const WeightedEdge& e);
-
-} // namespace graph
-
-
+}
 

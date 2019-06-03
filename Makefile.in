@@ -39,6 +39,14 @@ LDFLAGS := @LIBS@
 # List of the sources to compile
 
 sources := \
+	graph/cbytearray.cpp \
+	graph/edge.cpp \
+	graph/edge_stream.cpp \
+	graph/vertex_list.cpp \
+	reader/format.cpp \
+	reader/plain_reader.cpp \
+	reader/reader.cpp \
+	reader/utility.cpp \
 	configuration.cpp \
 	main.cpp
 	

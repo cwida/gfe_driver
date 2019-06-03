@@ -18,6 +18,7 @@
 #pragma once
 
 #include <memory>
+#include "common/error.hpp"
 
 namespace graph {
     class WeightedEdge; // forward decl.
@@ -51,7 +52,12 @@ public:
     virtual ~Reader();
 
     // Retrieve the next edge of the file. Returns true if an edge has been read, false if we reached the end of the file.
-    bool read(graph::WeightedEdge& edge) = 0;
+    virtual bool read(graph::WeightedEdge& edge) = 0;
 };
+
+/**
+ * Raised due an error encountered by a reader
+ */
+DEFINE_EXCEPTION(ReaderError);
 
 } // namespace graph

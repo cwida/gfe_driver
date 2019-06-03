@@ -17,18 +17,61 @@
 
 #pragma once
 
+#include "edge.hpp"
+
+#include <memory>
 #include <string>
+#include "third-party/libcuckoo/cuckoohash_map.hh"
+
 
 namespace graph {
 
+class CByteArray; // forward decl.
+class VertexList; // forward decl.
+
 // Load in memory a stream of edges with
 class WeightedEdgeStream {
+    // edges are stores in three separate arrays:
+    CByteArray* m_sources { nullptr }; // one for the sources
+    CByteArray* m_destinations { nullptr }; // one for the destinations
+    CByteArray* m_weights { nullptr }; // and one for the weights
+
+    // total number of edges
+    uint64_t m_num_edges { 0 };
+
+    // keep track of the maximum values for the vertices and the weights
+    uint64_t m_max_vertex_id { 0 };
+    uint64_t m_max_weight { 0 };
 
 public:
+    /**
+     * Load the list of edges from the given file
+     */
     WeightedEdgeStream(const std::string& path);
 
-    // Perform a random permutation of the edge list
+    /**
+     * Destructor
+     */
+    ~WeightedEdgeStream();
+
+    // Perform a random permutation of the edge list. Use the default random seed.
     void permute();
+
+    // Perform a random permutation of the edge list. The permutation is based on the given random seed.
+    void permute(uint64_t seed);
+
+    // Retrieve the edge at the given position, in [0, num_edges() )
+    WeightedEdge get(uint64_t index) const;
+    WeightedEdge operator[](uint64_t index) const { return get(index); } // alias
+
+    // Retrieve the total number of edges in the list
+    uint64_t num_edges() const { return m_num_edges; }
+
+    // Get the list of vertices present
+    std::unique_ptr<VertexList> vertex_list() const;
+
+    // Get the set of vertices present
+    std::unique_ptr<cuckoohash_map<uint64_t, bool>> vertex_table() const;
 };
 
 

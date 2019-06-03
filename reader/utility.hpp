@@ -15,28 +15,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "edge.hpp"
+#pragma once
 
+#include <fstream>
+#include <string>
 
-using namespace std;
-
-namespace graph {
-
-
-WeightedEdge::WeightedEdge() : WeightedEdge(0,0,0){ }
-WeightedEdge::WeightedEdge(uint64_t source, uint64_t destination, uint32_t weight) : Edge{source, destination}, m_weight(weight){
-
+namespace reader {
+    
+    // Open an input stream to read the content of the given file
+    std::fstream init_fstream(const std::string& path);
 }
-
-ostream& operator<<(std::ostream& out, const Edge& e) {
-    out << "[src: " << e.source() << ", dst: " << e.destination() << "]";
-    return out;
-}
-
-
-std::ostream& operator<<(std::ostream& out, const WeightedEdge& e){
-    out << "[" << e.source() << ", dst: " << e.destination() << ", weight: " << e.weight() << "]";
-    return out;
-}
-
-} // namespace graph
