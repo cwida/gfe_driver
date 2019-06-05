@@ -34,6 +34,9 @@ DEFINE_EXCEPTION(ConfigurationError);
 // Print the given message only if we are in verbose mode
 #define LOG( msg ) { if(configuration().verbose()){ std::cout << msg << "\n"; } }
 
+// Type of counter for the number of threads
+enum ThreadsType { THREADS_READ, THREADS_WRITE, THREADS_TOTAL };
+
 class Configuration {
     // remove the copy ctors
     Configuration(const Configuration& ) = delete;
@@ -43,7 +46,9 @@ class Configuration {
     // properties
     common::Database* m_database { nullptr }; // handle to the database
     std::string m_database_path { "results.sqlite3" }; // the path where to store the results
-    int m_num_threads { 0 }; // number of threads to use
+    std::string m_graph_path { "" };
+    int m_num_threads_read { 0 }; // number of threads to use for the read operations
+    int m_num_threads_write { 0 }; // number of threads to use for the write (insert/update/delete) operations
     uint64_t m_seed = 5051789ull; // random seed, used in various places in the experiments
     bool m_verbose { false }; // verbose mode?
 
@@ -60,6 +65,9 @@ public:
     // Retrieve the handle to the database connection, where the final results of the experiments are stored
     common::Database* db();
 
+    // The path of the graph to load
+    std::string graph() const { return m_graph_path; }
+
     // Save the configuration into the database
     void save_parameters();
 
@@ -68,6 +76,9 @@ public:
 
     // Check whether we are in verbose mode, to print additional message to the output
     bool verbose() const { return m_verbose; }
+
+    // Get the number of threads to use
+    int num_threads(ThreadsType type) const;
 };
 
 

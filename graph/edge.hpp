@@ -40,6 +40,9 @@ public:
 
     uint32_t m_weight;
     uint32_t weight() const { return m_weight; }
+
+    // Get a copy of the given (non weighted) edge
+    Edge edge() const { return Edge{source(), destination()}; }
 };
 
 std::ostream& operator<<(std::ostream& out, const Edge& e);

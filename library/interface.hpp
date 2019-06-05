@@ -54,6 +54,17 @@ public:
     virtual void on_thread_destroy(int thread_id);
     // Invoked at the end of the experiment by the controller thread
     virtual void on_main_destroy();
+
+
+    /**
+     * Get the number of edges contained in the graph
+     */
+    virtual uint64_t num_edges() const = 0;
+
+    /**
+     * Get the number of nodes stored in the graph
+     */
+    virtual uint64_t num_vertices() const = 0;
 };
 
 
@@ -61,14 +72,24 @@ public:
  * Update interface
  */
 class UpdateInterface : public Interface {
+public:
+    virtual bool add_vertex(uint64_t vertex_id) = 0;
 
-    virtual void add_vertex(uint64_t vertex_id) = 0;
+    virtual bool delete_vertex(uint64_t vertex_id) = 0;
 
-    virtual void delete_vertex(uint64_t vertex_id) = 0;
+    virtual bool add_edge(graph::WeightedEdge e) = 0;
 
-    virtual void add_edge(graph::WeightedEdge e) = 0;
+    virtual bool delete_edge(graph::Edge e) = 0;
+};
 
-    virtual void delete_edge(graph::Edge e) = 0;
+
+/**
+ * Load the graph from a file in the disk
+ */
+class LoaderInterface : public Interface {
+public:
+    // Load the whole graph representation from the given path
+    virtual void load(const std::string& path) = 0;
 };
 
 } // namespace library

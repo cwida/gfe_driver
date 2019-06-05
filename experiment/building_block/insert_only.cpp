@@ -1,0 +1,156 @@
+/**
+ * Copyright (C) 2019 Dean De Leo, email: dleo[at]cwi.nl
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#include "insert_only.hpp"
+
+#include <atomic>
+#include <chrono>
+#include <future>
+#include <thread>
+#include <vector>
+
+#include "common/timer.hpp"
+#include "configuration.hpp"
+#include "third-party/libcuckoo/cuckoohash_map.hh"
+
+using namespace common;
+using namespace std;
+
+namespace experiment {
+
+InsertOnly::InsertOnly(std::shared_ptr<library::UpdateInterface> interface) : InsertOnly(interface, make_shared<graph::WeightedEdgeStream>()){ }
+InsertOnly::InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> graph) : InsertOnly(interface, graph, configuration().num_threads(THREADS_WRITE)){ }
+InsertOnly::InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> graph, int64_t num_threads) : m_interface(interface), m_stream(graph), m_num_threads(num_threads){ }
+
+bool InsertOnly::is_static_scheduler() const {
+    return m_schedule_chunks == 0;
+}
+
+void InsertOnly::set_round_robin_scheduler(uint64_t granularity) {
+    if(granularity == 0) INVALID_ARGUMENT("The granularity of a chunk size cannot be zero");
+    m_schedule_chunks = granularity;
+}
+
+void InsertOnly::set_static_scheduler(){
+    m_schedule_chunks = 0;
+}
+
+void InsertOnly::execute_static(void* cb){
+    auto graph = m_stream.get();
+    auto& vertices = *( reinterpret_cast<cuckoohash_map<uint64_t, bool>*>(cb) );
+
+    int64_t edges_per_threads = graph->num_edges() / m_num_threads;
+    int64_t odd_threads = graph->num_edges() % m_num_threads;
+    int64_t start = 0;
+
+    vector<thread> threads;
+
+    for(int64_t i = 0; i < m_num_threads; i++){
+        int64_t length = edges_per_threads + (i < odd_threads);
+
+        threads.emplace_back([this, graph, &vertices](int64_t start, int64_t length, int thread_id){
+            auto interface = m_interface.get();
+            interface->on_thread_init(thread_id);
+
+            for(int64_t pos = start, end = start + length; pos < end; pos++){
+                auto edge = graph->get(pos);
+
+                if(vertices.insert(edge.source(), true)) interface->add_vertex(edge.source());
+                if(vertices.insert(edge.destination(), true)) interface->add_vertex(edge.destination());
+
+                // the function returns true if the edge has been inserted. Repeat the loop if it cannot insert the edge as one of
+                // the vertices is still being inserted by another thread
+                while( ! interface->add_edge(edge) ) { /* nop */ } ;
+            }
+
+            interface->on_thread_destroy(thread_id);
+
+        }, start, length, static_cast<int>(i));
+
+        start += length;
+    }
+
+    // wait for all threads to complete
+    for(auto& t : threads) t.join();
+}
+
+void InsertOnly::execute_round_robin(void* cb){
+    auto& vertices = *( reinterpret_cast<cuckoohash_map<uint64_t, bool>*>(cb) );
+    ASSERT(m_schedule_chunks > 0 && "Chunk size == 0");
+
+    vector<thread> threads;
+
+    atomic<uint64_t> start_chunk_next = 0;
+
+    for(int64_t i = 0; i < m_num_threads; i++){
+        threads.emplace_back([this, &vertices, &start_chunk_next](int thread_id){
+            auto interface = m_interface.get();
+            auto graph = m_stream.get();
+            uint64_t start;
+            const uint64_t size = graph->num_edges();
+
+            interface->on_thread_init(thread_id);
+
+            while( (start = start_chunk_next.fetch_add(m_schedule_chunks)) < size ){
+                for( uint64_t pos = start, end = std::min<uint64_t>(start + m_schedule_chunks, size); pos < end; pos ++ ){
+                    auto edge = graph->get(pos);
+
+                    if(vertices.insert(edge.source(), true)) interface->add_vertex(edge.source());
+                    if(vertices.insert(edge.destination(), true)) interface->add_vertex(edge.destination());
+
+                    // the function returns true if the edge has been inserted. Repeat the loop if it cannot insert the edge as one of
+                    // the vertices is still being inserted by another thread
+                    while( ! interface->add_edge(edge) ) { /* nop */ } ;
+                }
+            }
+
+            interface->on_thread_destroy(thread_id);
+
+        }, static_cast<int>(i));
+    }
+
+    // wait for all threads to complete
+    for(auto& t : threads) t.join();
+}
+
+chrono::microseconds InsertOnly::execute() {
+    // check which vertices have been already inserted
+    cuckoohash_map<uint64_t, bool> vertices;
+    vertices.max_num_worker_threads(thread::hardware_concurrency());
+
+    m_interface->on_main_init(m_num_threads);
+
+    Timer timer;
+    timer.start();
+
+    if(is_static_scheduler()){
+        execute_static(&vertices);
+    } else {
+        execute_round_robin(&vertices);
+    }
+
+    timer.stop();
+
+    m_interface->on_main_destroy();
+
+    LOG("Insertions performed with " << m_num_threads << " threads in " << timer);
+    LOG("Edge stream size: " << m_stream->num_edges() << ", num edges stored in the graph: " << m_interface->num_edges() << ", match: " << (m_stream->num_edges() == m_interface->num_edges() ? "yes" : "no"));
+
+    return timer.duration< chrono::microseconds >();
+}
+
+} // namespace experiment

@@ -41,7 +41,7 @@ static Configuration singleton;
 Configuration& configuration(){ return singleton; }
 
 Configuration::Configuration() {
-    m_num_threads = cpu_topology().get_threads(false, false).size();
+    m_num_threads_read = m_num_threads_write = cpu_topology().get_threads(false, false).size();
 }
 Configuration::~Configuration() {
     delete m_database; m_database = nullptr;
@@ -61,10 +61,13 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
     opts.add_options("Generic")
         ("d, database", "The path where to store the results", value<string>()->default_value(m_database_path))
         ("e, experiment", "The experiment to execute", value<string>())
+        ("G, graph", "The path to the graph to load", value<string>())
         ("h, help", "Show this help menu")
         ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(m_seed)))
-        ("t, threads", "The number of client threads to use", value<int>()->default_value(to_string(m_num_threads)))
+        ("r, readers", "The number of client threads to use for the read operations", value<int>()->default_value(to_string(m_num_threads_read)))
+        ("t, threads", "The number of threads to use for both the read and write operations", value<int>()->default_value(to_string(m_num_threads_read + m_num_threads_write)))
         ("v, verbose", "Print additional messages to the output")
+        ("w, writers", "The number of client threads to use for the write operations", value<int>()->default_value(to_string(m_num_threads_write)))
     ;
 
     try {
@@ -77,17 +80,30 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
         }
 
         m_database_path = result["database"].as<string>();
-        ASSERT( result["threads"].as<int>() >= 0 );
-        m_num_threads = result["threads"].as<int>();
+        m_graph_path = result["graph"].as<string>();
         m_seed = result["seed"].as<uint64_t>();
         m_verbose = ( result.count("verbose") > 0 );
+
+        // number of threads
+        if( result["threads"].count() > 0) {
+           ASSERT( result["threads"].as<int>() >= 0 );
+           m_num_threads_read = m_num_threads_write = result["threads"].as<int>();
+        }
+        if( result["readers"].count() > 0) {
+            ASSERT( result["readers"].as<int>() >= 0 );
+            m_num_threads_read = result["readers"].as<int>();
+        }
+        if( result["writers"].count() > 0 ){
+            ASSERT( result["writers"].as<int>() >= 0 );
+            m_num_threads_write = result["writers"].as<int>();
+        }
 
     } catch ( argument_incorrect_type& e){
         ERROR(e.what());
     }
 }
 
-/************************************************************************\*****
+/*****************************************************************************
  *                                                                           *
  *  Database                                                                 *
  *                                                                           *
@@ -105,8 +121,10 @@ void Configuration::save_parameters() {
     vector<P> params;
     params.push_back(P{"database", m_database_path});
     params.push_back(P{"git_commit", common::git_last_commit()});
+    params.push_back(P{"graph", graph()});
     params.push_back(P{"hostname", common::hostname()});
-    params.push_back(P{"num_threads", to_string(m_num_threads)});
+    params.push_back(P{"num_threads_read", to_string(m_num_threads_read)});
+    params.push_back(P{"num_threads_write", to_string(m_num_threads_write)});
     params.push_back(P{"seed", to_string(m_seed)});
     params.push_back(P{"verbose", to_string(m_verbose)});
 
@@ -114,4 +132,20 @@ void Configuration::save_parameters() {
     db()->store_parameters(params);
 }
 
-
+/*****************************************************************************
+ *                                                                           *
+ *  Properties                                                               *
+ *                                                                           *
+ *****************************************************************************/
+int Configuration::num_threads(ThreadsType type) const {
+    switch(type){
+    case THREADS_READ:
+        return m_num_threads_read;
+    case THREADS_WRITE:
+        return m_num_threads_write;
+    case THREADS_TOTAL:
+        return m_num_threads_read + m_num_threads_write;
+    default:
+        ERROR("Invalid thread type: " << ((int) type));
+    }
+}
