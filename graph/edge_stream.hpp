@@ -78,6 +78,9 @@ public:
 
     // Get the set of vertices present
     std::unique_ptr<cuckoohash_map<uint64_t, bool>> vertex_table() const;
+
+    // Get the max vertex id present
+    uint64_t max_vertex_id() const { return m_max_vertex_id; };
 };
 
 

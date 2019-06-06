@@ -47,6 +47,7 @@ class Configuration {
     common::Database* m_database { nullptr }; // handle to the database
     std::string m_database_path { "results.sqlite3" }; // the path where to store the results
     std::string m_graph_path { "" };
+    uint64_t m_num_aging_updates { 0 }; // number of additional updates to perform
     int m_num_threads_read { 0 }; // number of threads to use for the read operations
     int m_num_threads_write { 0 }; // number of threads to use for the write (insert/update/delete) operations
     uint64_t m_seed = 5051789ull; // random seed, used in various places in the experiments

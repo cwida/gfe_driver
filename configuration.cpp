@@ -59,6 +59,7 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
     Options opts(argv[0], "Evaluate the graph libraries");
 
     opts.add_options("Generic")
+        ("a, aging", "The number of additional updates for the aging experiment to perform", value<Quantity>()->default_value(to_string(m_num_aging_updates)))
         ("d, database", "The path where to store the results", value<string>()->default_value(m_database_path))
         ("e, experiment", "The experiment to execute", value<string>())
         ("G, graph", "The path to the graph to load", value<string>())
@@ -79,6 +80,7 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
             exit(0);
         }
 
+        m_num_aging_updates = result["aging"].as<Quantity>();
         m_database_path = result["database"].as<string>();
         m_graph_path = result["graph"].as<string>();
         m_seed = result["seed"].as<uint64_t>();
@@ -123,6 +125,7 @@ void Configuration::save_parameters() {
     params.push_back(P{"git_commit", common::git_last_commit()});
     params.push_back(P{"graph", graph()});
     params.push_back(P{"hostname", common::hostname()});
+    params.push_back(P{"num_aging_updates", to_string(m_num_aging_updates)});
     params.push_back(P{"num_threads_read", to_string(m_num_threads_read)});
     params.push_back(P{"num_threads_write", to_string(m_num_threads_write)});
     params.push_back(P{"seed", to_string(m_seed)});

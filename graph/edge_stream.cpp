@@ -183,8 +183,37 @@ unique_ptr<VertexList> WeightedEdgeStream::vertex_list() const {
 }
 
 unique_ptr<cuckoohash_map<uint64_t, bool>> WeightedEdgeStream::vertex_table() const {
+    LOG("Computing the list of vertices ... ")
+    Timer timer; timer.start();
 
-    LOG("Computing the ")
+    unique_ptr<cuckoohash_map<uint64_t, bool>> ptr_vertex_table;
+    auto vertex_table = ptr_vertex_table.get();
+
+    auto populate_vertex_table = [this, vertex_table](uint64_t start, uint64_t length){
+        for(uint64_t i = start, end = start + length; i < end; i++){
+            vertex_table[m_sources->get_value_at(i)] = true;
+            vertex_table[m_destinations->get_value_at(i)] = true;
+        }
+    };
+
+    const uint64_t num_tasks = thread::hardware_concurrency();
+    const uint64_t items_per_task = num_edges() / num_tasks;
+    const uint64_t odd_tasks = num_edges() % num_tasks;
+
+    std::vector<future<void>> tasks; tasks.reserve(num_tasks);
+
+    uint64_t start = 0;
+    for(size_t i = 0; i < tasks.capacity(); i++){
+        uint64_t length = items_per_task + (i < odd_tasks);
+        tasks.push_back( async(launch::async, populate_vertex_table, start, length) );
+        start += length; // next task
+    }
+    for(auto& t: tasks) t.get();  // wait for all tasks to finish
+
+    timer.stop();
+    LOG("Vertex list computed in " << timer);
+
+    return ptr_vertex_table;
 }
 
 }
