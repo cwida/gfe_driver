@@ -66,6 +66,7 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
         ("h, help", "Show this help menu")
         ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(m_seed)))
         ("r, readers", "The number of client threads to use for the read operations", value<int>()->default_value(to_string(m_num_threads_read)))
+        ("server", "Start this process as a server to handle remote server, accepting the connection at the given port", value<int>())
         ("t, threads", "The number of threads to use for both the read and write operations", value<int>()->default_value(to_string(m_num_threads_read + m_num_threads_write)))
         ("v, verbose", "Print additional messages to the output")
         ("w, writers", "The number of client threads to use for the write operations", value<int>()->default_value(to_string(m_num_threads_write)))
@@ -100,6 +101,13 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
             m_num_threads_write = result["writers"].as<int>();
         }
 
+        // network connection
+        if( result["server"].count() > 0 ){
+            int port = result["server"].as<int>();
+            if( port < 1024 ) ERROR("Invalid port for the server: " << port);
+            m_server_port = port;
+        };
+
     } catch ( argument_incorrect_type& e){
         ERROR(e.what());
     }
@@ -131,6 +139,8 @@ void Configuration::save_parameters() {
     params.push_back(P{"seed", to_string(m_seed)});
     params.push_back(P{"verbose", to_string(m_verbose)});
 
+    if(is_remote_server()) params.push_back(P{"server_port", to_string(m_server_port)});
+
     sort(begin(params), end(params));
     db()->store_parameters(params);
 }
@@ -152,3 +162,14 @@ int Configuration::num_threads(ThreadsType type) const {
         ERROR("Invalid thread type: " << ((int) type));
     }
 }
+
+bool Configuration::is_remote_server() const {
+    return m_server_port > 0;
+}
+
+int Configuration::server_port() const {
+    if(!is_remote_server()) ERROR("Server port not specified");
+    return m_server_port;
+}
+
+
