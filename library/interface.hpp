@@ -18,10 +18,21 @@
 #pragma once
 
 #include <iostream>
+#include <memory>
 
 #include "graph/edge.hpp"
 
 namespace library {
+
+// Forward declarations
+class Interface;
+class UpdateInterface;
+class LoaderInterface;
+
+/**
+ * Generate the graph interface as specified by the options in the configuration
+ */
+std::unique_ptr<Interface> generate();
 
 /**
  * Base interface, implemented by all systems
@@ -54,7 +65,6 @@ public:
     virtual void on_thread_destroy(int thread_id);
     // Invoked at the end of the experiment by the controller thread
     virtual void on_main_destroy();
-
 
     /**
      * Get the number of edges contained in the graph

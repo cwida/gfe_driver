@@ -66,7 +66,7 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
         ("h, help", "Show this help menu")
         ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(m_seed)))
         ("r, readers", "The number of client threads to use for the read operations", value<int>()->default_value(to_string(m_num_threads_read)))
-        ("server", "Start this process as a server to handle remote server, accepting the connection at the given port", value<int>())
+        ("server", "Remote connection, provide a string host:port for the client, and just the port for the server", value<std::string>())
         ("t, threads", "The number of threads to use for both the read and write operations", value<int>()->default_value(to_string(m_num_threads_read + m_num_threads_write)))
         ("v, verbose", "Print additional messages to the output")
         ("w, writers", "The number of client threads to use for the write operations", value<int>()->default_value(to_string(m_num_threads_write)))
@@ -103,9 +103,23 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
 
         // network connection
         if( result["server"].count() > 0 ){
-            int port = result["server"].as<int>();
-            if( port < 1024 ) ERROR("Invalid port for the server: " << port);
-            m_server_port = port;
+            string param_server = result["server"].as<string>();
+            auto pos_colon = param_server.find(':');
+            string param_port = param_server;
+
+            if(pos_colon != string::npos){
+                m_server_host = param_server.substr(0, pos_colon);
+                param_port = param_server.substr(pos_colon +1);
+            }
+
+            // parse the port number
+            try {
+                int port = stoi(param_port); // throws invalid_argument if the conversion cannot be performed
+                if(port <= 0 || port >= (1>>16)){ throw invalid_argument("invalid port number"); }
+                m_server_port = port;
+            } catch (invalid_argument& e){
+                ERROR("Invalid parameter --server: " << param_server << ". The port number cannot be recognised: `" << param_port << "'");
+            }
         };
 
     } catch ( argument_incorrect_type& e){
@@ -139,7 +153,15 @@ void Configuration::save_parameters() {
     params.push_back(P{"seed", to_string(m_seed)});
     params.push_back(P{"verbose", to_string(m_verbose)});
 
-    if(is_remote_server()) params.push_back(P{"server_port", to_string(m_server_port)});
+    // remote connection
+    if(is_remote_client()){
+        params.push_back(P{"remote_role", "client"});
+        params.push_back(P{"server_host", server_host()});
+        params.push_back(P{"server_port", to_string(server_port())});
+    } else if (is_remote_server()){
+        params.push_back(P{"remote_role", "server"});
+        params.push_back(P{"server_port", to_string(server_port())});
+    }
 
     sort(begin(params), end(params));
     db()->store_parameters(params);
@@ -163,12 +185,19 @@ int Configuration::num_threads(ThreadsType type) const {
     }
 }
 
+bool Configuration::is_remote_client() const {
+    return !m_server_host.empty() && m_server_port > 0;
+}
+
 bool Configuration::is_remote_server() const {
-    return m_server_port > 0;
+    return m_server_host.empty() && m_server_port > 0;
+}
+
+std::string Configuration::server_host() const {
+    return m_server_host;
 }
 
 int Configuration::server_port() const {
-    if(!is_remote_server()) ERROR("Server port not specified");
     return m_server_port;
 }
 

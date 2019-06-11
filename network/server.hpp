@@ -19,12 +19,11 @@
 
 #include <memory>
 
+#include "message.hpp"
+
 namespace library { class Interface; } // forward decl.
 
 namespace network {
-
-class Request; // forward decl.
-template<int N> class GenericRequest; // forward decl.
 
 class Server {
     std::shared_ptr<library::Interface> m_interface; // the interface we are serving
@@ -41,36 +40,15 @@ class Server {
         bool m_terminate { false }; // flag to signal to terminate the handler
 
         /**
-         * Send the current response stored in the buffer
+         * Send the given response to the client
          */
-        void send_response();
-
-        /**
-         * Send a generic response of type Ok (void)
-         */
-        void send_response_done();
-
-        /**
-         * Send a boolean response
-         */
-        void send_response_bool(bool value);
-
-        /**
-         * Send a response with return value uint64_t
-         */
-        void send_response_uint64_t(uint64_t value);
+        template<typename... Args>
+        void response(ResponseType type, Args... args);
 
         /**
          * Retrieve the request being current processed
          */
-        template<int N = 0>
-        const GenericRequest<N>* request() const;
-
-        /**
-         * Retrieve the given argument from the request
-         */
-        template<int N>
-        uint64_t request_argument() const;
+        const Request* request() const;
 
         /**
          * Process a single request

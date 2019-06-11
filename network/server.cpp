@@ -30,8 +30,7 @@
 #include "library/interface.hpp"
 #include "configuration.hpp"
 #include "internal.hpp"
-#include "request.hpp"
-#include "response.hpp"
+#include "message.hpp"
 
 using namespace std;
 
@@ -157,105 +156,118 @@ void Server::ConnectionHandler::execute(){
 }
 
 void Server::ConnectionHandler::handle_request(){
-    switch(request()->m_type){
+    switch(request()->type()){
     case RequestType::TERMINATE_WORKER:
-        send_response_done();
+        response(ResponseType::OK);
         m_terminate = true;
         break;
     case RequestType::TERMINATE_SERVER:
-        send_response_done();
+        response(ResponseType::OK);
         m_terminate = true;
         m_instance->m_server_stop = true;
         break;
     case RequestType::ON_MAIN_INIT:
-        interface()->on_main_init((int) request_argument<0>());
-        send_response_done();
+        interface()->on_main_init((int) request()->get<int>(0));
+        response(ResponseType::OK);
         break;
     case RequestType::ON_THREAD_INIT:
-        interface()->on_thread_init((int) request_argument<0>());
-        send_response_done();
+        interface()->on_thread_init((int) request()->get<int>(0));
+        response(ResponseType::OK);
         break;
     case RequestType::ON_THREAD_DESTROY:
-        interface()->on_thread_destroy((int) request_argument<0>());
-        send_response_done();
+        interface()->on_thread_destroy((int) request()->get<int>(0));
+        response(ResponseType::OK);
         break;
     case RequestType::ON_MAIN_DESTROY:
         interface()->on_main_destroy();
-        send_response_done();
+        response(ResponseType::OK);
         break;
     case RequestType::NUM_EDGES: {
         uint64_t num_edges = interface()->num_edges();
-        send_response_uint64_t(num_edges);
+        response(ResponseType::OK, num_edges);
     } break;
     case RequestType::NUM_VERTICES: {
         uint64_t num_vertices = interface()->num_vertices();
-        send_response_uint64_t(num_vertices);
+        response(ResponseType::OK, num_vertices);
+    } break;
+    case RequestType::LOAD: {
+        library::LoaderInterface* loader_interface = dynamic_cast<library::LoaderInterface*>(interface());
+        if(loader_interface == nullptr){
+            LOG("Operation not supported by the current interface: " << request()->type());
+            response(ResponseType::NOT_SUPPORTED);
+        } else {
+            string path(request()->buffer());
+            LOG("[Server] Attempting to load the graph from path: " << path);
+            loader_interface->load(path);
+            response(ResponseType::OK);
+        }
     } break;
     case RequestType::ADD_VERTEX: {
         library::UpdateInterface* update_interface = dynamic_cast<library::UpdateInterface*>(interface());
-        ASSERT(update_interface != nullptr && "UpdateInterface not supported!");
-        bool response = update_interface->add_vertex(request_argument<0>());
-        send_response_bool(response);
+        if(update_interface == nullptr){
+            LOG("Operation not supported by the current interface: " << request()->type());
+            response(ResponseType::NOT_SUPPORTED);
+        } else {
+            bool result = update_interface->add_vertex(request()->get(0));
+            response(ResponseType::OK, result);
+        }
     } break;
     case RequestType::DELETE_VERTEX: {
         library::UpdateInterface* update_interface = dynamic_cast<library::UpdateInterface*>(interface());
-        ASSERT(update_interface != nullptr && "UpdateInterface not supported!");
-        bool response = update_interface->delete_vertex(request_argument<0>());
-        send_response_bool(response);
+        if(update_interface == nullptr){
+            LOG("Operation not supported by the current interface: " << request()->type());
+            response(ResponseType::NOT_SUPPORTED);
+        } else {
+            bool result = update_interface->delete_vertex(request()->get(0));
+            response(ResponseType::OK, result);
+        }
     } break;
     case RequestType::ADD_EDGE: {
         library::UpdateInterface* update_interface = dynamic_cast<library::UpdateInterface*>(interface());
-        ASSERT(update_interface != nullptr && "UpdateInterface not supported!");
-        graph::WeightedEdge edge { request_argument<0>(), request_argument<1>(), (uint32_t) request_argument<2>() };
-        bool response = update_interface->add_edge(edge);
-        send_response_bool(response);
+        if(update_interface == nullptr){
+            LOG("Operation not supported by the current interface: " << request()->type());
+            response(ResponseType::NOT_SUPPORTED);
+        } else {
+            graph::WeightedEdge edge { request()->get(0),  request()->get(1), request()->get<uint32_t>(2)};
+            bool result = update_interface->add_edge(edge);
+            response(ResponseType::OK, result);
+        }
     } break;
     case RequestType::DELETE_EDGE: {
         library::UpdateInterface* update_interface = dynamic_cast<library::UpdateInterface*>(interface());
-        ASSERT(update_interface != nullptr && "UpdateInterface not supported!");
-        graph::Edge edge { request_argument<0>(), request_argument<1>() };
-        bool response = update_interface->delete_edge(edge);
-        send_response_bool(response);
+        if(update_interface == nullptr){
+            LOG("Operation not supported by the current interface: " << request()->type());
+            response(ResponseType::NOT_SUPPORTED);
+        } else {
+            graph::Edge edge { request()->get(0),  request()->get(1)};
+            bool result = update_interface->delete_edge(edge);
+            response(ResponseType::OK, result);
+        }
     } break;
     default:
-        ERROR("Invalid request type: " << request()->m_type);
+        ERROR("Invalid request type: " << request()->type());
         break;
     }
 }
 
-template<int N>
-const GenericRequest<N>* Server::ConnectionHandler::request() const {
-    return reinterpret_cast<const GenericRequest<N>*>(m_buffer_read);
+
+/**
+ * Retrieve the request being current processed
+ */
+const Request* Server::ConnectionHandler::request() const {
+    return reinterpret_cast<const Request*>(m_buffer_read);
 }
 
-template<int N>
-uint64_t Server::ConnectionHandler::request_argument() const {
-    return request<N+1>()->m_arguments[N];
-}
+template<typename... Args>
+void Server::ConnectionHandler::response(ResponseType type, Args... args){
+    new (m_buffer_write) Response(type, std::forward<Args>(args)...);
 
-void Server::ConnectionHandler::send_response_done(){
-    new (m_buffer_write) Response(sizeof(Response), ResponseType::OK);
-    send_response();
-}
-
-void Server::ConnectionHandler::send_response_uint64_t(uint64_t value){
-    new (m_buffer_write) ResponseSingleValue(sizeof(ResponseSingleValue), ResponseType::SINGLE_VALUE, value);
-    send_response();
-}
-
-void Server::ConnectionHandler::send_response_bool(bool value){
-    new (m_buffer_write) ResponseSingleValue(sizeof(ResponseSingleValue), ResponseType::SINGLE_VALUE, value ? 1 : 0);
-    send_response();
-}
-
-void Server::ConnectionHandler::send_response() {
     uint64_t message_sz = *(reinterpret_cast<uint32_t*>(m_buffer_write));
     assert(message_sz < buffer_sz && "The message is too long");
     ssize_t bytes_sent = send(m_fd, m_buffer_write, message_sz, /* flags */ 0);
     if(bytes_sent == -1) ERROR_ERRNO("send_response, connection error");
     assert(bytes_sent == message_sz && "Message not fully sent");
 }
-
 
 library::Interface* Server::ConnectionHandler::interface(){
     return m_instance->m_interface.get();

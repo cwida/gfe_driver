@@ -51,7 +51,8 @@ class Configuration {
     int m_num_threads_read { 0 }; // number of threads to use for the read operations
     int m_num_threads_write { 0 }; // number of threads to use for the write (insert/update/delete) operations
     uint64_t m_seed = 5051789ull; // random seed, used in various places in the experiments
-    int m_server_port = -1; // start a server instance with the given port
+    std::string m_server_host = ""; // the hostname for the remote server
+    int m_server_port = -1; // the port of the remote server
     bool m_verbose { false }; // verbose mode?
 
 public:
@@ -82,8 +83,14 @@ public:
     // Get the number of threads to use
     int num_threads(ThreadsType type) const;
 
+    // Do we conduct the experiment on a remote server?
+    bool is_remote_client() const;
+
     // Check whether this process is a remote server
     bool is_remote_server() const;
+
+    // Get the hostname of the remote host
+    std::string server_host() const;
 
     // Retrieve the port of the remote server
     int server_port() const;

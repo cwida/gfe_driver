@@ -19,6 +19,8 @@
 #include <iostream>
 
 #include "common/error.hpp"
+#include "library/interface.hpp"
+#include "network/server.hpp"
 
 #include "configuration.hpp"
 
@@ -41,6 +43,31 @@ int main(int argc, char* argv[]){
         cerr << "Error raised while saving the configuration into the database:\n";
         cerr << e << "\n";
         exit(EXIT_FAILURE);
+    }
+
+    // Init the library to evaluate
+    std::shared_ptr<library::Interface> interface;
+    try {
+        interface = library::generate();
+    } catch (common::Error& e){
+        cerr << "Error raise while generate the library interface:\n";
+        cerr << e << "\n";
+        exit(EXIT_FAILURE);
+    }
+
+    // Remote server mode ?
+    if (configuration().is_remote_server()){
+        try {
+            network::Server server{interface};
+            server.main_loop();
+
+        } catch(common::Error& e){
+            cerr << "Server error:\n";
+            cerr << e << "\n";
+            exit(EXIT_FAILURE);
+        }
+
+        return 0; // exit
     }
 
     return 0;

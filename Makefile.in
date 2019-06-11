@@ -43,8 +43,9 @@ sources := \
 	graph/edge.cpp \
 	graph/edge_stream.cpp \
 	graph/vertex_list.cpp \
-	network/request.cpp \
-	network/response.cpp \
+	library/interface.cpp \
+	network/client.cpp \
+	network/message.cpp \
 	network/server.cpp \
 	reader/format.cpp \
 	reader/plain_reader.cpp \

@@ -15,10 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "request.hpp"
-
-using namespace std;
-
+#include "message.hpp"
 
 namespace network {
 
@@ -32,6 +29,7 @@ std::ostream& operator<<(std::ostream& out, RequestType type){
     case RequestType::ON_MAIN_DESTROY: out << "ON_MAIN_DESTROY"; break;
     case RequestType::NUM_EDGES: out << "NUM_EDGES"; break;
     case RequestType::NUM_VERTICES: out << "NUM_VERTICES"; break;
+    case RequestType::LOAD: out << "LOAD"; break;
     case RequestType::ADD_VERTEX: out << "ADD_VERTEX"; break;
     case RequestType::DELETE_VERTEX: out << "REMOVE_VERTEX"; break;
     case RequestType::ADD_EDGE: out << "ADD_EDGE"; break;
@@ -41,28 +39,25 @@ std::ostream& operator<<(std::ostream& out, RequestType type){
     return out;
 }
 
-
-#define GENERIC(n) reinterpret_cast<const GenericRequest<n +1>*>(&request)->m_arguments[n]
-
 std::ostream& operator<<(std::ostream& out, const Request& request){
-    out << "[REQUEST " << request.m_type << ", message size: " << request.m_message_size;
-    switch(request.m_type){
+    out << "[REQUEST " << request.type() << ", message size: " << request.message_size();
+    switch(request.type()){
     case RequestType::ON_MAIN_INIT:
-        out << ", num threads: " << GENERIC(0);
+        out << ", num threads: " << request.get(0);
         break;
     case RequestType::ON_THREAD_INIT:
     case RequestType::ON_THREAD_DESTROY:
-        out << ", worker_id: " << GENERIC(0);
+        out << ", worker_id: " << request.get(0);
         break;
     case RequestType::ADD_VERTEX:
     case RequestType::DELETE_VERTEX:
-        out << ", vertex_id: " << GENERIC(0);
+        out << ", vertex_id: " << request.get(0);
         break;
     case RequestType::ADD_EDGE:
-        out << ", source: " << GENERIC(0) << ", destination: " << GENERIC(1) << ", weight: " << GENERIC(2);
+        out << ", source: " << request.get(0) << ", destination: " << request.get(1)<< ", weight: " << request.get(2);
         break;
     case RequestType::DELETE_EDGE:
-        out << ", source: " << GENERIC(0) << ", destination: " << GENERIC(1);
+        out << ", source: " << request.get(0) << ", destination: " << request.get(1);
         break;
     default:
         ; /* nop */
@@ -71,7 +66,6 @@ std::ostream& operator<<(std::ostream& out, const Request& request){
     out << "]";
     return out;
 }
-
 
 std::ostream& operator<<(std::ostream& out, const Request* request){
     if(request == nullptr){
@@ -82,6 +76,33 @@ std::ostream& operator<<(std::ostream& out, const Request* request){
     return out;
 }
 
+std::ostream& operator<<(std::ostream& out, ResponseType type){
+    switch(type){
+    case ResponseType::OK: out << "OK"; break;
+    case ResponseType::NOT_SUPPORTED: out << "NOT_SUPPORTED"; break;
+    default: out << "UNKNOWN (response code: " << (uint32_t) type << ")";
+    }
+    return out;
+}
+
+std::ostream& operator<<(std::ostream& out, const Response& response){
+    out << "[RESPONSE " << response.type() << ", message size: " << response.message_size();
+
+    for(int i = 0, end = response.num_arguments(); i < end; i++){
+        out << ", arg[" << i << "]: " << response.get<int64_t>(i);
+    }
+
+    out << "]";
+    return out;
+}
+
+std::ostream& operator<<(std::ostream& out, const Response* response){
+    if(response == nullptr){
+        out << "[RESPONSE nullptr]";
+    } else {
+        out << *response;
+    }
+    return out;
+}
 
 } // namespace network
-
