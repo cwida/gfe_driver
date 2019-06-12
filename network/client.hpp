@@ -96,6 +96,8 @@ public:
     virtual void on_main_destroy() override;
     virtual uint64_t num_edges() const override;
     virtual uint64_t num_vertices() const override;
+    virtual bool has_vertex(uint64_t vertex_id) const override;
+    virtual bool has_edge(uint64_t source, uint64_t destination) const override;
     virtual void load(const std::string& path) override;
     virtual bool add_vertex(uint64_t vertex_id) override;
     virtual bool delete_vertex(uint64_t vertex_id) override;

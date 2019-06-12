@@ -29,6 +29,8 @@ std::ostream& operator<<(std::ostream& out, RequestType type){
     case RequestType::ON_MAIN_DESTROY: out << "ON_MAIN_DESTROY"; break;
     case RequestType::NUM_EDGES: out << "NUM_EDGES"; break;
     case RequestType::NUM_VERTICES: out << "NUM_VERTICES"; break;
+    case RequestType::HAS_VERTEX: out << "HAS_VERTEX"; break;
+    case RequestType::HAS_EDGE: out << "HAS_EDGE"; break;
     case RequestType::LOAD: out << "LOAD"; break;
     case RequestType::ADD_VERTEX: out << "ADD_VERTEX"; break;
     case RequestType::DELETE_VERTEX: out << "REMOVE_VERTEX"; break;
@@ -48,6 +50,12 @@ std::ostream& operator<<(std::ostream& out, const Request& request){
     case RequestType::ON_THREAD_INIT:
     case RequestType::ON_THREAD_DESTROY:
         out << ", worker_id: " << request.get(0);
+        break;
+    case RequestType::HAS_VERTEX:
+        out << ", vertex_id: " << request.get(0);
+        break;
+    case RequestType::HAS_EDGE:
+        out << ", source: " << request.get(0) << ", destination: " << request.get(1);
         break;
     case RequestType::ADD_VERTEX:
     case RequestType::DELETE_VERTEX:

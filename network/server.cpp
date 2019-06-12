@@ -190,6 +190,14 @@ void Server::ConnectionHandler::handle_request(){
         uint64_t num_vertices = interface()->num_vertices();
         response(ResponseType::OK, num_vertices);
     } break;
+    case RequestType::HAS_VERTEX: {
+        bool result = interface()->has_vertex(request()->get(0));
+        response(ResponseType::OK, result);
+    } break;
+    case RequestType::HAS_EDGE: {
+        bool result = interface()->has_edge(request()->get(0), request()->get(1));
+        response(ResponseType::OK, result);
+    } break;
     case RequestType::LOAD: {
         library::LoaderInterface* loader_interface = dynamic_cast<library::LoaderInterface*>(interface());
         if(loader_interface == nullptr){

@@ -197,6 +197,18 @@ uint64_t Client::num_vertices() const {
     return response()->get(0);
 }
 
+bool Client::has_vertex(uint64_t vertex_id) const {
+    const_cast<Client*>(this)->request(RequestType::HAS_VERTEX, vertex_id);
+    assert(response()->type() == ResponseType::OK);
+    return response()->get<bool>(0);
+}
+
+bool Client::has_edge(uint64_t source, uint64_t destination) const {
+    const_cast<Client*>(this)->request(RequestType::HAS_EDGE, source, destination);
+    assert(response()->type() == ResponseType::OK);
+    return response()->get<bool>(0);
+}
+
 void Client::load(const std::string& path) {
     request(RequestType::LOAD, path.c_str());
     if(response()->type() == ResponseType::NOT_SUPPORTED){

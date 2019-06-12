@@ -17,7 +17,39 @@
 
 #include "interface.hpp"
 
+#include <memory>
+
+#if defined(HAVE_STINGER)
+#include "stinger/stinger.hpp"
+#endif
+
+using namespace std;
+
 namespace library {
+
+/*****************************************************************************
+ *                                                                           *
+ *  Factory                                                                  *
+ *                                                                           *
+ *****************************************************************************/
+ImplementationManifest::ImplementationManifest(const string& name, const string& description, unique_ptr<Interface> (*factory)(void)) :
+    m_name(name), m_description(description), m_factory(factory){ }
+
+#if defined(HAVE_STINGER)
+std::unique_ptr<Interface> generate_stinger(){
+    return unique_ptr<Interface>{ new Stinger() };
+}
+#endif
+
+vector<ImplementationManifest> implementations() {
+    vector<ImplementationManifest> result;
+
+#if defined(HAVE_STINGER)
+    result.emplace_back("stinger", "Stinger library", &generate_stinger);
+#endif
+
+    return result;
+}
 
 /*****************************************************************************
  *                                                                           *

@@ -53,6 +53,10 @@ sources := \
 	reader/utility.cpp \
 	configuration.cpp \
 	main.cpp
+
+ifneq (,$(findstring -DHAVE_STINGER,${ALL_CPPFLAGS}))
+	sources += library/stinger/stinger.cpp 
+endif
 	
 #############################################################################
 # The executables to create

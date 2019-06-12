@@ -19,11 +19,13 @@
 
 #include <cinttypes>
 #include <iostream>
+#include <memory>
 
 #include "common/error.hpp"
 
 class Configuration; // forward declaration
 namespace common { class Database; } // forward declaration
+namespace library { class Interface; } // forward declaration
 
 // Singleton interface
 Configuration& configuration();
@@ -42,11 +44,12 @@ class Configuration {
     Configuration(const Configuration& ) = delete;
     Configuration& operator=(const Configuration& ) = delete;
 
-
     // properties
     common::Database* m_database { nullptr }; // handle to the database
     std::string m_database_path { "results.sqlite3" }; // the path where to store the results
     std::string m_graph_path { "" };
+    std::string m_library_name; // the library to test
+    std::unique_ptr<library::Interface> (*m_library_factory)(void) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
     uint64_t m_num_aging_updates { 0 }; // number of additional updates to perform
     int m_num_threads_read { 0 }; // number of threads to use for the read operations
     int m_num_threads_write { 0 }; // number of threads to use for the write (insert/update/delete) operations
@@ -94,6 +97,9 @@ public:
 
     // Retrieve the port of the remote server
     int server_port() const;
+
+    // Generate an instance of the graph library to evaluate
+    std::unique_ptr<library::Interface> generate_graph_library();
 };
 
 

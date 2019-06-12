@@ -17,6 +17,9 @@
 
 #include "configuration.hpp"
 
+#include <algorithm>
+#include <cctype> // tolower
+#include <sstream>
 #include <string>
 #include <unistd.h> // sysconf
 
@@ -24,6 +27,7 @@
 #include "common/database.hpp"
 #include "common/quantity.hpp"
 #include "common/system.hpp"
+#include "library/interface.hpp"
 #include "third-party/cxxopts/cxxopts.hpp"
 
 using namespace common;
@@ -45,7 +49,6 @@ Configuration::Configuration() {
 }
 Configuration::~Configuration() {
     delete m_database; m_database = nullptr;
-    cout << "Done" << endl;
 }
 
 /*****************************************************************************
@@ -53,6 +56,23 @@ Configuration::~Configuration() {
  *  Command line arguments                                                   *
  *                                                                           *
  *****************************************************************************/
+static string libraries_help_screen(){
+    auto libs = library::implementations();
+    sort(begin(libs), end(libs), [](const auto& lib1, const auto& lib2){
+       return lib1.m_name < lib2.m_name;
+    });
+
+    stringstream stream;
+    stream << "The library to evaluate: ";
+    bool first = true;
+    for(const auto& l : libs){
+        if (first) first = false; else stream << ", ";
+        stream << l.m_name;
+    }
+
+    return stream.str();
+}
+
 void Configuration::parse_command_line_args(int argc, char* argv[]){
     using namespace cxxopts;
 
@@ -64,6 +84,7 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
         ("e, experiment", "The experiment to execute", value<string>())
         ("G, graph", "The path to the graph to load", value<string>())
         ("h, help", "Show this help menu")
+        ("l, library", libraries_help_screen())
         ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(m_seed)))
         ("r, readers", "The number of client threads to use for the read operations", value<int>()->default_value(to_string(m_num_threads_read)))
         ("server", "Remote connection, provide a string host:port for the client, and just the port for the server", value<std::string>())
@@ -86,6 +107,21 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
         m_graph_path = result["graph"].as<string>();
         m_seed = result["seed"].as<uint64_t>();
         m_verbose = ( result.count("verbose") > 0 );
+
+        // library to evaluate
+        if( result["library"].count() == 0 ){
+            ERROR("Missing mandatory argument --library. Which library do you want to evaluate??");
+        } else {
+            string library_name = result["library"].as<string>();
+            transform(begin(library_name), end(library_name), begin(library_name), ::tolower); // make it lower case
+            auto libs = library::implementations();
+            auto library_found = find_if(begin(libs), end(libs), [&library_name](const auto& candidate){
+                return library_name == candidate.m_name;
+            });
+            if(library_found == end(libs)){ ERROR("Library not recognised: `" << result["library"].as<string>() << "'"); }
+            m_library_name = library_found->m_name;
+            m_library_factory = library_found->m_factory;
+        }
 
         // number of threads
         if( result["threads"].count() > 0) {
@@ -147,6 +183,7 @@ void Configuration::save_parameters() {
     params.push_back(P{"git_commit", common::git_last_commit()});
     params.push_back(P{"graph", graph()});
     params.push_back(P{"hostname", common::hostname()});
+    params.push_back(P{"library", m_library_name});
     params.push_back(P{"num_aging_updates", to_string(m_num_aging_updates)});
     params.push_back(P{"num_threads_read", to_string(m_num_threads_read)});
     params.push_back(P{"num_threads_write", to_string(m_num_threads_write)});
@@ -201,4 +238,7 @@ int Configuration::server_port() const {
     return m_server_port;
 }
 
+std::unique_ptr<library::Interface> Configuration::generate_graph_library() {
+    return m_library_factory();
+}
 

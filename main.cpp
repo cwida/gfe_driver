@@ -48,7 +48,7 @@ int main(int argc, char* argv[]){
     // Init the library to evaluate
     std::shared_ptr<library::Interface> interface;
     try {
-        interface = library::generate();
+        interface = configuration().generate_graph_library();
     } catch (common::Error& e){
         cerr << "Error raise while generate the library interface:\n";
         cerr << e << "\n";
