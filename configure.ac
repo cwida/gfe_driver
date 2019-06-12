@@ -191,6 +191,73 @@ AC_SUBST([CMAKE_BUILD_TYPE])
 MY_CHECK_STDLIB_LIBCXX([CXX="$CXX -stdlib=libc++"])
 
 #############################################################################
+# Support for the library Stinger
+# Usage:
+# default (auto) => attempts to link with stinger, but it does not fail in case it cannot 
+# --without-stinger => disable support for stinger
+# --with-stinger => attempt to link with stinger and fails in case it cannot
+# --with-stinger=/path/to/stinger/build => add the given path into the list of libs and include paths for the $CC, it fails in case it cannot link with stinger 
+#
+AC_ARG_WITH([stinger], [AS_HELP_STRING([--with-stinger@<:@=ARG@:>@], [
+    Link with the (externally built) Stinger library. The argument needs to be the path where stinger is located. @<:@Default: auto@:>@
+    ])], [])    
+m4_divert_push([DEFAULTS])
+    AS_VAR_SET([with_stinger], ["auto"])
+m4_divert_pop([DEFAULTS])
+
+if ( test -z "${with_stinger}" ); then with_stinger="no"; dnl transform the empty string '' into 'no'
+elif ( test x"${with_stinger}" != x"yes" && test x"${with_stinger}" != x"auto" ); then dnl --with-stinger=/path/to/stinger/build
+    AS_VAR_APPEND([CPPFLAGS], [" -I${with_stinger}/include"])
+    AS_VAR_APPEND([LIBS], [" -L${with_stinger}/lib -Wl,-rpath=${with_stinger}/lib"])
+fi
+    
+dnl first argument is the function, second argument is the library
+m4_defun([_check_stinger_lib], [
+    if ( test x"${with_stinger}" != x"no" ); then
+        AC_SEARCH_LIBS([$1], [$2], [], [
+            if ( test x"${with_stinger}" = x"auto" ); then
+                AC_MSG_NOTICE([stinger support disabled, missing -l$2])
+                with_stinger="no";
+            else
+                AC_MSG_ERROR([cannot link with the library $2])
+            fi
+        ])
+    fi
+])
+_check_stinger_lib([stinger_new], [stinger_core])
+_check_stinger_lib([load_metisish_graph], [stinger_utils])
+_check_stinger_lib([page_rank], [stinger_alg])
+m4_undefine([_check_stinger_lib])
+    
+dnl check whether we can compile & link a simple program invoking functions from the stinger library
+if ( test x"${with_stinger}" != x"no" ); then
+    AC_LINK_IFELSE([
+        AC_LANG_PROGRAM([[
+            @%:@include "stinger_alg/shortest_paths.h"
+            @%:@include "stinger_core/stinger.h"
+            @%:@include "stinger_utils/metisish_support.h"
+        ]], [[
+            auto graph = stinger_new();
+            load_metisish_graph(graph, "my_test.metis"); // the file my_test.metis does not exist, just to check whether it compiles
+            a_star(graph, stinger_max_active_vertex(graph) +1, 0, 1, true); // bfs, to check stinger_alg
+        ]])
+    ], [], [
+        if ( test x"${with_stinger}" = x"auto" ); then
+            AC_MSG_NOTICE([stinger support disabled, cannot compile and link the test program])
+            with_stinger="no";
+        else
+            AC_MSG_FAILURE([unable to compile and link an executable with stinger])
+        fi
+    ])
+fi
+
+dnl add the definition HAVE_STINGER into the list of preprocessor variables $CPPFLAGS
+if( test x"${with_stinger}" != x"no" ); then
+    AC_MSG_NOTICE([stinger support enabled])
+    AS_VAR_APPEND([CPPFLAGS], [" -DHAVE_STINGER"])
+fi
+
+#############################################################################
 # Remove extra blanks from our variables
 EXTRA_CPPFLAGS=$(echo ${EXTRA_CPPFLAGS} | xargs)
 CPPFLAGS=$(echo ${CPPFLAGS} | xargs);

@@ -231,6 +231,7 @@ bool Client::add_edge(graph::WeightedEdge e){
     assert(response()->type() == ResponseType::OK);
     return response()->get<bool>(0);
 }
+
 bool Client::delete_edge(graph::Edge e){
     request(RequestType::DELETE_EDGE, e.source(), e.destination());
     if(response()->type() == ResponseType::NOT_SUPPORTED){
