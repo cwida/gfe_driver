@@ -17,6 +17,7 @@
 
 #include "reader.hpp"
 
+#include "dimacs9_reader.hpp"
 #include "format.hpp"
 #include "metis_reader.hpp"
 #include "plain_reader.hpp"
@@ -34,6 +35,8 @@ Reader::~Reader(){ }
 std::unique_ptr<Reader> Reader::open(const std::string& path){
     auto format = get_graph_format(path);
     switch(format){
+    case Format::DIMACS9:
+        return make_unique<Dimacs9Reader>(path);
     case Format::METIS:
         return make_unique<MetisReader>(path);
     case Format::PLAIN:

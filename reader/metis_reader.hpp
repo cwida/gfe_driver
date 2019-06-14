@@ -27,8 +27,7 @@ namespace graph { class WeightedEdge; } // forward decl.
 namespace reader {
 
 /**
- * Specific implementation to load the edges from a plain representation (.wel). The file consists
- * of an edge per line: src dst weight.
+ * Loader for the METIS v5.1 file format
  */
 class MetisReader : public Reader {
     std::fstream m_handle; // internal file handle

@@ -97,6 +97,12 @@ MetisReader::~MetisReader(){
     m_handle.close();
 }
 
+/*****************************************************************************
+ *                                                                           *
+ *  Parser                                                                   *
+ *                                                                           *
+ *****************************************************************************/
+
 bool MetisReader::fetch_next_line(){
     if(!m_handle.good()) return false;
     bool comment = false;

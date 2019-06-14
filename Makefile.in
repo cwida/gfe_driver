@@ -50,6 +50,7 @@ sources := \
 	network/client.cpp \
 	network/message.cpp \
 	network/server.cpp \
+	reader/dimacs9_reader.cpp \
 	reader/format.cpp \
 	reader/metis_reader.cpp \
 	reader/plain_reader.cpp \

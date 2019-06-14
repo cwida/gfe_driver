@@ -32,6 +32,8 @@ Format get_graph_format(const char* path) {
             return reader::Format::PLAIN_WEIGHTED;
         } else if( strcasecmp(extension, "metis") == 0 || strcasecmp(extension, "graph") == 0) {
             return reader::Format::METIS;
+        } else if( strcasecmp(extension, "gr") == 0 || strcasecmp(extension, "dimacs") == 0 || strcasecmp(extension, "dimacs9") == 0 ){
+            return reader::Format::DIMACS9;
         }
     }
 

@@ -27,6 +27,7 @@ enum class Format {
     PLAIN, // Extension .el, a list with one edge per line: src dst
     PLAIN_WEIGHTED, // Extension .wel, a list with one edge per line: src dst weight
     METIS, // Extension .metis or .graph, METIS v5.1 format
+    DIMACS9, // Extension .gr, .dimacs or .dimacs9, DIMACS challenge #9, year 2005-06, url: http://users.diag.uniroma1.it/challenge9/format.shtml#graph
 };
 
 
