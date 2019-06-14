@@ -36,8 +36,10 @@ std::unique_ptr<Reader> Reader::open(const std::string& path){
     switch(format){
     case Format::METIS:
         return make_unique<MetisReader>(path);
+    case Format::PLAIN:
+        return make_unique<PlainReader>(path, false);
     case Format::PLAIN_WEIGHTED:
-        return make_unique<PlainWeightedReader>(path);
+        return make_unique<PlainReader>(path, true);
     default:
         ERROR("Unrecognised graph format for the file: `" << path << "'");
     }

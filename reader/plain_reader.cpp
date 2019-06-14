@@ -30,18 +30,99 @@ using namespace std;
 
 namespace reader {
 
-PlainWeightedReader::PlainWeightedReader(const string& path) : m_handle(init_fstream(path)){
+/*****************************************************************************
+ *                                                                           *
+ *  Debug                                                                    *
+ *                                                                           *
+ *****************************************************************************/
+//#define DEBUG
+#define COUT_DEBUG_FORCE(msg) { std::cout << "[PlainReader::" << __FUNCTION__ << "] " << msg << std::endl; }
+#if defined(DEBUG)
+    #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
+#else
+    #define COUT_DEBUG(msg)
+#endif
+
+
+/*****************************************************************************
+ *                                                                           *
+ *  Initialisation                                                           *
+ *                                                                           *
+ *****************************************************************************/
+PlainReader::PlainReader(const std::string& path, bool is_weighted) : PlainReader(path, is_weighted, configuration().max_weight()) { }
+
+PlainReader::PlainReader(const string& path, bool is_weighted, uint32_t max_weight) :
+        m_handle(init_fstream(path)), m_is_weighted(is_weighted), m_max_weight(max_weight),
+        m_random_generator(configuration().seed() + 130233320) {
     LOG("[PlainWeightedReader] Reading `" << path << "' ...");
+    COUT_DEBUG("path: " << path << ", is_weighted: " << m_is_weighted << ", max_weight: " << m_max_weight);
 }
 
-PlainWeightedReader::~PlainWeightedReader(){
+PlainReader::~PlainReader(){
     m_handle.close();
 }
 
-bool PlainWeightedReader::read(graph::WeightedEdge& edge) {
-    if(m_handle.eof()) return false;
-    m_handle >> edge.m_source >> edge.m_destination >> edge.m_weight;
-    if(m_handle.fail()) ERROR("Error while processing the input file");
+/*****************************************************************************
+ *                                                                           *
+ *  Parser                                                                   *
+ *                                                                           *
+ *****************************************************************************/
+
+bool PlainReader::ignore_line(const char* line){
+    if(line == nullptr) return true;
+    while(isspace(line[0])) line++;
+    return line[0] == '#' || line[0] == '\0';
+}
+
+bool PlainReader::ignore_line(const std::string& line){
+    return ignore_line(line.c_str());
+}
+
+bool PlainReader::is_number(const char* marker){
+    return marker != nullptr && (marker[0] >= '0' && marker[0] <= '9');
+}
+
+bool PlainReader::read(graph::WeightedEdge& edge) {
+    if(!m_handle.good()) return false;
+
+    // read the next line that is not a comment
+    string current_line;
+    bool skip { true } ;
+    do {
+        getline(m_handle, current_line);
+
+        skip = ignore_line(current_line);
+#if defined(DEBUG)
+      if(skip) { COUT_DEBUG("line: `" << current_line << "' is a comment or an empty line, skipped"); }
+#endif
+    } while (skip && m_handle.good());
+    if(skip) return false; // ended with a comment
+
+    // read the source
+    char* next { nullptr };
+    const char* current = current_line.c_str();
+    while(isspace(current[0])) current++;
+    if(!is_number(current)) ERROR("line: `" << current_line << "', cannot read the source vertex");
+    edge.m_source = strtoull(current, &next, /* base */ 10);
+
+    while(isspace(next[0])) next++;
+    current = next;
+    if(!is_number(current)) ERROR("line: `" << current_line << "', cannot read the destination vertex");
+    edge.m_destination = strtoull(current, &next, 10);
+
+    if(m_is_weighted){
+        while(isspace(next[0])) next++;
+        current = next;
+        if(!is_number(current)) ERROR("line: `" << current_line << "', cannot read the weight");
+        edge.m_weight = strtoul(current, nullptr, 10);
+    } else if (m_max_weight == 1){
+        edge.m_weight = 1;
+    } else { // provide a random weight
+        uniform_int_distribution<uint32_t> distribution{1, static_cast<uint32_t>(m_max_weight)};
+        edge.m_weight = distribution(m_random_generator);
+    }
+    COUT_DEBUG("edge parsed: " << edge);
+
     return true;
 }
 
