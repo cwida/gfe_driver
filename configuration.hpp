@@ -50,6 +50,7 @@ class Configuration {
     std::string m_graph_path { "" };
     std::string m_library_name; // the library to test
     std::unique_ptr<library::Interface> (*m_library_factory)(void) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
+    uint64_t m_max_weight { 1024 }; // the maximum weight that can be assigned when reading non weighted graphs
     uint64_t m_num_aging_updates { 0 }; // number of additional updates to perform
     int m_num_threads_read { 0 }; // number of threads to use for the read operations
     int m_num_threads_write { 0 }; // number of threads to use for the write (insert/update/delete) operations
@@ -82,6 +83,9 @@ public:
 
     // Check whether we are in verbose mode, to print additional message to the output
     bool verbose() const { return m_verbose; }
+
+    // Get the max weight that can be assigned when
+    uint64_t max_weight() const { return m_max_weight; }
 
     // Get the number of threads to use
     int num_threads(ThreadsType type) const;

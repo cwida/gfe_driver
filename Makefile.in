@@ -51,6 +51,7 @@ sources := \
 	network/message.cpp \
 	network/server.cpp \
 	reader/format.cpp \
+	reader/metis_reader.cpp \
 	reader/plain_reader.cpp \
 	reader/reader.cpp \
 	reader/utility.cpp \
@@ -107,6 +108,7 @@ gtestlibs := $(addprefix ${gtestdir}/googlemock/gtest/,libgtest.a libgtest_main.
 testfolder := tests
 testsources := $(notdir $(wildcard ${srcdir}/${testfolder}/*.cpp))
 testbindir := $(abspath ${builddir}/${testfolder})
+testgraphs := ${testbindir}/graphs
 testartifacts := $(addprefix tests/, $(basename ${testsources}))
 testignored := "" # space separated list
 
@@ -123,8 +125,8 @@ check: ${testartifacts}
 				continue 2; \
 			fi; \
 		done; \
-		echo "> Executing $$f ..."; \
-		if [ -x "$$f" ]; then \
+		if [ -x "$$f" -a -f "$$f" ]; then \
+			echo "> Executing $$f ..."; \
 			$$f; \
 			if [ "$$?" -ne 0 ]; then \
 				echo "Test $$b failed. Avoiding running further tests."; \
@@ -138,14 +140,17 @@ check: ${testartifacts}
 	fi;
 
 ${testartifacts}: ${dependencies} | ${gtestlibs}
-${testartifacts}: % : %.cpp | ${testbindir}
-	${CXX} -I ${srcdir}/third-party/googletest/googletest/include ${LDFLAGS} $< -o $@ ${dependencies} ${gtestlibs}
+${testartifacts}: % : %.cpp | ${testbindir} ${testgraphs}
+	${CXX} -I ${srcdir}/third-party/googletest/googletest/include $(ALL_CXXFLAGS) ${LDFLAGS} $< -o $@ ${dependencies} ${gtestlibs}
 
 ${gtestlibs}: ${gtestdir}
 ${gtestdir}:
 	mkdir -pv ${gtestdir}
 	cmake -S ${srcdir}/third-party/googletest/ -B ${gtestdir}
 	make -C ${gtestdir} -j
+	
+${testgraphs}: | ${testbindir}
+	ln -s $(abspath ${srcdir})/tests/graphs $@
 
 #############################################################################
 # Build directories

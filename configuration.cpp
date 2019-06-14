@@ -85,8 +85,9 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
         ("G, graph", "The path to the graph to load", value<string>())
         ("h, help", "Show this help menu")
         ("l, library", libraries_help_screen())
-        ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(m_seed)))
+        ("max_weight", "The maximum weight that can be assigned when reading non weighted graphs", value<uint64_t>()->default_value(to_string(m_max_weight)))
         ("r, readers", "The number of client threads to use for the read operations", value<int>()->default_value(to_string(m_num_threads_read)))
+        ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(m_seed)))
         ("server", "Remote connection, provide a string host:port for the client, and just the port for the server", value<std::string>())
         ("t, threads", "The number of threads to use for both the read and write operations", value<int>()->default_value(to_string(m_num_threads_read + m_num_threads_write)))
         ("v, verbose", "Print additional messages to the output")
@@ -107,6 +108,12 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
         m_graph_path = result["graph"].as<string>();
         m_seed = result["seed"].as<uint64_t>();
         m_verbose = ( result.count("verbose") > 0 );
+
+        uint64_t max_weight = result["max_weight"].as<uint64_t>();
+        if(max_weight <= 0){
+            ERROR("Invalid value for the max weight, it must be an integer strictly positive, given: " << max_weight);
+        }
+        m_max_weight = max_weight;
 
         // library to evaluate
         if( result["library"].count() == 0 ){

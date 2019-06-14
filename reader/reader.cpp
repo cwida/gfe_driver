@@ -18,6 +18,7 @@
 #include "reader.hpp"
 
 #include "format.hpp"
+#include "metis_reader.hpp"
 #include "plain_reader.hpp"
 
 #undef CURRENT_ERROR_TYPE
@@ -33,6 +34,8 @@ Reader::~Reader(){ }
 std::unique_ptr<Reader> Reader::open(const std::string& path){
     auto format = get_graph_format(path);
     switch(format){
+    case Format::METIS:
+        return make_unique<MetisReader>(path);
     case Format::PLAIN_WEIGHTED:
         return make_unique<PlainWeightedReader>(path);
     default:
