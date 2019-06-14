@@ -31,6 +31,9 @@ class VertexList; // forward decl.
 
 // Load in memory a stream of edges with
 class WeightedEdgeStream {
+    WeightedEdgeStream(const WeightedEdgeStream&) = delete;
+    WeightedEdgeStream& operator=(const WeightedEdgeStream&) = delete;
+
     // edges are stores in three separate arrays:
     CByteArray* m_sources { nullptr }; // one for the sources
     CByteArray* m_destinations { nullptr }; // one for the destinations

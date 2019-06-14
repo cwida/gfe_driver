@@ -30,6 +30,10 @@ public:
 
     uint64_t source() const { return m_source; }
     uint64_t destination() const { return m_destination; }
+
+    // Check whether the two edges are equal
+    bool operator==(const Edge&) const noexcept;
+    bool operator!=(const Edge&) const noexcept;
 };
 
 // Simple representation of an edge as a tuple <source, destination, weight>
@@ -43,6 +47,10 @@ public:
 
     // Get a copy of the given (non weighted) edge
     Edge edge() const { return Edge{source(), destination()}; }
+
+    // Check whether the two edges are equal
+    bool operator==(const WeightedEdge&) const noexcept;
+    bool operator!=(const WeightedEdge&) const noexcept;
 };
 
 std::ostream& operator<<(std::ostream& out, const Edge& e);

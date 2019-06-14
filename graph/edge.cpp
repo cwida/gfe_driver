@@ -22,10 +22,25 @@ using namespace std;
 
 namespace graph {
 
+bool Edge::operator==(const Edge& e) const noexcept {
+    return source() == e.source() && destination() == e.destination();
+}
+
+bool Edge::operator!=(const Edge& e) const noexcept{
+    return !(*this == e);
+}
 
 WeightedEdge::WeightedEdge() : WeightedEdge(0,0,0){ }
 WeightedEdge::WeightedEdge(uint64_t source, uint64_t destination, uint32_t weight) : Edge{source, destination}, m_weight(weight){
 
+}
+
+bool WeightedEdge::operator==(const WeightedEdge& e) const noexcept {
+    return source() == e.source() && destination() == e.destination() && weight() == e.weight();
+}
+
+bool WeightedEdge::operator!=(const WeightedEdge& e) const noexcept{
+    return !(*this == e);
 }
 
 ostream& operator<<(std::ostream& out, const Edge& e) {
