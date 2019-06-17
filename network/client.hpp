@@ -18,13 +18,14 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "library/interface.hpp"
 #include "message.hpp"
 
 namespace network {
 
-class Client : public library::UpdateInterface, public library::LoaderInterface {
+class Client : public library::UpdateInterface, public library::LoaderInterface, public library::ShortestPathInterface {
     Client(const Client&) = delete;
     Client& operator=(const Client&) = delete;
 
@@ -98,11 +99,16 @@ public:
     virtual uint64_t num_vertices() const override;
     virtual bool has_vertex(uint64_t vertex_id) const override;
     virtual bool has_edge(uint64_t source, uint64_t destination) const override;
+    virtual int64_t get_weight(uint64_t source, uint64_t destination) const override;
     virtual void load(const std::string& path) override;
     virtual bool add_vertex(uint64_t vertex_id) override;
     virtual bool delete_vertex(uint64_t vertex_id) override;
     virtual bool add_edge(graph::WeightedEdge e) override;
     virtual bool delete_edge(graph::Edge e) override;
+    virtual void bfs_all(uint64_t source, std::vector<library::ShortestPathInterface::Distance>* result = nullptr) override;
+    virtual int64_t bfs_one(uint64_t source, uint64_t destination, std::vector<Distance>* path = nullptr) override;
+    virtual void spw_all(uint64_t source, std::vector<library::ShortestPathInterface::Distance>* result = nullptr) override;
+    virtual int64_t spw_one(uint64_t source, uint64_t destination, std::vector<library::ShortestPathInterface::Distance>* path = nullptr) override;
 };
 
 } // namespace network

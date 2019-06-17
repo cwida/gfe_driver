@@ -25,8 +25,26 @@ namespace library {
 // Generic exception thrown by the Stinger wrapper
 DEFINE_EXCEPTION(StingerError);
     
-class Stinger : public UpdateInterface, LoaderInterface {
+class Stinger : public UpdateInterface, public LoaderInterface, public ShortestPathInterface {
     void* m_stinger_graph {nullptr}; // opaque object, container of the handle to the stinger graph
+
+    /**
+     * Get the internal edge id for the given external vertex id
+     * @return the internal vertex id (index in the adjacency list) if the vertex exists, or -1 otherwise
+     */
+    int64_t get_internal_id(uint64_t vertex_id) const;
+
+
+    /**
+     * Retrieve the external vertex id for the given internal ID
+     * @return the external vertex id if the mapping exists, or std::numeric_limit<uint64>::max() otherwise
+     */
+    uint64_t get_external_id(int64_t vertex_id) const;
+
+    /**
+     * Base function to compute the shortest paths
+     */
+    int64_t compute_shortest_paths(uint64_t ext_source, uint64_t ext_destination, bool weighted, std::vector<library::ShortestPathInterface::Distance>* result);
 
 public:
 
@@ -56,9 +74,9 @@ public:
     virtual bool has_vertex(uint64_t vertex_id) const;
 
     /**
-     * Returns true if the given edge is present, false otherwise
+     * Retrieve the weight associated to the given edge, or -1 if the given edge does not exist
      */
-    virtual bool has_edge(uint64_t source, uint64_t destination) const;
+    virtual int64_t get_weight(uint64_t source, uint64_t destination) const;
 
     /**
      * Dump the content of the graph to stdout
@@ -93,6 +111,14 @@ public:
      * Load the whole graph representation from the given path
      */
     virtual void load(const std::string& path);
+
+    /**
+     * Methods to compute the shortest path
+     */
+    virtual void bfs_all(uint64_t source, std::vector<Distance>* result = nullptr);
+    virtual int64_t bfs_one(uint64_t source, uint64_t dest, std::vector<Distance>* path = nullptr);
+    virtual void spw_all(uint64_t source, std::vector<Distance>* result = nullptr);
+    virtual int64_t spw_one(uint64_t source, uint64_t dest, std::vector<Distance>* path = nullptr);
 };
 
 }

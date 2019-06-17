@@ -209,6 +209,12 @@ bool Client::has_edge(uint64_t source, uint64_t destination) const {
     return response()->get<bool>(0);
 }
 
+int64_t Client::get_weight(uint64_t source, uint64_t destination) const {
+    const_cast<Client*>(this)->request(RequestType::GET_WEIGHT, source, destination);
+    assert(response()->type() == ResponseType::OK);
+    return response()->get<int64_t>(0);
+}
+
 void Client::load(const std::string& path) {
     request(RequestType::LOAD, path.c_str());
     if(response()->type() == ResponseType::NOT_SUPPORTED){
@@ -251,6 +257,32 @@ bool Client::delete_edge(graph::Edge e){
     }
     assert(response()->type() == ResponseType::OK);
     return response()->get<bool>(0);
+}
+
+void Client::bfs_all(uint64_t source, std::vector<library::ShortestPathInterface::Distance>* result){
+    if(result != nullptr){ ERROR("output result not supported in network mode"); }
+    request(RequestType::BFS_ALL, source);
+    assert(response()->type() == ResponseType::OK);
+}
+
+int64_t Client::bfs_one(uint64_t source, uint64_t dest, std::vector<library::ShortestPathInterface::Distance>* path) {
+    if(path != nullptr){ ERROR("output path not supported in network mode"); }
+    request(RequestType::BFS_ONE, source, dest);
+    assert(response()->type() == ResponseType::OK);
+    return response()->get<int64_t>(0);
+}
+
+void Client::spw_all(uint64_t source, std::vector<library::ShortestPathInterface::Distance>* result){
+    if(result != nullptr){ ERROR("output result not supported in network mode"); }
+    request(RequestType::SPW_ALL, source);
+    assert(response()->type() == ResponseType::OK);
+}
+
+int64_t Client::spw_one(uint64_t source, uint64_t dest, std::vector<library::ShortestPathInterface::Distance>* path){
+    if(path != nullptr){ ERROR("output path not supported in network mode"); }
+    request(RequestType::SPW_ONE, source, dest);
+    assert(response()->type() == ResponseType::OK);
+    return response()->get<int64_t>(0);
 }
 
 } // namespace network

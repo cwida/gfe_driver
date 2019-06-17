@@ -62,5 +62,15 @@ void Interface::on_main_init(int num_threads){ };
 void Interface::on_thread_init(int thread_id){ };
 void Interface::on_thread_destroy(int thread_id){ } ;
 void Interface::on_main_destroy(){ };
+bool Interface::has_edge(uint64_t source, uint64_t destination) const {
+    return get_weight(source, destination) != -1;
+}
+
+/*****************************************************************************
+ *                                                                           *
+ *  Shortest paths                                                           *
+ *                                                                           *
+ *****************************************************************************/
+ShortestPathInterface::Distance::Distance(uint64_t vertex, uint64_t distance) : m_vertex(vertex), m_distance(distance) { }
 
 } // namespace library

@@ -21,14 +21,17 @@
 #include <cassert>
 #include <cstdlib> // strtoull
 #include <mutex>
+#include <queue>
 #include <sstream>
 #include <string>
+#include <thread> // debug only
 
 // stinger support
 #include "stinger_core/stinger.h"
 #include "stinger_utils/metisish_support.h"
 
 // internal includes
+#include "common/system.hpp"
 #include "reader/format.hpp" // graph format for the method #load
 
 using namespace std;
@@ -45,9 +48,9 @@ namespace library {
  *  Debug                                                                     *
  *                                                                            *
  *****************************************************************************/
-static mutex _stinger_debug_mutex;
+mutex _stinger_debug_mutex;
 //#define DEBUG
-#define COUT_DEBUG_FORCE(msg) { scoped_lock<mutex> lock(_stinger_debug_mutex); std::cout << "[Stinger::" << __FUNCTION__ << "] [" << this_thread::get_id() << "] " << msg << std::endl; }
+#define COUT_DEBUG_FORCE(msg) { scoped_lock<mutex> lock(_stinger_debug_mutex); std::cout << "[Stinger::" << __FUNCTION__ << "] [" << common::concurrency::get_thread_id() << "] " << msg << std::endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
 #else
@@ -83,6 +86,24 @@ static int64_t convert_external2stinger(struct stinger* graph, uint64_t external
     return stinger_mapping_lookup(graph, buffer, sizeof(buffer));
 }
 
+int64_t Stinger::get_internal_id(uint64_t vertex_id) const{
+    return convert_external2stinger(STINGER, vertex_id);
+}
+
+uint64_t Stinger::get_external_id(int64_t internal_vertex_id) const{
+    uint64_t result = numeric_limits<uint64_t>::max();
+
+    char* vertex_id_name = nullptr; uint64_t vertex_id_name_length = 0;
+    int rc = stinger_mapping_physid_get(STINGER, internal_vertex_id, &vertex_id_name, &vertex_id_name_length);
+    if( rc == 0 ){ // mapping found
+        result = stoull(vertex_id_name);
+    }
+
+    free(vertex_id_name); vertex_id_name = nullptr;
+
+    return result;
+}
+
 /******************************************************************************
  *                                                                            *
  *  Properties                                                                *
@@ -103,23 +124,30 @@ bool Stinger::has_vertex(uint64_t vertex_id) const {
     return stinger_vertex_id >= 0; // -1 => the vertex_id has not been set in the dictionary
 }
 
-bool Stinger::has_edge(uint64_t ext_source_id, uint64_t ext_destination_id) const {
+int64_t Stinger::get_weight(uint64_t ext_source_id, uint64_t ext_destination_id) const {
+    COUT_DEBUG("external: " << ext_source_id << " -> " << ext_destination_id);
+
     char buffer[64];
     sprintf(buffer, "%" PRIu64, ext_source_id);
     int64_t stg_source_id = stinger_mapping_lookup(STINGER, buffer, sizeof(buffer)); // stinger_names is reported to be thread_safe
-    if(stg_source_id <= 0) return false; // the source node does not exist
+    if(stg_source_id < 0) {
+        COUT_DEBUG("the vertex "  << ext_source_id << " does not exist");
+        return -1; // the source node does not exist
+    }
     sprintf(buffer, "%" PRIu64, ext_destination_id);
     int64_t stg_destination_id = stinger_mapping_lookup(STINGER, buffer, sizeof(buffer)); // stinger_names is reported to be thread_safe
-    if(stg_destination_id <= 0) return false; // the destination node does not exist
+    if(stg_destination_id < 0) {
+        COUT_DEBUG("the vertex "  << ext_destination_id << " does not exist");
+        return -1; // the destination node does not exist
+    }
 
-    bool exists = false;
     STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(STINGER, stg_source_id) {
         if(STINGER_EDGE_DEST == stg_destination_id){
-            exists = true;
+            return STINGER_EDGE_WEIGHT;
         }
     } STINGER_FORALL_OUT_EDGES_OF_VTX_END();
 
-    return exists;
+    return -1;
 }
 
 
@@ -152,7 +180,7 @@ bool Stinger::add_vertex(uint64_t vertex_id){
 }
 
 bool Stinger::delete_vertex(uint64_t ext_vertex_id){
-    int64_t vertex_id = convert_external2stinger(STINGER, ext_vertex_id);
+    int64_t vertex_id = get_internal_id(ext_vertex_id);
     if(vertex_id < 0) return false; // the vertex does not exist
 
     auto rc = stinger_remove_vertex(STINGER, ext_vertex_id);
@@ -165,9 +193,9 @@ bool Stinger::delete_vertex(uint64_t ext_vertex_id){
 
 bool Stinger::add_edge(graph::WeightedEdge e){
     // get the indices in the adjacency lists
-    int64_t src = convert_external2stinger(STINGER, e.source());
+    int64_t src = get_internal_id(e.source());
     if(src < 0) return false; // the source does not exist
-    int64_t dst = convert_external2stinger(STINGER, e.destination());
+    int64_t dst = get_internal_id(e.destination());
     if(dst < 0) return false; // the destination does not exist
 
     int rc = stinger_insert_edge (STINGER, /* type, ignore */ 0 , src, dst, static_cast<int64_t>(e.weight()), /* timestamp, ignore */ 0);
@@ -179,9 +207,9 @@ bool Stinger::add_edge(graph::WeightedEdge e){
 
 bool Stinger::delete_edge(graph::Edge e){
     // get the indices in the adjacency lists
-    int64_t src = convert_external2stinger(STINGER, e.source());
+    int64_t src = get_internal_id(e.source());
     if(src < 0) return false; // the source does not exist
-    int64_t dst = convert_external2stinger(STINGER, e.destination());
+    int64_t dst = get_internal_id(e.destination());
     if(dst < 0) return false; // the destination does not exist
 
     int rc = stinger_remove_edge(STINGER, /* type, ignore */ 0, src, dst);

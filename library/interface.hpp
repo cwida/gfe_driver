@@ -93,7 +93,12 @@ public:
     /**
      * Returns true if the given edge is present, false otherwise
      */
-    virtual bool has_edge(uint64_t source, uint64_t destination) const = 0;
+    virtual bool has_edge(uint64_t source, uint64_t destination) const;
+
+    /**
+     * Returns the weight of the given edge is the edge is present, or -1 otherwise
+     */
+    virtual int64_t get_weight(uint64_t source, uint64_t destination) const = 0;
 };
 
 
@@ -141,6 +146,58 @@ public:
      */
     virtual void load(const std::string& path) = 0;
 };
+
+
+/**
+ * Shortest paths interface
+ */
+class ShortestPathInterface : public virtual Interface {
+public:
+    /**
+     * Report the distance from the source to the given destination and the cumulative weight in the path, assuming a value of 1 for edge
+     * traversed in a non weighted shortest path
+     */
+    class Distance {
+    public:
+        Distance(uint64_t vertex, uint64_t distance); // ctor
+
+        uint64_t m_vertex;
+        uint64_t m_distance;
+    };
+
+    /**
+     * Find the shortest path (non weighted) from the source_id to all other connected vertices in the graph
+     * @param source: the source vertex
+     * @param result: if != null, report the distance to all vertices found
+     */
+    virtual void bfs_all(uint64_t source, std::vector<Distance>* result = nullptr) = 0;
+
+    /**
+     * Find the shortest number of edges to traverse from the source to the destination
+     * @param source the source vertex
+     * @param destination the destination vertex
+     * @param path if != null, store the intermediate vertices in the path
+     * @return -1 if source is not connected to dest, otherwise the distance from source to dest
+     */
+    virtual int64_t bfs_one(uint64_t source, uint64_t destination, std::vector<Distance>* path = nullptr) = 0;
+
+    /**
+     * Compute the weighted shortest distance from the source to all the other connected vertices in the graph
+     * @param source: the source vertex
+     * @param result: if != null, report the distance to all vertices found
+     */
+    virtual void spw_all(uint64_t source, std::vector<Distance>* result = nullptr) = 0;
+
+    /**
+     * Compute the weighted shortest distance from the source to the destination
+     * @param source: the source vertex
+     * @param destination: the destination vertex
+     * @param result: if != null, report the distance to all vertices found
+     * @return -1 if source is not connected to dest, otherwise the distance from source to dest
+     */
+    virtual int64_t spw_one(uint64_t source, uint64_t destination, std::vector<Distance>* path = nullptr) = 0;
+};
+
 
 } // namespace library
 

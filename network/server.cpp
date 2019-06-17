@@ -198,6 +198,10 @@ void Server::ConnectionHandler::handle_request(){
         bool result = interface()->has_edge(request()->get(0), request()->get(1));
         response(ResponseType::OK, result);
     } break;
+    case RequestType::GET_WEIGHT: {
+        int64_t result = interface()->get_weight(request()->get(0), request()->get(1));
+        response(ResponseType::OK, result);
+    } break;
     case RequestType::LOAD: {
         library::LoaderInterface* loader_interface = dynamic_cast<library::LoaderInterface*>(interface());
         if(loader_interface == nullptr){
@@ -250,6 +254,46 @@ void Server::ConnectionHandler::handle_request(){
             graph::Edge edge { request()->get(0),  request()->get(1)};
             bool result = update_interface->delete_edge(edge);
             response(ResponseType::OK, result);
+        }
+    } break;
+    case RequestType::BFS_ALL: {
+        library::ShortestPathInterface* shortest_path_interface = dynamic_cast<library::ShortestPathInterface*>(interface());
+        if(shortest_path_interface == nullptr){
+            LOG("Operation not supported by the current interface: " << request()->type());
+            response(ResponseType::NOT_SUPPORTED);
+        } else {
+            shortest_path_interface->bfs_all(request()->get(0), nullptr);
+            response(ResponseType::OK);
+        }
+    } break;
+    case RequestType::BFS_ONE: {
+        library::ShortestPathInterface* shortest_path_interface = dynamic_cast<library::ShortestPathInterface*>(interface());
+        if(shortest_path_interface == nullptr){
+            LOG("Operation not supported by the current interface: " << request()->type());
+            response(ResponseType::NOT_SUPPORTED);
+        } else {
+            int64_t distance = shortest_path_interface->bfs_one(request()->get(0), request()->get(1), nullptr);
+            response(ResponseType::OK, distance);
+        }
+    } break;
+    case RequestType::SPW_ALL: {
+        library::ShortestPathInterface* shortest_path_interface = dynamic_cast<library::ShortestPathInterface*>(interface());
+        if(shortest_path_interface == nullptr){
+            LOG("Operation not supported by the current interface: " << request()->type());
+            response(ResponseType::NOT_SUPPORTED);
+        } else {
+            shortest_path_interface->spw_all(request()->get(0), nullptr);
+            response(ResponseType::OK);
+        }
+    } break;
+    case RequestType::SPW_ONE: {
+        library::ShortestPathInterface* shortest_path_interface = dynamic_cast<library::ShortestPathInterface*>(interface());
+        if(shortest_path_interface == nullptr){
+            LOG("Operation not supported by the current interface: " << request()->type());
+            response(ResponseType::NOT_SUPPORTED);
+        } else {
+            int64_t distance = shortest_path_interface->spw_one(request()->get(0), request()->get(1), nullptr);
+            response(ResponseType::OK, distance);
         }
     } break;
     default:

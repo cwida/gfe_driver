@@ -33,9 +33,10 @@ enum class RequestType : uint32_t {
     TERMINATE_WORKER, // terminate only the worker connection
     ON_MAIN_INIT, ON_THREAD_INIT, ON_THREAD_DESTROY, ON_MAIN_DESTROY,
     NUM_EDGES, NUM_VERTICES,
-    HAS_VERTEX, HAS_EDGE,
+    HAS_VERTEX, HAS_EDGE, GET_WEIGHT,
     LOAD, // load the graph from disk
-    ADD_VERTEX, DELETE_VERTEX, ADD_EDGE, DELETE_EDGE
+    ADD_VERTEX, DELETE_VERTEX, ADD_EDGE, DELETE_EDGE,
+    BFS_ALL, BFS_ONE, SPW_ALL, SPW_ONE, // shortest paths
 };
 
 /**

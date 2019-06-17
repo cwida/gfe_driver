@@ -21,6 +21,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 #include "third-party/libcuckoo/cuckoohash_map.hh"
 
 
@@ -59,6 +60,11 @@ public:
     WeightedEdgeStream(const std::string& path);
 
     /**
+     * Load the list of edges from the given vector
+     */
+    WeightedEdgeStream(const std::vector<WeightedEdge>& vector);
+
+    /**
      * Destructor
      */
     ~WeightedEdgeStream();
@@ -85,7 +91,6 @@ public:
     // Get the max vertex id present
     uint64_t max_vertex_id() const { return m_max_vertex_id; };
 };
-
 
 } // namespace graph
 

@@ -91,6 +91,24 @@ WeightedEdgeStream::WeightedEdgeStream(const std::string& path){
     LOG("Loaded " << m_num_edges << ", max vertex id: " << m_max_vertex_id << ", max weight: " << m_max_weight << ". Load performed in " << timer);
 }
 
+WeightedEdgeStream::WeightedEdgeStream(const std::vector<WeightedEdge>& vector){
+    m_num_edges = vector.size();
+    m_sources = new CByteArray(/* bytes per element */ 8, /* capacity */ m_num_edges);
+    m_destinations = new CByteArray(/* bytes per element */ 8, /* capacity */ m_num_edges);
+    m_weights = new CByteArray(/* bytes per element */ 4, /* capacity */ m_num_edges);
+
+    for(size_t i = 0, sz = m_num_edges; i < sz; i++){
+        const auto& edge = vector[i];
+        m_sources->set_value_at(i, edge.m_source);
+        m_destinations->set_value_at(i, edge.m_destination);
+        m_weights->set_value_at(i, edge.m_weight);
+
+        m_max_vertex_id = std::max(m_max_vertex_id, std::max(edge.m_source, edge.m_destination));
+        m_max_weight = std::max<uint64_t>(m_max_weight, edge.m_weight);
+    }
+}
+
+
 WeightedEdgeStream::~WeightedEdgeStream(){
     delete m_sources; m_sources = nullptr;
     delete m_destinations; m_destinations = nullptr;

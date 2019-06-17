@@ -31,11 +31,16 @@ std::ostream& operator<<(std::ostream& out, RequestType type){
     case RequestType::NUM_VERTICES: out << "NUM_VERTICES"; break;
     case RequestType::HAS_VERTEX: out << "HAS_VERTEX"; break;
     case RequestType::HAS_EDGE: out << "HAS_EDGE"; break;
+    case RequestType::GET_WEIGHT: out << "GET_WEIGHT"; break;
     case RequestType::LOAD: out << "LOAD"; break;
     case RequestType::ADD_VERTEX: out << "ADD_VERTEX"; break;
     case RequestType::DELETE_VERTEX: out << "REMOVE_VERTEX"; break;
     case RequestType::ADD_EDGE: out << "ADD_EDGE"; break;
     case RequestType::DELETE_EDGE: out << "REMOVE_EDGE"; break;
+    case RequestType::BFS_ALL: out << "BFS_ALL"; break;
+    case RequestType::BFS_ONE: out << "BFS_ONE"; break;
+    case RequestType::SPW_ALL: out << "SPW_ALL"; break;
+    case RequestType::SPW_ONE: out << "SPW_ONE"; break;
     default: out << "UNKNOWN (request code: " << (uint32_t) type << ")";
     }
     return out;
