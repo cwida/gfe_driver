@@ -27,8 +27,10 @@
 #include "configuration.hpp"
 #include "graph/edge_stream.hpp"
 #include "library/interface.hpp"
-#include "library/stinger/stinger.hpp"
 
+#if defined(HAVE_STINGER)
+#include "library/stinger/stinger.hpp"
+#endif
 
 using namespace library;
 using namespace std;
@@ -221,12 +223,12 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
 
 
 #if defined(HAVE_STINGER)
-TEST(StingerUpdates, Sequential) {
+TEST(Stinger, UpdatesSequential) {
     auto stinger = make_shared<Stinger>();
     sequential(stinger);
 
 }
-TEST(StingerUpdates, Parallel) {
+TEST(Stinger, UpdatesParallel) {
     auto stinger = make_shared<Stinger>();
     parallel(stinger, 128);
     parallel(stinger, 1024);
@@ -235,6 +237,6 @@ TEST(StingerUpdates, Parallel) {
 #endif
 
 
-TEST(Updates, Dummy){
+TEST(Dummy, Updates){
     // Placeholder in case there are no libraries installed
 }

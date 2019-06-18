@@ -73,4 +73,9 @@ bool Interface::has_edge(uint64_t source, uint64_t destination) const {
  *****************************************************************************/
 ShortestPathInterface::Distance::Distance(uint64_t vertex, uint64_t distance) : m_vertex(vertex), m_distance(distance) { }
 
+std::ostream& operator<<(std::ostream& out, const ShortestPathInterface::Distance& distance){
+    out << "[vertex: " << distance.m_vertex << ", distance: " << distance.m_distance << "]";
+    return out;
+}
+
 } // namespace library

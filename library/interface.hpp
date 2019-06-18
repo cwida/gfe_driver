@@ -19,6 +19,7 @@
 
 #include <iostream>
 #include <memory>
+#include <ostream>
 #include <vector>
 
 #include "graph/edge.hpp"
@@ -197,6 +198,9 @@ public:
      */
     virtual int64_t spw_one(uint64_t source, uint64_t destination, std::vector<Distance>* path = nullptr) = 0;
 };
+
+// Print the distance, for debug purposes
+std::ostream& operator<<(std::ostream& out, const ShortestPathInterface::Distance& distance);
 
 
 } // namespace library

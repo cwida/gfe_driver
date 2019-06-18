@@ -125,6 +125,8 @@ static int64_t a_star(stinger_t * S, int64_t NV, int64_t source_vertex, int64_t 
 }
 
 static int64_t a_star_debug(stinger_t * S, int64_t NV, int64_t source_vertex, int64_t dest_vertex, bool ignore_weights, std::vector<library::ShortestPathInterface::Distance>& result){
+    COUT_DEBUG("NV: " << NV << ", source_vertex: " << source_vertex << ", dest_vertex: " << dest_vertex << ", ignore weights: " << ignore_weights);
+
     std::vector<int64_t> cost_so_far(NV);
     std::vector<int64_t> predecessor(NV);
     for (int64_t v = 0; v < NV; v++){
@@ -145,7 +147,10 @@ static int64_t a_star_debug(stinger_t * S, int64_t NV, int64_t source_vertex, in
         weighted_vertex_t current = frontier.top();
         frontier.pop();
 
+        COUT_DEBUG("current: " << current.vertex);
+
         if (current.vertex == dest_vertex) {
+            COUT_DEBUG("break");
             break; //we found our goal!
         } else {
             STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(S, current.vertex)
@@ -188,6 +193,7 @@ static int64_t a_star_debug(stinger_t * S, int64_t NV, int64_t source_vertex, in
         return cost_so_far[dest_vertex]; //should return max integer value as a placeholder for infinity
     } else {
         for (int64_t v = 0; v < NV; v++){
+            COUT_DEBUG("cost_so_far[" << v << "]: " << cost_so_far[v]);
             if(cost_so_far[v] < std::numeric_limits<int64_t>::max()){
                 result.emplace_back(v, cost_so_far[v]);
             }
@@ -197,8 +203,7 @@ static int64_t a_star_debug(stinger_t * S, int64_t NV, int64_t source_vertex, in
 
 }
 
-
-} // anonymouse namespace
+} // anonymous namespace
 
 
 /******************************************************************************
@@ -215,10 +220,10 @@ int64_t Stinger::compute_shortest_paths(uint64_t ext_source, uint64_t ext_destin
         return -1;
     }
     int64_t id_destination = -1;
-    if(id_destination != std::numeric_limits<uint64_t>::max()){
+    if(ext_destination != std::numeric_limits<uint64_t>::max()){
         id_destination = get_internal_id(ext_destination);
         if(id_destination < 0){
-            COUT_DEBUG("The destination vertex does not exist: " << ext_source);
+            COUT_DEBUG("The destination vertex does not exist: " << ext_destination);
             return -1;
         }
     }
@@ -226,9 +231,9 @@ int64_t Stinger::compute_shortest_paths(uint64_t ext_source, uint64_t ext_destin
     // trampoline
     int64_t distance {0};
     if(result == nullptr){
-        distance = a_star(STINGER, stinger_max_active_vertex(STINGER), id_source, id_destination, !weighted);
+        distance = a_star(STINGER, stinger_max_active_vertex(STINGER) +1, id_source, id_destination, !weighted);
     } else {
-        distance = a_star_debug(STINGER, stinger_max_active_vertex(STINGER), id_source, id_destination, !weighted, *result);
+        distance = a_star_debug(STINGER, stinger_max_active_vertex(STINGER) +1, id_source, id_destination, !weighted, *result);
 
         // transform the internal IDs back to the external vertex IDs
         for(uint64_t i =0, sz = result->size(); i < sz; i++){
@@ -236,7 +241,7 @@ int64_t Stinger::compute_shortest_paths(uint64_t ext_source, uint64_t ext_destin
         }
     }
 
-    return distance;
+    return (distance != numeric_limits<int64_t>::max()) ? distance : -1;
 }
 
 void Stinger::bfs_all(uint64_t source, std::vector<library::ShortestPathInterface::Distance>* result){

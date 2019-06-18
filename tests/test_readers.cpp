@@ -20,85 +20,18 @@
 #include "common/error.hpp"
 #include "common/filesystem.hpp"
 #include "graph/edge.hpp"
+#include "graph/edge_stream.hpp"
 #include "reader/dimacs9_reader.hpp"
 #include "reader/metis_reader.hpp"
 #include "reader/plain_reader.hpp"
 
 using namespace std;
-using namespace graph;
 using namespace reader;
 
 TEST(PlainWeighted, WithoutComments) {
-    PlainReader reader(common::filesystem::directory_executable() + "/graphs/weighted_no_comments.wel", /* weighted */ true);
+    graph::WeightedEdgeStream stream{  common::filesystem::directory_executable() + "/graphs/weighted_no_comments.wel" };
+    stream.permute();
 
-    WeightedEdge edge;
-    bool rc { false };
-
-    // vertex 1
-    // 2 10 3 100 4 200
-    rc = reader.read(edge);
-    ASSERT_EQ(rc, true);
-    ASSERT_EQ(edge.source(), 1);
-    ASSERT_EQ(edge.destination(), 2);
-    ASSERT_EQ(edge.weight(), 10);
-    rc = reader.read(edge);
-    ASSERT_EQ(rc, true);
-    ASSERT_EQ(edge.source(), 1);
-    ASSERT_EQ(edge.destination(), 3);
-    ASSERT_EQ(edge.weight(), 100);
-    rc = reader.read(edge);
-    ASSERT_EQ(rc, true);
-    ASSERT_EQ(edge.source(), 1);
-    ASSERT_EQ(edge.destination(), 4);
-    ASSERT_EQ(edge.weight(), 200);
-
-    // vertex 2
-    // 1 10 4 10
-    rc = reader.read(edge);
-    ASSERT_EQ(rc, true);
-    ASSERT_EQ(edge.source(), 2);
-    ASSERT_EQ(edge.destination(), 1);
-    ASSERT_EQ(edge.weight(), 10);
-    rc = reader.read(edge);
-    ASSERT_EQ(rc, true);
-    ASSERT_EQ(edge.source(), 2);
-    ASSERT_EQ(edge.destination(), 4);
-    ASSERT_EQ(edge.weight(), 10);
-
-    // vertex 3
-    // 1 100 4 10
-    rc = reader.read(edge);
-    ASSERT_EQ(rc, true);
-    ASSERT_EQ(edge.source(), 3);
-    ASSERT_EQ(edge.destination(), 1);
-    ASSERT_EQ(edge.weight(), 100);
-    rc = reader.read(edge);
-    ASSERT_EQ(rc, true);
-    ASSERT_EQ(edge.source(), 3);
-    ASSERT_EQ(edge.destination(), 4);
-    ASSERT_EQ(edge.weight(), 10);
-
-    // vertex 4
-    // 1 200 2 10 3 10
-    rc = reader.read(edge);
-    ASSERT_EQ(rc, true);
-    ASSERT_EQ(edge.source(), 4);
-    ASSERT_EQ(edge.destination(), 1);
-    ASSERT_EQ(edge.weight(), 200);
-    rc = reader.read(edge);
-    ASSERT_EQ(rc, true);
-    ASSERT_EQ(edge.source(), 4);
-    ASSERT_EQ(edge.destination(), 2);
-    ASSERT_EQ(edge.weight(), 10);
-    rc = reader.read(edge);
-    ASSERT_EQ(rc, true);
-    ASSERT_EQ(edge.source(), 4);
-    ASSERT_EQ(edge.destination(), 3);
-    ASSERT_EQ(edge.weight(), 10);
-
-    // eof
-    rc = reader.read(edge);
-    ASSERT_EQ(rc, false);
 }
 
 TEST(PlainWeighted, WithComments) {
