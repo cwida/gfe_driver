@@ -25,7 +25,7 @@ namespace library {
 // Generic exception thrown by the Stinger wrapper
 DEFINE_EXCEPTION(StingerError);
     
-class Stinger : public UpdateInterface, public LoaderInterface, public ShortestPathInterface {
+class Stinger : public virtual UpdateInterface, public virtual LoaderInterface, public virtual AnalyticsInterface {
     void* m_stinger_graph {nullptr}; // opaque object, container of the handle to the stinger graph
 
     /**

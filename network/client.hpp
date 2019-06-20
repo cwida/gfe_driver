@@ -25,7 +25,7 @@
 
 namespace network {
 
-class Client : public library::UpdateInterface, public library::LoaderInterface, public library::ShortestPathInterface {
+class Client : public virtual library::UpdateInterface, public virtual library::LoaderInterface, public virtual library::AnalyticsInterface {
     Client(const Client&) = delete;
     Client& operator=(const Client&) = delete;
 
