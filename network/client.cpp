@@ -259,30 +259,52 @@ bool Client::delete_edge(graph::Edge e){
     return response()->get<bool>(0);
 }
 
-void Client::bfs_all(uint64_t source, std::vector<library::ShortestPathInterface::Distance>* result){
-    if(result != nullptr){ ERROR("output result not supported in network mode"); }
-    request(RequestType::BFS_ALL, source);
+void Client::bfs(uint64_t source_vertex_id, const char* dump2file){
+    request(RequestType::BFS, source_vertex_id, dump2file);
+    if(response()->type() == ResponseType::NOT_SUPPORTED){
+        ERROR("bfs(" << source_vertex_id << ", \"" << dump2file << "\"): operation not supported by the remote interface");
+    }
     assert(response()->type() == ResponseType::OK);
 }
 
-int64_t Client::bfs_one(uint64_t source, uint64_t dest, std::vector<library::ShortestPathInterface::Distance>* path) {
-    if(path != nullptr){ ERROR("output path not supported in network mode"); }
-    request(RequestType::BFS_ONE, source, dest);
-    assert(response()->type() == ResponseType::OK);
-    return response()->get<int64_t>(0);
-}
-
-void Client::spw_all(uint64_t source, std::vector<library::ShortestPathInterface::Distance>* result){
-    if(result != nullptr){ ERROR("output result not supported in network mode"); }
-    request(RequestType::SPW_ALL, source);
+void Client::pagerank(uint64_t num_iterations, double damping_factor, const char* dump2file) {
+    request(RequestType::PAGERANK, num_iterations, damping_factor, dump2file);
+    if(response()->type() == ResponseType::NOT_SUPPORTED){
+        ERROR("pagerank(" << num_iterations << ", " << damping_factor << ", \"" << dump2file << "\"): operation not supported by the remote interface");
+    }
     assert(response()->type() == ResponseType::OK);
 }
 
-int64_t Client::spw_one(uint64_t source, uint64_t dest, std::vector<library::ShortestPathInterface::Distance>* path){
-    if(path != nullptr){ ERROR("output path not supported in network mode"); }
-    request(RequestType::SPW_ONE, source, dest);
+void Client::wcc(const char* dump2file){
+    request(RequestType::WCC, dump2file);
+    if(response()->type() == ResponseType::NOT_SUPPORTED){
+        ERROR("wcc(\"" << dump2file << "\"): operation not supported by the remote interface");
+    }
     assert(response()->type() == ResponseType::OK);
-    return response()->get<int64_t>(0);
+}
+
+void Client::cdlp(uint64_t max_iterations, const char* dump2file){
+    request(RequestType::CDLP, max_iterations, dump2file);
+    if(response()->type() == ResponseType::NOT_SUPPORTED){
+        ERROR("cdlp(" << max_iterations << ", \"" << dump2file << "\"): operation not supported by the remote interface");
+    }
+    assert(response()->type() == ResponseType::OK);
+}
+
+void Client::lcc(const char* dump2file){
+    request(RequestType::LCC, dump2file);
+    if(response()->type() == ResponseType::NOT_SUPPORTED){
+        ERROR("lcc(\"" << dump2file << "\"): operation not supported by the remote interface");
+    }
+    assert(response()->type() == ResponseType::OK);
+}
+
+void Client::sssp(uint64_t source_vertex_id, const char* dump2file){
+    request(RequestType::SSSP, source_vertex_id, dump2file);
+    if(response()->type() == ResponseType::NOT_SUPPORTED){
+        ERROR("sssp(" << source_vertex_id << ", \"" << dump2file << "\"): operation not supported by the remote interface");
+    }
+    assert(response()->type() == ResponseType::OK);
 }
 
 } // namespace network

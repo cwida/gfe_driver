@@ -256,44 +256,76 @@ void Server::ConnectionHandler::handle_request(){
             response(ResponseType::OK, result);
         }
     } break;
-    case RequestType::BFS_ALL: {
-        library::ShortestPathInterface* shortest_path_interface = dynamic_cast<library::ShortestPathInterface*>(interface());
-        if(shortest_path_interface == nullptr){
+    case RequestType::BFS: {
+        auto graphalytics = dynamic_cast<library::GraphalyticsInterface*>(interface());
+        if(graphalytics == nullptr){
             LOG("Operation not supported by the current interface: " << request()->type());
             response(ResponseType::NOT_SUPPORTED);
         } else {
-            shortest_path_interface->bfs_all(request()->get(0), nullptr);
+            string path = request()->get_string(1);
+            const char* c_path = path.empty() ? nullptr : path.c_str();
+            graphalytics->bfs(request()->get(0), c_path);
             response(ResponseType::OK);
         }
     } break;
-    case RequestType::BFS_ONE: {
-        library::ShortestPathInterface* shortest_path_interface = dynamic_cast<library::ShortestPathInterface*>(interface());
-        if(shortest_path_interface == nullptr){
+    case RequestType::PAGERANK: {
+        auto graphalytics = dynamic_cast<library::GraphalyticsInterface*>(interface());
+        if(graphalytics == nullptr){
             LOG("Operation not supported by the current interface: " << request()->type());
             response(ResponseType::NOT_SUPPORTED);
         } else {
-            int64_t distance = shortest_path_interface->bfs_one(request()->get(0), request()->get(1), nullptr);
-            response(ResponseType::OK, distance);
-        }
-    } break;
-    case RequestType::SPW_ALL: {
-        library::ShortestPathInterface* shortest_path_interface = dynamic_cast<library::ShortestPathInterface*>(interface());
-        if(shortest_path_interface == nullptr){
-            LOG("Operation not supported by the current interface: " << request()->type());
-            response(ResponseType::NOT_SUPPORTED);
-        } else {
-            shortest_path_interface->spw_all(request()->get(0), nullptr);
+            string path = request()->get_string(2);
+            const char* c_path = path.empty() ? nullptr : path.c_str();
+            graphalytics->pagerank(request()->get(0), request()->get<double>(1), c_path);
             response(ResponseType::OK);
         }
     } break;
-    case RequestType::SPW_ONE: {
-        library::ShortestPathInterface* shortest_path_interface = dynamic_cast<library::ShortestPathInterface*>(interface());
-        if(shortest_path_interface == nullptr){
+    case RequestType::WCC: {
+        auto graphalytics = dynamic_cast<library::GraphalyticsInterface*>(interface());
+        if(graphalytics == nullptr){
             LOG("Operation not supported by the current interface: " << request()->type());
             response(ResponseType::NOT_SUPPORTED);
         } else {
-            int64_t distance = shortest_path_interface->spw_one(request()->get(0), request()->get(1), nullptr);
-            response(ResponseType::OK, distance);
+            string path = request()->get_string(0);
+            const char* c_path = path.empty() ? nullptr : path.c_str();
+            graphalytics->wcc(c_path);
+            response(ResponseType::OK);
+        }
+    } break;
+    case RequestType::CDLP: {
+        auto graphalytics = dynamic_cast<library::GraphalyticsInterface*>(interface());
+        if(graphalytics == nullptr){
+            LOG("Operation not supported by the current interface: " << request()->type());
+            response(ResponseType::NOT_SUPPORTED);
+        } else {
+            string path = request()->get_string(1);
+            const char* c_path = path.empty() ? nullptr : path.c_str();
+            graphalytics->cdlp(request()->get(0), c_path);
+            response(ResponseType::OK);
+        }
+    } break;
+    case RequestType::LCC: {
+        auto graphalytics = dynamic_cast<library::GraphalyticsInterface*>(interface());
+        if(graphalytics == nullptr){
+            LOG("Operation not supported by the current interface: " << request()->type());
+            response(ResponseType::NOT_SUPPORTED);
+        } else {
+            string path = request()->get_string(0);
+            const char* c_path = path.empty() ? nullptr : path.c_str();
+            graphalytics->lcc(c_path);
+            response(ResponseType::OK);
+        }
+    } break;
+    case RequestType::SSSP: {
+        auto graphalytics = dynamic_cast<library::GraphalyticsInterface*>(interface());
+        if(graphalytics == nullptr){
+            LOG("Operation not supported by the current interface: " << request()->type());
+            response(ResponseType::NOT_SUPPORTED);
+        } else {
+            string path = request()->get_string(1);
+            const char* c_path = path.empty() ? nullptr : path.c_str();
+            graphalytics->sssp(request()->get(0), c_path);
+            response(ResponseType::OK);
         }
     } break;
     default:

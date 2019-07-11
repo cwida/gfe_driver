@@ -25,7 +25,7 @@
 
 namespace network {
 
-class Client : public virtual library::UpdateInterface, public virtual library::LoaderInterface, public virtual library::AnalyticsInterface {
+class Client : public virtual library::UpdateInterface, public virtual library::LoaderInterface, public virtual library::GraphalyticsInterface {
     Client(const Client&) = delete;
     Client& operator=(const Client&) = delete;
 
@@ -105,10 +105,12 @@ public:
     virtual bool delete_vertex(uint64_t vertex_id) override;
     virtual bool add_edge(graph::WeightedEdge e) override;
     virtual bool delete_edge(graph::Edge e) override;
-    virtual void bfs_all(uint64_t source, std::vector<library::ShortestPathInterface::Distance>* result = nullptr) override;
-    virtual int64_t bfs_one(uint64_t source, uint64_t destination, std::vector<Distance>* path = nullptr) override;
-    virtual void spw_all(uint64_t source, std::vector<library::ShortestPathInterface::Distance>* result = nullptr) override;
-    virtual int64_t spw_one(uint64_t source, uint64_t destination, std::vector<library::ShortestPathInterface::Distance>* path = nullptr) override;
+    virtual void bfs(uint64_t source_vertex_id, const char* dump2file = nullptr) override; // graphalytics
+    virtual void pagerank(uint64_t num_iterations, double damping_factor = 0.85, const char* dump2file = nullptr) override; // graphalytics
+    virtual void wcc(const char* dump2file = nullptr) override; // graphalytics
+    virtual void cdlp(uint64_t max_iterations, const char* dump2file = nullptr) override; // graphalytics
+    virtual void lcc(const char* dump2file = nullptr) override; // graphalytics
+    virtual void sssp(uint64_t source_vertex_id, const char* dump2file = nullptr) override; // graphalytics
 };
 
 } // namespace network

@@ -37,10 +37,12 @@ std::ostream& operator<<(std::ostream& out, RequestType type){
     case RequestType::DELETE_VERTEX: out << "REMOVE_VERTEX"; break;
     case RequestType::ADD_EDGE: out << "ADD_EDGE"; break;
     case RequestType::DELETE_EDGE: out << "REMOVE_EDGE"; break;
-    case RequestType::BFS_ALL: out << "BFS_ALL"; break;
-    case RequestType::BFS_ONE: out << "BFS_ONE"; break;
-    case RequestType::SPW_ALL: out << "SPW_ALL"; break;
-    case RequestType::SPW_ONE: out << "SPW_ONE"; break;
+    case RequestType::BFS: out << "BFS (Graphalytics, Breath First Search)"; break;
+    case RequestType::PAGERANK: out << "PAGERANK (Graphalytics)"; break;
+    case RequestType::WCC: out << "WCC (Graphalytics, Weakly Connected Components)"; break;
+    case RequestType::CDLP: out << "CDLP (Graphalytics, Community Detection using Label Propagation)"; break;
+    case RequestType::LCC: out << "LCC (Graphalytics, Local Clustering Coefficient)"; break;
+    case RequestType::SSSP: out << "SSSP (Graphalytics, Single-Source Shortest Paths)"; break;
     default: out << "UNKNOWN (request code: " << (uint32_t) type << ")";
     }
     return out;
@@ -71,6 +73,16 @@ std::ostream& operator<<(std::ostream& out, const Request& request){
         break;
     case RequestType::DELETE_EDGE:
         out << ", source: " << request.get(0) << ", destination: " << request.get(1);
+        break;
+    case RequestType::BFS:
+    case RequestType::SSSP:
+        out << ", source: " << request.get(0);
+        break;
+    case RequestType::PAGERANK:
+        out << ", num_iterations: " << request.get(0) << ", damping factor: " << request.get(1);
+        break;
+    case RequestType::CDLP:
+        out << ", max_iterations: " << request.get(0);
         break;
     default:
         ; /* nop */

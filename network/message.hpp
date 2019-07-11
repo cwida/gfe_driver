@@ -19,6 +19,7 @@
 
 #include <cassert>
 #include <cinttypes>
+#include <cmath>
 #include <cstring>
 #include <ostream>
 #include <type_traits>
@@ -36,7 +37,7 @@ enum class RequestType : uint32_t {
     HAS_VERTEX, HAS_EDGE, GET_WEIGHT,
     LOAD, // load the graph from disk
     ADD_VERTEX, DELETE_VERTEX, ADD_EDGE, DELETE_EDGE,
-    BFS_ALL, BFS_ONE, SPW_ALL, SPW_ONE, // shortest paths
+    BFS, PAGERANK, WCC, CDLP, LCC, SSSP // graphalytics interface
 };
 
 /**
@@ -52,14 +53,12 @@ enum class ResponseType: uint32_t {
  */
 template<typename Type>
 class Message {
-    const uint32_t m_message_size;
+    uint32_t m_message_size;
     const Type m_type;
 
 public:
     template<typename... Args>
     Message(Type type, Args... args);
-
-    Message(Type type, const char* string);
 
     // Retrieve the total number of arguments in the message
     int num_arguments() const;
@@ -73,6 +72,9 @@ public:
     // Get the given argument
     template<typename T = uint64_t>
     T get(int index) const;
+
+    // Get the given argument as a string
+    std::string get_string(int index) const;
 
     // Get the space where the arguments are stored
     const char* buffer() const;
@@ -89,41 +91,73 @@ using Response = Message<ResponseType>;
 // Store multiple arguments in the given buffer
 namespace details {
 template<typename TSigned>
-static typename std::enable_if_t< std::is_signed_v<TSigned> >
+static typename std::enable_if_t< std::is_integral_v<TSigned> &&std::is_signed_v<TSigned>, uint64_t>
 store_single_arg(char* buffer, TSigned arg){
     reinterpret_cast<int64_t*>(buffer)[0] = arg;
+    return sizeof(int64_t); // size of the argument
 }
 
 template<typename TUnsigned>
-static typename std::enable_if_t< std::is_unsigned_v<TUnsigned> >
+static typename std::enable_if_t< std::is_integral_v<TUnsigned> && std::is_unsigned_v<TUnsigned>, uint64_t >
 store_single_arg(char* buffer, TUnsigned arg){
     reinterpret_cast<uint64_t*>(buffer)[0] = arg;
+    return sizeof(uint64_t); // size of the argument
 }
 
-static inline void store_args(char* buffer){
-    // no args to store...
+template<typename TFloat>
+static typename std::enable_if_t< std::is_floating_point_v<TFloat> && sizeof(TFloat) <= sizeof(double), uint64_t >
+store_single_arg(char* buffer, TFloat arg){
+    reinterpret_cast<double*>(buffer)[0] = arg;
+    return sizeof(double); // size of the argument
+}
+
+inline static uint64_t
+store_single_arg(char* buffer, const char* str){
+    uint64_t* length = reinterpret_cast<uint64_t*>(buffer);
+    if(str == nullptr){
+        *length = 0;
+    } else {
+        *length = strlen(str);
+        strcpy(buffer + sizeof(uint64_t), str); // can overflow
+    }
+
+    return sizeof(uint64_t) + ceil(static_cast<double>(*length) / sizeof(uint64_t)); // round up
+}
+
+inline static uint64_t
+store_single_arg(char* buffer, const std::string& str){
+    return store_single_arg(buffer, str.c_str());
+}
+
+static inline uint64_t store_args(char* buffer){
+    return 0; // no args to store...
 }
 
 // base case of the recursion
 template<typename T>
-static void store_args(char* buffer, T arg){
-    store_single_arg(buffer, arg);
+static uint64_t store_args(char* buffer, T arg){
+    return store_single_arg(buffer, arg);
 }
 
 template<typename T, typename... Args>
-static void store_args(char* buffer, T first, Args... rest){
-    store_single_arg(buffer, first);
-    store_args(buffer + sizeof(uint64_t), rest...);
+static uint64_t store_args(char* buffer, T first, Args... rest){
+    uint64_t offset = store_single_arg(buffer, first);
+    return offset + store_args(buffer + offset, rest...);
 }
 
 template<typename TSigned>
-static typename std::enable_if_t< std::is_signed_v<TSigned>, TSigned > retrieve_single_arg(const char* buffer){
+static typename std::enable_if_t< std::is_integral_v<TSigned> && std::is_signed_v<TSigned>, TSigned > retrieve_single_arg(const char* buffer){
     return static_cast<TSigned>(reinterpret_cast<const int64_t*>(buffer)[0]);
 }
 
 template<typename TUnsigned>
-static typename std::enable_if_t< std::is_unsigned_v<TUnsigned>, TUnsigned > retrieve_single_arg(const char* buffer){
+static typename std::enable_if_t< std::is_integral_v<TUnsigned> && std::is_unsigned_v<TUnsigned>, TUnsigned > retrieve_single_arg(const char* buffer){
     return static_cast<TUnsigned>(reinterpret_cast<const uint64_t*>(buffer)[0]);
+}
+
+template<typename TFloat>
+static typename std::enable_if_t< std::is_floating_point_v<TFloat>, TFloat > retrieve_single_arg(const char* buffer){
+    return static_cast<TFloat>(reinterpret_cast<const double*>(buffer)[0]);
 }
 
 } // namespace details
@@ -131,14 +165,10 @@ static typename std::enable_if_t< std::is_unsigned_v<TUnsigned>, TUnsigned > ret
 // Implementation details
 template<typename Type>
 template<typename... Args>
-Message<Type>::Message(Type type, Args... args) : m_message_size(sizeof(Message<Type>) + sizeof...(args) * sizeof(uint64_t)), m_type(type){
-    details::store_args(buffer(), args...);
+Message<Type>::Message(Type type, Args... args) : m_message_size(sizeof(Message<Type>)), m_type(type){
+    m_message_size += details::store_args(buffer(), args...);
 }
 
-template<typename Type>
-Message<Type>::Message(Type type, const char* string) : m_message_size(sizeof(Message<Type>) + strlen(string) +1), m_type(type){
-    strcpy(buffer(), string); // a bit of hack
-}
 
 template<typename Type>
 int Message<Type>::num_arguments() const {
@@ -171,6 +201,14 @@ T Message<Type>::get(int index) const{
     assert(index >= 0 && "Invalid index, negative value");
     assert(index < num_arguments() && "Out of bound");
     return details::retrieve_single_arg<T>(buffer() + sizeof(uint64_t) * index);
+}
+
+template<typename Type>
+std::string Message<Type>::get_string(int index) const {
+    assert(index >= 0 && "Invalid index, negative value");
+    assert(index < num_arguments() && "Out of bound");
+    auto length = details::retrieve_single_arg<uint64_t>(buffer() + sizeof(uint64_t) * index);
+    return std::string { buffer() + sizeof(uint64_t) * (index+1), length };
 }
 
 /**
