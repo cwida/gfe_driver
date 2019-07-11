@@ -150,67 +150,54 @@ public:
 
 
 /**
- * Shortest paths interface
+ * The six algorithms required by the Graphalytics benchmark suite
+ * See https://github.com/ldbc/ldbc_graphalytics_docs/
  */
-class ShortestPathInterface : public virtual Interface {
+class GraphalyticsInterface : public virtual Interface {
 public:
     /**
-     * Report the distance from the source to the given destination and the cumulative weight in the path, assuming a value of 1 for edge
-     * traversed in a non weighted shortest path
+     * Perform a BFS from source_vertex_id to all the other vertices in the graph.
+     * @param source_vertex_id the vertex where to start the search
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
      */
-    class Distance {
-    public:
-        Distance(uint64_t vertex, uint64_t distance); // ctor
-
-        uint64_t m_vertex;
-        uint64_t m_distance;
-    };
+    virtual void bfs(uint64_t source_vertex_id, const char* dump2file = nullptr) = 0;
 
     /**
-     * Find the shortest path (non weighted) from the source_id to all other connected vertices in the graph
-     * @param source: the source vertex
-     * @param result: if != null, report the distance to all vertices found
+     * Execute the PageRank algorithm for the specified number of iterations.
+     *
+     * @param num_iterations the number of iterations to execute the algorithm
+     * @param damping_factor weight for the PageRank algorithm, it affects the score associated to the sink nodes in the graphs
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
      */
-    virtual void bfs_all(uint64_t source, std::vector<Distance>* result = nullptr) = 0;
+    virtual void pagerank(uint64_t num_iterations, double damping_factor = 0.85, const char* dump2file = nullptr) = 0;
 
     /**
-     * Find the shortest number of edges to traverse from the source to the destination
-     * @param source the source vertex
-     * @param destination the destination vertex
-     * @param path if != null, store the intermediate vertices in the path
-     * @return -1 if source is not connected to dest, otherwise the distance from source to dest
+     * Weakly connected components (WCC), associate each node to a connected component of the graph
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
      */
-    virtual int64_t bfs_one(uint64_t source, uint64_t destination, std::vector<Distance>* path = nullptr) = 0;
+    virtual void wcc(const char* dump2file = nullptr) = 0;
 
     /**
-     * Compute the weighted shortest distance from the source to all the other connected vertices in the graph
-     * @param source: the source vertex
-     * @param result: if != null, report the distance to all vertices found
+     * Community Detection using Label-Propagation. Associate a label to each vertex of the graph, according to its neighbours.
+     * @param max_iterations maximum number of iterations to perform
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
      */
-    virtual void spw_all(uint64_t source, std::vector<Distance>* result = nullptr) = 0;
+    virtual void cdlp(uint64_t max_iterations, const char* dump2file = nullptr) = 0;
 
     /**
-     * Compute the weighted shortest distance from the source to the destination
-     * @param source: the source vertex
-     * @param destination: the destination vertex
-     * @param result: if != null, report the distance to all vertices found
-     * @return -1 if source is not connected to dest, otherwise the distance from source to dest
+     * Local clustering coefficient. Associate to each vertex the ratio between the number of its outgoing edges and the number of
+     * possible remaining edges.
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
      */
-    virtual int64_t spw_one(uint64_t source, uint64_t destination, std::vector<Distance>* path = nullptr) = 0;
+    virtual void lcc(const char* dump2file = nullptr) = 0;
+
+    /**
+     * Single-source shortest paths. Compute the weight related to the shortest path from the source to any other vertex in the graph.
+     * @param source_vertex_id the vertex where to start the search
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
+     */
+    virtual void sssp(uint64_t source_vertex_id, const char* dump2file = nullptr) = 0;
 };
-
-
-/**
- * Wrapper for all analytics methods
- */
-class AnalyticsInterface: public virtual ShortestPathInterface {
-public:
-    /* nop */
-};
-
-// Print the distance, for debug purposes
-std::ostream& operator<<(std::ostream& out, const ShortestPathInterface::Distance& distance);
-
 
 } // namespace library
 

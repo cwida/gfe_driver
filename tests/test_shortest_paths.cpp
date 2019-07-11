@@ -37,7 +37,7 @@ using namespace std;
 static void load(shared_ptr<UpdateInterface> interface){
     ASSERT_EQ(interface->num_edges(), 0); // the interface is not empty!
 
-    graph::WeightedEdgeStream stream{  common::filesystem::directory_executable() + "/graphs/shortest_paths.wel" };
+    graph::WeightedEdgeStream stream{  common::filesystem::directory_executable() + "/graphs/shortest_paths1.wel" };
     stream.permute();
     unordered_set<uint64_t> vertices;
 
