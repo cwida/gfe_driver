@@ -40,10 +40,10 @@ public:
 class WeightedEdge : public Edge{
 public:
     WeightedEdge();
-    WeightedEdge(uint64_t source, uint64_t destination, uint32_t weight);
+    WeightedEdge(uint64_t source, uint64_t destination, double weight);
 
-    uint32_t m_weight;
-    uint32_t weight() const { return m_weight; }
+    double m_weight;
+    double weight() const { return m_weight; }
 
     // Get a copy of the given (non weighted) edge
     Edge edge() const { return Edge{source(), destination()}; }

@@ -24,6 +24,7 @@ namespace reader {
 // The format of the given graph
 enum class Format {
     UNKNOWN, // No idea
+    GRAPHALYTICS, // LDBC Graphalytics, it contains a vertex list, an edge list and a file with the properties
     PLAIN, // Extension .el, a list with one edge per line: src dst
     PLAIN_WEIGHTED, // Extension .wel, a list with one edge per line: src dst weight
     METIS, // Extension .metis or .graph, METIS v5.1 format

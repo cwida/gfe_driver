@@ -31,7 +31,7 @@ bool Edge::operator!=(const Edge& e) const noexcept{
 }
 
 WeightedEdge::WeightedEdge() : WeightedEdge(0,0,0){ }
-WeightedEdge::WeightedEdge(uint64_t source, uint64_t destination, uint32_t weight) : Edge{source, destination}, m_weight(weight){
+WeightedEdge::WeightedEdge(uint64_t source, uint64_t destination, double weight) : Edge{source, destination}, m_weight(weight){
 
 }
 

@@ -240,7 +240,7 @@ void Server::ConnectionHandler::handle_request(){
             LOG("Operation not supported by the current interface: " << request()->type());
             response(ResponseType::NOT_SUPPORTED);
         } else {
-            graph::WeightedEdge edge { request()->get(0),  request()->get(1), request()->get<uint32_t>(2)};
+            graph::WeightedEdge edge { request()->get(0),  request()->get(1), request()->get<double>(2)};
             bool result = update_interface->add_edge(edge);
             response(ResponseType::OK, result);
         }

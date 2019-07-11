@@ -40,7 +40,6 @@ WeightedEdgeStream::WeightedEdgeStream() : WeightedEdgeStream(configuration().gr
 WeightedEdgeStream::WeightedEdgeStream(const std::string& path){
     m_sources = new CByteArray(/* bytes per element */ 8, /* capacity */ 8);
     m_destinations = new CByteArray(/* bytes per element */ 8, /* capacity */ 8);
-    m_weights = new CByteArray(/* bytes per element */ 4, /* capacity */ 8);
 
     auto reader = reader::Reader::open(path);
     WeightedEdge edge;
@@ -54,33 +53,26 @@ WeightedEdgeStream::WeightedEdgeStream(const std::string& path){
         if(m_num_edges >= m_sources->capacity()){
             auto old_sources = m_sources;
             auto old_destinations = m_destinations;
-            auto old_weights = m_weights;
             auto new_sources = make_unique<CByteArray>(/* bytes per element */ 8, old_sources->capacity() *2);
             auto new_destinations = make_unique<CByteArray>(/* bytes per element */ 8, old_sources->capacity() *2);
-            auto new_weights = make_unique<CByteArray>(/* bytes per element */ 4, old_sources->capacity() *2);
             for(size_t i = 0; i < old_sources->capacity(); i++){
                 new_sources->set_value_at(i, old_sources->get_value_at(i));
                 new_destinations->set_value_at(i, old_destinations->get_value_at(i));
-                new_weights->set_value_at(i, old_weights->get_value_at(i));
             }
 
             m_sources = new_sources.release();
             m_destinations = new_destinations.release();
-            m_weights = new_weights.release();
-
 
             delete old_sources; old_sources = nullptr;
             delete old_destinations; old_destinations = nullptr;
-            delete old_weights; old_weights = nullptr;
         }
 
         m_sources->set_value_at(m_num_edges, edge.m_source);
         m_destinations->set_value_at(m_num_edges, edge.m_destination);
-        m_weights->set_value_at(m_num_edges, edge.m_weight);
+        m_weights.emplace_back(edge.m_weight);
 
         // keep track of the max vertex id and max weight
         m_max_vertex_id = std::max(m_max_vertex_id, std::max(edge.m_source, edge.m_destination));
-        m_max_weight = std::max<uint64_t>(m_max_weight, edge.m_weight);
 
         // update the number of vertices loaded
         m_num_edges++;
@@ -88,23 +80,22 @@ WeightedEdgeStream::WeightedEdgeStream(const std::string& path){
 
     timer.stop();
 
-    LOG("Loaded " << m_num_edges << ", max vertex id: " << m_max_vertex_id << ", max weight: " << m_max_weight << ". Load performed in " << timer);
+    LOG("Loaded " << m_num_edges << ", max vertex id: " << m_max_vertex_id << ". Load performed in " << timer);
 }
 
 WeightedEdgeStream::WeightedEdgeStream(const std::vector<WeightedEdge>& vector){
     m_num_edges = vector.size();
     m_sources = new CByteArray(/* bytes per element */ 8, /* capacity */ m_num_edges);
     m_destinations = new CByteArray(/* bytes per element */ 8, /* capacity */ m_num_edges);
-    m_weights = new CByteArray(/* bytes per element */ 4, /* capacity */ m_num_edges);
+    m_weights.reserve(m_num_edges);
 
     for(size_t i = 0, sz = m_num_edges; i < sz; i++){
         const auto& edge = vector[i];
         m_sources->set_value_at(i, edge.m_source);
         m_destinations->set_value_at(i, edge.m_destination);
-        m_weights->set_value_at(i, edge.m_weight);
+        m_weights.push_back(edge.m_weight);
 
         m_max_vertex_id = std::max(m_max_vertex_id, std::max(edge.m_source, edge.m_destination));
-        m_max_weight = std::max<uint64_t>(m_max_weight, edge.m_weight);
     }
 }
 
@@ -112,7 +103,6 @@ WeightedEdgeStream::WeightedEdgeStream(const std::vector<WeightedEdge>& vector){
 WeightedEdgeStream::~WeightedEdgeStream(){
     delete m_sources; m_sources = nullptr;
     delete m_destinations; m_destinations = nullptr;
-    delete m_weights; m_weights = nullptr;
 }
 
 void WeightedEdgeStream::permute(){
@@ -137,13 +127,14 @@ void WeightedEdgeStream::permute(uint64_t seed){
     auto bytes_per_vertex_id = CByteArray::compute_bytes_per_elements(m_max_vertex_id);
     auto new_sources = make_unique<CByteArray>(/* bytes per element */ bytes_per_vertex_id, m_num_edges);
     auto new_destinations = make_unique<CByteArray>(/* bytes per element */ bytes_per_vertex_id, m_num_edges);
-    auto new_weights = make_unique<CByteArray>(/* bytes per element */ CByteArray::compute_bytes_per_elements(m_max_weight), m_num_edges);
+    vector<double> new_weights; new_weights.resize(m_num_edges, 0.0);
+//    auto new_weights = make_unique<CByteArray>(/* bytes per element */ CByteArray::compute_bytes_per_elements(m_max_weight), m_num_edges);
 
     auto permute = [&](uint64_t start, uint64_t length){
         for(size_t i = start, end = start + length; i < end; i++){
             new_sources->set_value_at(i, m_sources->get_value_at(permutation[i]));
             new_destinations->set_value_at(i, m_destinations->get_value_at(permutation[i]));
-            new_weights->set_value_at(i, m_weights->get_value_at(permutation[i]));
+            new_weights[i] = m_weights[ permutation[i] ];
         }
     };
 
@@ -162,7 +153,7 @@ void WeightedEdgeStream::permute(uint64_t seed){
 
     delete m_sources; m_sources = new_sources.release();
     delete m_destinations; m_destinations = new_destinations.release();
-    delete m_weights; m_weights = new_weights.release();
+    m_weights = std::move(new_weights);
 
     timer.stop();
 
@@ -171,8 +162,7 @@ void WeightedEdgeStream::permute(uint64_t seed){
 
 WeightedEdge WeightedEdgeStream::get(uint64_t index) const {
     if(index >= num_edges()){ INVALID_ARGUMENT("Index out of bound: " << index << " >= " << num_edges()); }
-    return WeightedEdge { m_sources->get_value_at(index), m_destinations->get_value_at(index),
-        static_cast<uint32_t>(m_weights->get_value_at(index)) };
+    return WeightedEdge { m_sources->get_value_at(index), m_destinations->get_value_at(index), m_weights[index] };
 }
 
 unique_ptr<VertexList> WeightedEdgeStream::vertex_list() const {

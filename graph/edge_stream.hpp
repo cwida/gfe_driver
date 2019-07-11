@@ -38,14 +38,13 @@ class WeightedEdgeStream {
     // edges are stores in three separate arrays:
     CByteArray* m_sources { nullptr }; // one for the sources
     CByteArray* m_destinations { nullptr }; // one for the destinations
-    CByteArray* m_weights { nullptr }; // and one for the weights
+    std::vector<double> m_weights; // and one for the weights
 
     // total number of edges
     uint64_t m_num_edges { 0 };
 
     // keep track of the maximum values for the vertices and the weights
     uint64_t m_max_vertex_id { 0 };
-    uint64_t m_max_weight { 0 };
 
 public:
 
