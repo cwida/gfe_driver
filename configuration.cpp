@@ -80,7 +80,7 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
 
     opts.add_options("Generic")
         ("a, aging", "The number of additional updates for the aging experiment to perform", value<Quantity>()->default_value(to_string(m_num_aging_updates)))
-        ("d, database", "The path where to store the results", value<string>()->default_value(m_database_path))
+        ("d, database", "Store the current configuration\result into the given database")
         ("e, experiment", "The experiment to execute", value<string>())
         ("G, graph", "The path to the graph to load", value<string>())
         ("h, help", "Show this help menu")
@@ -104,7 +104,6 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
         }
 
         m_num_aging_updates = result["aging"].as<Quantity>();
-        m_database_path = result["database"].as<string>();
         m_graph_path = result["graph"].as<string>();
         m_seed = result["seed"].as<uint64_t>();
         m_verbose = ( result.count("verbose") > 0 );
@@ -114,6 +113,11 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
             ERROR("Invalid value for the max weight, it must be an integer strictly positive, given: " << max_weight);
         }
         m_max_weight = max_weight;
+
+        // database path
+        if( result["database"].count() > 0 ){
+            m_database_path = result["database"].as<string>();
+        }
 
         // library to evaluate
         if( result["library"].count() == 0 ){
@@ -175,8 +179,12 @@ void Configuration::parse_command_line_args(int argc, char* argv[]){
  *  Database                                                                 *
  *                                                                           *
  *****************************************************************************/
+bool Configuration::has_database() const {
+    return !m_database_path.empty();
+}
+
 common::Database* Configuration::db(){
-    if(m_database == nullptr){
+    if(m_database == nullptr && has_database()){
         m_database = new Database{m_database_path};
         m_database->create_execution();
     }
@@ -184,6 +192,8 @@ common::Database* Configuration::db(){
 }
 
 void Configuration::save_parameters() {
+    if(db() == nullptr) ERROR("Path where to store the results not set");
+
     using P = pair<string, string>;
     vector<P> params;
     params.push_back(P{"database", m_database_path});

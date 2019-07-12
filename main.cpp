@@ -37,13 +37,16 @@ int main(int argc, char* argv[]){
     }
 
     // Save the experiment's configuration into the output SQLite3 database
-    try {
-        configuration().save_parameters();
-    } catch (common::Error& e){
-        cerr << "Error raised while saving the configuration into the database:\n";
-        cerr << e << "\n";
-        exit(EXIT_FAILURE);
+    if(configuration().has_database()){
+        try {
+            configuration().save_parameters();
+        } catch (common::Error& e){
+            cerr << "Error raised while saving the configuration into the database:\n";
+            cerr << e << "\n";
+            exit(EXIT_FAILURE);
+        }
     }
+
 
     // Init the library to evaluate
     std::shared_ptr<library::Interface> interface;

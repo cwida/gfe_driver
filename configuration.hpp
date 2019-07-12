@@ -46,7 +46,7 @@ class Configuration {
 
     // properties
     common::Database* m_database { nullptr }; // handle to the database
-    std::string m_database_path { "results.sqlite3" }; // the path where to store the results
+    std::string m_database_path { "" }; // the path where to store the results
     std::string m_graph_path { "" };
     std::string m_library_name; // the library to test
     std::unique_ptr<library::Interface> (*m_library_factory)(void) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
@@ -68,6 +68,9 @@ public:
 
     // Parse the command line arguments
     void parse_command_line_args(int argc, char* argv[]);
+
+    // Check whether the configuration/results need to be stored into a database
+    bool has_database() const;
 
     // Retrieve the handle to the database connection, where the final results of the experiments are stored
     common::Database* db();
