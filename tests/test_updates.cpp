@@ -223,7 +223,7 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
 }
 
 TEST(AdjacencyList, Updates){
-    auto adjlist = make_shared<AdjacencyList>(true);
+    auto adjlist = make_shared<AdjacencyList>(/* directed */ true);
     sequential(adjlist);
     parallel(adjlist, 128);
     parallel(adjlist, 1024);

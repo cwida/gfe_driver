@@ -19,8 +19,10 @@
 
 #include <algorithm>
 #include <cassert>
+#include <fstream>
 #include <iostream>
 #include <limits>
+#include "common/circular_array.hpp"
 #include "reader/reader.hpp"
 
 using namespace std;
@@ -33,14 +35,13 @@ namespace library {
  *                                                                           *
  *****************************************************************************/
 //#define DEBUG
-static mutex _cout_debug_mutex;
+static mutex _cout_debug_mutex [[maybe_unused]]; // debug only
 #define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{_cout_debug_mutex}; std::cout << "[AdjacencyList::" << __FUNCTION__ << "] " << msg << std::endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
 #else
     #define COUT_DEBUG(msg)
 #endif
-
 
 /*****************************************************************************
  *                                                                           *
@@ -241,10 +242,75 @@ void AdjacencyList::load(const std::string& path){
 
 /*****************************************************************************
  *                                                                           *
+ *  Graphalytics                                                             *
+ *                                                                           *
+ *****************************************************************************/
+void AdjacencyList::bfs(uint64_t source_vertex_id, const char* dump2file){
+    scoped_lock<mutex_t> lock(mutex);
+
+    // BFS algorithm
+    unordered_map<uint64_t, int64_t> distances; distances.emplace(source_vertex_id, 0);
+    common::CircularArray<uint64_t> queue; queue.append(source_vertex_id);
+    while(!queue.empty()){
+        uint64_t vertex = queue[0]; queue.pop();
+        int64_t distance = distances.at(vertex);
+        const auto& outgoing_edges = m_adjacency_list.at(vertex).first;
+        for(auto& edge : outgoing_edges){
+            auto result = distances.emplace(edge.first, distance +1);
+            if(result.second){ queue.append(edge.first); }
+        }
+    }
+
+    if(dump2file != nullptr){
+        COUT_DEBUG("save the results to: " << dump2file)
+        fstream handle(dump2file, ios_base::out);
+        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
+
+        vector<uint64_t> vertices; vertices.reserve(num_vertices());
+        for(auto& p : m_adjacency_list){ vertices.push_back(p.first); }
+        sort(begin(vertices), end(vertices));
+
+        for(uint64_t vertex_id : vertices){
+            handle << vertex_id << " ";
+            auto distance = distances.find(vertex_id);
+            if(distance != end(distances)){
+                handle << distance->second;
+            } else {
+                handle << std::numeric_limits<int64_t>::max(); // it should have been -1, but ok
+            }
+            handle << "\n";
+        }
+
+        handle.close();
+    }
+}
+
+void AdjacencyList::pagerank(uint64_t num_iterations, double damping_factor, const char* dump2file){
+
+}
+
+void AdjacencyList::wcc(const char* dump2file){
+
+}
+
+void AdjacencyList::cdlp(uint64_t max_iterations, const char* dump2file){
+
+}
+
+void AdjacencyList::lcc(const char* dump2file){
+
+}
+
+void AdjacencyList::sssp(uint64_t source_vertex_id, const char* dump2file){
+
+}
+
+/*****************************************************************************
+ *                                                                           *
  *  Dump                                                                     *
  *                                                                           *
  *****************************************************************************/
-void AdjacencyList::dump(std::ostream& out) const {
+void AdjacencyList::dump_ostream(std::ostream& out) const {
     scoped_lock<mutex_t> lock(m_mutex);
 
     out << "[AdjacencyList] vertices: " << num_vertices() << ", edges: " << num_edges() << ", "

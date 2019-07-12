@@ -58,6 +58,7 @@ sources := \
 	reader/plain_reader.cpp \
 	reader/reader.cpp \
 	reader/utility.cpp \
+	utility/graphalytics_validate.cpp \
 	configuration.cpp \
 	main.cpp
 

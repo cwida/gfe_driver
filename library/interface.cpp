@@ -69,12 +69,12 @@ bool Interface::has_edge(uint64_t source, uint64_t destination) const {
     return !isnan(get_weight(source, destination));
 }
 void Interface::dump() const{
-    dump(std::cout);
+    dump_ostream(std::cout);
 }
 void Interface::dump(const std::string& path) const {
     fstream handle(path.c_str());
     if(!handle.good()) ERROR("[dump] Cannot open the file: `" << path << "'");
-    dump(handle);
+    dump_ostream(handle);
     handle.close();
 }
 

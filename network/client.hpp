@@ -98,7 +98,7 @@ public:
     /**
      * Operation not supported: the output stream is only local ftb
      */
-    virtual void dump(std::ostream& out) const override;
+    virtual void dump_ostream(std::ostream& out) const override;
 
     // Proxy to the rest of the functions in the library
     virtual void on_main_init(int num_threads) override;

@@ -264,7 +264,7 @@ void Client::dump(const std::string& path) const {
     assert(response()->type() == ResponseType::OK);
 }
 
-void Client::dump(std::ostream& out) const {
+void Client::dump_ostream(std::ostream& out) const {
     ERROR("OPERATION NOT SUPPORTED: the output stream is only local");
 }
 

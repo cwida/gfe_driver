@@ -48,10 +48,6 @@ std::vector<ImplementationManifest> implementations();
  * Base interface, implemented by all systems
  */
 class Interface {
-protected:
-
-
-
 public:
     /**
      * Dummy constructor
@@ -66,7 +62,7 @@ public:
     /**
      * Dump the content of the graph to given stream
      */
-    virtual void dump(std::ostream& out) const = 0;
+    virtual void dump_ostream(std::ostream& out) const = 0;
 
     /**
      * Dump the content of the graph to stdout
