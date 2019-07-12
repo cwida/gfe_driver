@@ -52,6 +52,7 @@ sources := \
 	network/server.cpp \
 	reader/dimacs9_reader.cpp \
 	reader/format.cpp \
+	reader/graphalytics_reader.cpp \
 	reader/metis_reader.cpp \
 	reader/plain_reader.cpp \
 	reader/reader.cpp \

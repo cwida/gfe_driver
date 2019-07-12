@@ -19,6 +19,7 @@
 
 #include "dimacs9_reader.hpp"
 #include "format.hpp"
+#include "graphalytics_reader.hpp"
 #include "metis_reader.hpp"
 #include "plain_reader.hpp"
 
@@ -37,6 +38,8 @@ std::unique_ptr<Reader> Reader::open(const std::string& path){
     switch(format){
     case Format::DIMACS9:
         return make_unique<Dimacs9Reader>(path);
+    case Format::LDBC_GRAPHALYTICS: // LDBC
+        return make_unique<GraphalyticsReader>(path);
     case Format::METIS:
         return make_unique<MetisReader>(path);
     case Format::PLAIN:
