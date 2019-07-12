@@ -86,9 +86,19 @@ public:
     ~Client();
 
     /**
-     * Cannot dump the content of the graph because the remote prints it in the stdout
+     * Dump the content of the graph to the server's stdout
      */
     virtual void dump() const override;
+
+    /**
+     * Dump the content of the graph to the given file (in the server's file system)
+     */
+    virtual void dump(const std::string& path) const override;
+
+    /**
+     * Operation not supported: the output stream is only local ftb
+     */
+    virtual void dump(std::ostream& out) const override;
 
     // Proxy to the rest of the functions in the library
     virtual void on_main_init(int num_threads) override;
@@ -99,7 +109,7 @@ public:
     virtual uint64_t num_vertices() const override;
     virtual bool has_vertex(uint64_t vertex_id) const override;
     virtual bool has_edge(uint64_t source, uint64_t destination) const override;
-    virtual int64_t get_weight(uint64_t source, uint64_t destination) const override;
+    virtual double get_weight(uint64_t source, uint64_t destination) const override;
     virtual void load(const std::string& path) override;
     virtual bool add_vertex(uint64_t vertex_id) override;
     virtual bool delete_vertex(uint64_t vertex_id) override;

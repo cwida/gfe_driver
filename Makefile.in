@@ -47,6 +47,7 @@ sources := \
 	graph/edge_stream.cpp \
 	graph/vertex_list.cpp \
 	library/interface.cpp \
+	library/baseline/adjacency_list.cpp \
 	network/client.cpp \
 	network/message.cpp \
 	network/server.cpp \

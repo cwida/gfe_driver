@@ -106,11 +106,6 @@ void Client::disconnect(int worker_id){
     free(m_connections[worker_id].m_buffer_write); m_connections[worker_id].m_buffer_write = nullptr;
 }
 
-void Client::dump() const {
-    cout << "[Client::dump] [Remote connection to " << m_server_host << ":" << m_server_port << "]\n";
-}
-
-
 /*****************************************************************************
  *                                                                           *
  * Request/response                                                          *
@@ -209,10 +204,10 @@ bool Client::has_edge(uint64_t source, uint64_t destination) const {
     return response()->get<bool>(0);
 }
 
-int64_t Client::get_weight(uint64_t source, uint64_t destination) const {
+double Client::get_weight(uint64_t source, uint64_t destination) const {
     const_cast<Client*>(this)->request(RequestType::GET_WEIGHT, source, destination);
     assert(response()->type() == ResponseType::OK);
-    return response()->get<int64_t>(0);
+    return response()->get<double>(0);
 }
 
 void Client::load(const std::string& path) {
@@ -257,6 +252,20 @@ bool Client::delete_edge(graph::Edge e){
     }
     assert(response()->type() == ResponseType::OK);
     return response()->get<bool>(0);
+}
+
+void Client::dump() const {
+    const_cast<Client*>(this)->request(RequestType::DUMP_STDOUT);
+    assert(response()->type() == ResponseType::OK);
+}
+
+void Client::dump(const std::string& path) const {
+    const_cast<Client*>(this)->request(RequestType::DUMP_FILE, path);
+    assert(response()->type() == ResponseType::OK);
+}
+
+void Client::dump(std::ostream& out) const {
+    ERROR("OPERATION NOT SUPPORTED: the output stream is only local");
 }
 
 void Client::bfs(uint64_t source_vertex_id, const char* dump2file){

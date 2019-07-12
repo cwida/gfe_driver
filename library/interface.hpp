@@ -48,6 +48,10 @@ std::vector<ImplementationManifest> implementations();
  * Base interface, implemented by all systems
  */
 class Interface {
+protected:
+
+
+
 public:
     /**
      * Dummy constructor
@@ -60,9 +64,19 @@ public:
     virtual ~Interface();
 
     /**
+     * Dump the content of the graph to given stream
+     */
+    virtual void dump(std::ostream& out) const = 0;
+
+    /**
      * Dump the content of the graph to stdout
      */
-    virtual void dump() const = 0;
+    virtual void dump() const;
+
+    /**
+     * Dump the content of the graph to the given path
+     */
+    virtual void dump(const std::string& path) const;
 
     /**
      * Thread initialisation callbacks
@@ -97,9 +111,9 @@ public:
     virtual bool has_edge(uint64_t source, uint64_t destination) const;
 
     /**
-     * Returns the weight of the given edge is the edge is present, or -1 otherwise
+     * Returns the weight of the given edge is the edge is present, or NaN otherwise
      */
-    virtual int64_t get_weight(uint64_t source, uint64_t destination) const = 0;
+    virtual double get_weight(uint64_t source, uint64_t destination) const = 0;
 };
 
 

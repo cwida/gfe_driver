@@ -53,6 +53,9 @@ public:
 
     // Retrieve the next edge of the file. Returns true if an edge has been read, false if we reached the end of the file.
     virtual bool read(graph::WeightedEdge& edge) = 0;
+
+    // Check whether the input graph is directed or not
+    virtual bool is_directed() const = 0;
 };
 
 /**

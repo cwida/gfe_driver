@@ -97,6 +97,10 @@ MetisReader::~MetisReader(){
     m_handle.close();
 }
 
+bool MetisReader::is_directed() const {
+    return true;
+}
+
 /*****************************************************************************
  *                                                                           *
  *  Parser                                                                   *

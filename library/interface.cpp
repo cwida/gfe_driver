@@ -17,7 +17,10 @@
 
 #include "interface.hpp"
 
+#include <cmath>
+#include <fstream>
 #include <memory>
+#include "common/error.hpp"
 
 #if defined(HAVE_STINGER)
 #include "stinger/stinger.hpp"
@@ -63,7 +66,16 @@ void Interface::on_thread_init(int thread_id){ };
 void Interface::on_thread_destroy(int thread_id){ } ;
 void Interface::on_main_destroy(){ };
 bool Interface::has_edge(uint64_t source, uint64_t destination) const {
-    return get_weight(source, destination) != -1;
+    return !isnan(get_weight(source, destination));
+}
+void Interface::dump() const{
+    dump(std::cout);
+}
+void Interface::dump(const std::string& path) const {
+    fstream handle(path.c_str());
+    if(!handle.good()) ERROR("[dump] Cannot open the file: `" << path << "'");
+    dump(handle);
+    handle.close();
 }
 
 } // namespace library

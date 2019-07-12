@@ -56,6 +56,10 @@ Dimacs9Reader::~Dimacs9Reader(){
     m_handle.close();
 }
 
+bool Dimacs9Reader::is_directed() const {
+    return true;
+}
+
 /*****************************************************************************
  *                                                                           *
  *  Parser                                                                   *

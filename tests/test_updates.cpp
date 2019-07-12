@@ -27,6 +27,7 @@
 #include "configuration.hpp"
 #include "graph/edge_stream.hpp"
 #include "library/interface.hpp"
+#include "library/baseline/adjacency_list.hpp"
 
 #if defined(HAVE_STINGER)
 #include "library/stinger/stinger.hpp"
@@ -39,7 +40,7 @@ static std::unique_ptr<graph::WeightedEdgeStream> generate_edge_stream(uint64_t 
     vector<graph::WeightedEdge> edges;
     for(uint64_t i = 1; i < max_vector_id; i++){
         for(uint64_t j = i + 2; j < max_vector_id; j+=2){
-            edges.push_back(graph::WeightedEdge{i, j, static_cast<uint32_t>(j * 1000 + i)});
+            edges.push_back(graph::WeightedEdge{i, j, static_cast<double>(j * 1000 + i)});
         }
     }
     return make_unique<graph::WeightedEdgeStream>(edges);
@@ -221,6 +222,12 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
     interface->on_main_destroy();
 }
 
+TEST(AdjacencyList, Updates){
+    auto adjlist = make_shared<AdjacencyList>(true);
+    sequential(adjlist);
+    parallel(adjlist, 128);
+    parallel(adjlist, 1024);
+}
 
 #if defined(HAVE_STINGER)
 TEST(Stinger, UpdatesSequential) {
@@ -237,6 +244,4 @@ TEST(Stinger, UpdatesParallel) {
 #endif
 
 
-TEST(Dummy, Updates){
-    // Placeholder in case there are no libraries installed
-}
+

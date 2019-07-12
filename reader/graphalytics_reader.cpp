@@ -151,6 +151,10 @@ bool GraphalyticsReader::is_directed() const {
     return m_directed;
 }
 
+bool GraphalyticsReader::is_weighted() const {
+    return m_is_weighted;
+}
+
 void GraphalyticsReader::set_emit_directed_edges(bool value){
     m_emit_directed_edges = value;
 }
@@ -231,7 +235,7 @@ bool GraphalyticsReader::read_edge(graph::WeightedEdge& edge){
         if(!is_number(current)) ERROR("line: `" << current_line << "', cannot read the destination vertex");
         m_last_destination = strtoull(current, &next, 10);
 
-        if(m_is_weighted){
+        if(is_weighted()){
             while(isspace(next[0])) next++;
             current = next;
             if(!is_number(current)) ERROR("line: `" << current_line << "', cannot read the weight");

@@ -62,6 +62,10 @@ PlainReader::~PlainReader(){
     m_handle.close();
 }
 
+bool PlainReader::is_directed() const {
+    return true;
+}
+
 /*****************************************************************************
  *                                                                           *
  *  Parser                                                                   *

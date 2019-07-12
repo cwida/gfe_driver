@@ -71,6 +71,11 @@ public:
      * Interface, report one edge at the time
      */
     bool read(graph::WeightedEdge&) override;
+
+    /**
+     * Interface, whether the input graph is directed
+     */
+    bool is_directed() const override;
 };
 
 

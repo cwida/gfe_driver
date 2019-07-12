@@ -73,6 +73,7 @@ public:
 
     // interface
     bool read(graph::WeightedEdge&) override;
+    bool is_directed() const override;
 };
 
 

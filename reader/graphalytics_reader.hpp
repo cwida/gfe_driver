@@ -36,7 +36,7 @@ class GraphalyticsReader : public Reader {
     void* m_handle_vertex_file { nullptr }; // fstream, handle to parse the vertex-file
     uint64_t m_last_source {0}; uint64_t m_last_destination {0}; double m_last_weight {0.0}; // the last edge being parsed
     bool m_last_reported = true; // whether we have reported the last edge with source/dest vertices swapped in an undirected graph
-    bool m_emit_directed_edges = true; // if the graph is undirected, report the same edge twice as src -> dest and dest -> src
+    bool m_emit_directed_edges = false; // if the graph is undirected, report the same edge twice as src -> dest and dest -> src
 
     // Close the internal handles to parse the edge-file/vertex-file
     void close();
@@ -99,7 +99,7 @@ public:
     /**
      * Check whether the graph is directed
      */
-    bool is_directed() const;
+    bool is_directed() const override;
 
     /**
      * Check whether the graph is weighted
