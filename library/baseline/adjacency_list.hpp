@@ -21,7 +21,7 @@
 #include "library/interface.hpp"
 
 #include <cinttypes>
-#include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -42,8 +42,31 @@ class AdjacencyList : public virtual UpdateInterface, public virtual LoaderInter
     uint64_t m_num_edges = 0; // number of directed edges
     const bool m_is_directed; // whether the graph is directed or not
 
-    using mutex_t = std::recursive_mutex;
+    using mutex_t = std::shared_mutex;
     mutable mutex_t m_mutex; // read-write mutex
+
+    // Get the list of incoming edges
+    const EdgeList& get_incoming_edges(uint64_t vertex_id) const;
+    const EdgeList& get_incoming_edges(const NodeList::iterator& it) const;
+    const EdgeList& get_incoming_edges(const NodeList::const_iterator& it) const;
+    const EdgeList& get_incoming_edges(const NodeList::mapped_type& adjlist_value) const;
+
+    // Get the degree of the given vertex v, that is | in(v) U out(v) | with U = set union
+    uint64_t get_degree(uint64_t vertex_id) const;
+
+    // Apply the function F(vertex) to all outgoing & incoming edges
+    template<typename Function>
+    void for_all_edges(const EdgePair&, Function F);
+
+    // Check if a directed edge between vertex1 and vertex2 exists
+    bool check_directed_edge_exists(uint64_t vertex1, uint64_t vertex2);
+
+    // Assume the lock has already been acquired
+    bool add_vertex0(uint64_t vertex_id);
+    bool delete_vertex0(uint64_t vertex_id);
+    bool add_edge0(graph::WeightedEdge e);
+    bool delete_edge0(graph::Edge e);
+
 
 public:
     /**
@@ -139,7 +162,7 @@ public:
 
     /**
      * Community Detection using Label-Propagation. Associate a label to each vertex of the graph, according to its neighbours.
-     * @param max_iterations maximum number of iterations to perform
+     * @param max_iterations max number of iterations to perform
      * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
      */
     virtual void cdlp(uint64_t max_iterations, const char* dump2file = nullptr);

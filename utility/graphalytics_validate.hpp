@@ -34,6 +34,12 @@ protected:
     // The two files should be identical
     static void exact_match(const std::string& result, const std::string& expected);
 
+    // The two files contain values of type double, the difference between r (result) and e (expected) should be small enough: |r - e| / e < epsilon, with epsilon parameter
+    static void epsilon_match(const std::string& result, const std::string& expected, double epsilon);
+
+    // There must exist a bijective function f to map the values val from the two files, i.e. f[ val(v1) ] = val(v2)
+    static void equivalence_match(const std::string& result, const std::string& expected);
+
 public:
 
     /**
@@ -41,6 +47,36 @@ public:
      * @throw GraphalyticsValidateError in case of mismatch
      */
     static void bfs(const std::string& result, const std::string& expected);
+
+    /**
+     * Validate the output of the PageRank algorithm (result) with the given reference (expected)
+     * @throw GraphalyticsValidateError in case of mismatch
+     */
+    static void pagerank(const std::string& result, const std::string& expected);
+
+    /**
+     * Validate the output of the WCC algorithm (result) with the given reference (expected)
+     * @throw GraphalyticsValidateError in case of mismatch
+     */
+    static void wcc(const std::string& result, const std::string& expected);
+
+    /**
+     * Validate the output of the LCC algorithm (result) with the given reference (expected)
+     * @throw GraphalyticsValidateError in case of mismatch
+     */
+    static void lcc(const std::string& result, const std::string& expected);
+
+    /**
+     * Validate the output of the CDLP algorithm (result) with the given reference (expected)
+     * @throw GraphalyticsValidateError in case of mismatch
+     */
+    static void cdlp(const std::string& result, const std::string& expected);
+
+    /**
+     * Validate the output of the SSSP algorithm (result) with the given reference (expected)
+     * @throw GraphalyticsValidateError in case of mismatch
+     */
+    static void sssp(const std::string& result, const std::string& expected);
 
 };
 } // namespace

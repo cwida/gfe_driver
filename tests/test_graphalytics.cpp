@@ -31,6 +31,7 @@ using namespace library;
 using namespace utility;
 
 const std::string path_example_directed = common::filesystem::directory_executable() + "/graphs/ldbc_graphalytics/example-directed"; // without the ext .properties at the end
+const std::string path_example_undirected = common::filesystem::directory_executable() + "/graphs/ldbc_graphalytics/example-undirected"; // without the ext .properties at the end
 
 // The algorithms to validate for a given implementation
 #define GA_BFS          0x01
@@ -83,6 +84,63 @@ static void validate(library::GraphalyticsInterface* interface, const std::strin
         LOG("BFS, validation succeeded");
     }
 
+    if(algorithms | GA_PAGERANK){
+        string path_reference = path_graphalytics_graph + "-PR";
+        if(!common::filesystem::file_exists(path_reference)) ERROR("The reference output file `" << path_reference << "' does not exist!");
+        string path_result = temp_file_path();
+        LOG("PAGERANK, result: " << path_result << ", reference output: " << path_reference);
+        uint64_t num_iterations = stoull ( reader.get_property("pr.num-iterations") );
+        double damping_factor = stod( reader.get_property("pr.damping-factor") );
+        LOG("PAGERANK, parameters: num_iterations: " << num_iterations << ", damping_factor: " << damping_factor);
+        interface->pagerank(num_iterations, damping_factor, path_result.c_str());
+        GraphalyticsValidate::pagerank(path_result, path_reference);
+        LOG("PAGERANK, validation succeeded");
+    }
+
+    if(algorithms | GA_WCC){ /* Weakly connected components */
+        string path_reference = path_graphalytics_graph + "-WCC";
+        if(!common::filesystem::file_exists(path_reference)) ERROR("The reference output file `" << path_reference << "' does not exist!");
+        string path_result = temp_file_path();
+        LOG("WCC, result: " << path_result << ", reference output: " << path_reference);
+        interface->wcc(path_result.c_str());
+        GraphalyticsValidate::wcc(path_result, path_reference);
+        LOG("WCC, validation succeeded");
+    }
+
+    if(algorithms | GA_LCC){ /* Local clustering coefficient */
+        string path_reference = path_graphalytics_graph + "-LCC";
+        if(!common::filesystem::file_exists(path_reference)) ERROR("The reference output file `" << path_reference << "' does not exist!");
+        string path_result = temp_file_path();
+        LOG("LCC, result: " << path_result << ", reference output: " << path_reference);
+        interface->lcc(path_result.c_str());
+        GraphalyticsValidate::lcc(path_result, path_reference);
+        LOG("LCC, validation succeeded");
+    }
+
+    if(algorithms | GA_CDLP){ /* Community detection via label propagation */
+        string path_reference = path_graphalytics_graph + "-CDLP";
+        if(!common::filesystem::file_exists(path_reference)) ERROR("The reference output file `" << path_reference << "' does not exist!");
+        string path_result = temp_file_path();
+        LOG("CDLP, result: " << path_result << ", reference output: " << path_reference);
+        uint64_t max_iterations = stoull ( reader.get_property("cdlp.max-iterations") );
+        LOG("CDLP, parameters: max_iterations: " << max_iterations);
+        interface->cdlp(max_iterations, path_result.c_str());
+        GraphalyticsValidate::cdlp(path_result, path_reference);
+        LOG("CDLP, validation succeeded");
+    }
+
+    if(algorithms | GA_SSSP){ /* Dijkstra */
+        string path_reference = path_graphalytics_graph + "-SSSP";
+        if(!common::filesystem::file_exists(path_reference)) ERROR("The reference output file `" << path_reference << "' does not exist!");
+        string path_result = temp_file_path();
+        LOG("SSSP, result: " << path_result << ", reference output: " << path_reference);
+        uint64_t source_vertex = stoull ( reader.get_property("sssp.source-vertex") );
+        LOG("SSSP, parameters: source vertex: " << source_vertex);
+        interface->sssp(source_vertex, path_result.c_str());
+        GraphalyticsValidate::sssp(path_result, path_reference);
+        LOG("SSSP, validation succeeded");
+    }
+
     interface->on_thread_destroy(0);
     interface->on_main_destroy();
 }
@@ -91,4 +149,10 @@ TEST(AdjacencyList, GraphalyticsDirected){
     auto adjlist = make_unique<AdjacencyList>(/* directed */ true);
     load_graph(adjlist.get(), path_example_directed);
     validate(adjlist.get(), path_example_directed);
+}
+
+TEST(AdjacencyList, GraphalyticsUndirected){
+    auto adjlist = make_unique<AdjacencyList>(/* directed */ false);
+    load_graph(adjlist.get(), path_example_undirected);
+    validate(adjlist.get(), path_example_undirected);
 }

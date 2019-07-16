@@ -189,7 +189,7 @@ public:
 
     /**
      * Community Detection using Label-Propagation. Associate a label to each vertex of the graph, according to its neighbours.
-     * @param max_iterations maximum number of iterations to perform
+     * @param max_iterations max number of iterations to perform
      * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
      */
     virtual void cdlp(uint64_t max_iterations, const char* dump2file = nullptr) = 0;
