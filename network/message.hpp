@@ -21,7 +21,7 @@
 #include <cinttypes>
 #include <cmath>
 #include <cstring>
-#include <iostream>
+//#include <iostream> // debug only
 #include <ostream>
 #include <type_traits>
 
@@ -38,7 +38,7 @@ enum class RequestType : uint32_t {
     HAS_VERTEX, HAS_EDGE, GET_WEIGHT,
     LOAD, // load the graph from disk
     ADD_VERTEX, DELETE_VERTEX, ADD_EDGE, DELETE_EDGE,
-    DUMP_STDOUT, DUMP_FILE, // #dump()
+    DUMP_CLIENT, DUMP_STDOUT, DUMP_FILE, // #dump()
     BFS, PAGERANK, WCC, CDLP, LCC, SSSP // graphalytics interface
 };
 
@@ -116,7 +116,7 @@ store_single_arg(char* buffer, TFloat arg){
 
 inline static uint64_t
 store_single_arg(char* buffer, const char* str){
-    std::cout << "[store_single_arg] buffer: " << (void*) (buffer) << ", str: " << str << std::endl;
+//    std::cout << "[store_single_arg] buffer: " << (void*) (buffer) << ", str: " << str << std::endl;
 
     uint64_t* length = reinterpret_cast<uint64_t*>(buffer);
     if(str == nullptr){
@@ -126,7 +126,7 @@ store_single_arg(char* buffer, const char* str){
         strcpy(buffer + sizeof(uint64_t), str); // can overflow
     }
 
-    std::cout << "[store_single_arg] length: " << (*length) << ", round up: " << (sizeof(uint64_t) * (1+ ceil(static_cast<double>(*length) / sizeof(uint64_t)))) << std::endl;
+//    std::cout << "[store_single_arg] length: " << (*length) << ", round up: " << (sizeof(uint64_t) * (1+ ceil(static_cast<double>(*length) / sizeof(uint64_t)))) << std::endl;
 
     return /* length field */  sizeof(uint64_t) + /* actual content */ sizeof(uint64_t) * ceil(static_cast<double>(*length) / sizeof(uint64_t)); // round up
 }

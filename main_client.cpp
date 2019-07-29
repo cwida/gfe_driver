@@ -22,6 +22,7 @@
 #include "common/error.hpp"
 #include "library/interface.hpp"
 #include "network/client.hpp"
+#include "network/error.hpp"
 
 #include "configuration.hpp"
 
@@ -89,7 +90,7 @@ public:
     }
 
     const vector<Argument>& arguments() const { return m_arguments; };
-    const int64_t num_argumnets() const { return m_arguments.size(); }
+    const int64_t num_arguments() const { return m_arguments.size(); }
     const Argument& operator[](int index){ return m_arguments[index]; }
 };
 
@@ -112,16 +113,29 @@ static Command parse_command(){
     int start = pos;
     while(pos < user_prompt.length() && (isalnum(user_prompt[pos]) || user_prompt[pos] == '_')) pos++;
     int end = pos;
+
 //    COUT_DEBUG("start: " << start << ", end: " << end);
     command.m_command = string(user_prompt.c_str() + start, end - start);
     std::transform(command.m_command.begin(), command.m_command.end(), command.m_command.begin(), ::tolower); // all lowercase
 //    COUT_DEBUG( "Command: " << command.m_command  );
 
-    while(pos < user_prompt.length()){ // next argument
+    // skip empty spaces
+    while(pos < user_prompt.length() && isspace(user_prompt[pos])) pos++;
+
+    bool match_opened_parenthesis = false;
+    if(pos < user_prompt.length() && user_prompt[pos] == '('){
+        match_opened_parenthesis = true;
+        pos++;
+    }
+
+    bool stop = false;
+    while(pos < user_prompt.length() && !stop){ // next argument
         if(isspace(user_prompt[pos])){ pos++; continue; } // skip empty spaces at the start
 
         int string_delimiter = 0;
-        if(user_prompt[pos] == '"' || user_prompt[pos] == '\''){
+        if(match_opened_parenthesis && user_prompt[pos] == ')'){
+            break; // done
+        } else if(user_prompt[pos] == '"' || user_prompt[pos] == '\''){
             string_delimiter = user_prompt[pos];
             start = pos +1;
         } else {
@@ -133,6 +147,10 @@ static Command parse_command(){
         while(pos < user_prompt.length() && !terminated){
             if(user_prompt[pos] == '\\'){
                 pos+=2;
+            } else if (string_delimiter == 0 && match_opened_parenthesis && user_prompt[pos] == ')'){
+                end = pos;
+                terminated = true;
+                stop = true;
             } else if (string_delimiter == 0 && isspace(user_prompt[pos])){
                 end = pos;
                 terminated = true;
@@ -167,20 +185,31 @@ static void run_client_interactive(){
         const string& stmt = command.get_command();
         cout << "command parsed: " << command << endl;
 
-        if(stmt == "quit"){
-            break;
-        } else if(stmt == "terminate"){
-            impl.set_terminate_server_on_exit(true);
-            break;
-        } else if(stmt == "load"){
-            if(command.num_argumnets() != 1){
-                cout << "[client] [load] invalid number of arguments, expected 1: load (path);" << endl;
+        try {
+            if(stmt == "dump") {
+                if(command.num_arguments() == 0){
+                    impl.dump();
+                }
+            } else if(stmt == "load"){
+                if(command.num_arguments() != 1){
+                    cout << "[client] [load] invalid number of arguments, expected 1: load (path);" << endl;
+                } else {
+                    impl.load(command[0]);
+                }
+            } else if(stmt == "q" || stmt == "quit"){
+                break;
+            } else if(stmt == "terminate"){
+                impl.set_terminate_server_on_exit(true);
+                break;
+            } else if(stmt == "load"){
+
+
             } else {
-                impl.load(command[0]);
+                cout << "[client] ERROR, invalid command: " << stmt << endl;
             }
 
-        } else {
-            cout << "[client] ERROR, invalid command: " << stmt << endl;
+        } catch(network::RPCError& e){
+            cerr << e << endl;
         }
 
     }

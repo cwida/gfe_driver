@@ -32,6 +32,8 @@ using namespace std;
 
 namespace network {
 
+#define RPC_ERROR(message) RAISE_EXCEPTION(RPCError, "Error propagated by the remote server:\n" << message)
+
 /*****************************************************************************
  *                                                                           *
  * Initialisation                                                            *
@@ -47,9 +49,9 @@ Client::Client(const std::string& host, int port) : m_server_host(host), m_serve
         m_connections[i].m_buffer_read = m_connections[i].m_buffer_write = nullptr;
     }
 
-    LOG("Connecting to " << m_server_host << ":" << m_server_port << " ...");
+//    LOG("[client] Connecting to " << m_server_host << ":" << m_server_port << " ...");
     connect();
-    LOG("Connection established!");
+    LOG("[client] Connection established!");
 }
 
 Client::~Client(){
@@ -87,9 +89,9 @@ void Client::connect(){
     }
 
     m_connections[m_worker_id].m_fd = fd;
+    m_connections[m_worker_id].m_buffer_read_sz = buffer_sz;
     m_connections[m_worker_id].m_buffer_read = (char*) malloc(sizeof(char) * buffer_sz);
     m_connections[m_worker_id].m_buffer_write = (char*) malloc(sizeof(char) * buffer_sz);
-
 }
 
 void Client::disconnect(){
@@ -115,8 +117,8 @@ void Client::request(RequestType type, Args... args){
     assert(m_worker_id >= 0 && m_worker_id < max_num_connections && "Invalid worker id");
     char* buffer = m_connections[m_worker_id].m_buffer_write;
     new (buffer) Request(type, forward<Args>(args)...);
-    uint64_t message_sz = reinterpret_cast<uint32_t*>(buffer)[0];
-    cout << "send message_sz: " << message_sz << endl;
+    uint32_t message_sz = reinterpret_cast<uint32_t*>(buffer)[0];
+//    cout << "send message_sz: " << message_sz << endl;
 
     // send the request to the server
     ssize_t bytes_sent = send(m_connections[m_worker_id].m_fd, buffer, message_sz, /* flags */ 0);
@@ -131,7 +133,14 @@ void Client::request(RequestType type, Args... args){
     assert(recv_bytes == sizeof(uint32_t) && "What the heck have we read?");
     num_bytes_read += recv_bytes;
     message_sz = *(reinterpret_cast<uint32_t*>(buffer));
-    assert(message_sz + sizeof(uint32_t) < buffer_sz && "Message too long");
+    if(message_sz > m_connections[m_worker_id].m_buffer_read_sz){ // realloc the buffer if it's not large enough
+        LOG("realloc buffer, from " << m_connections[m_worker_id].m_buffer_read_sz << " to " << message_sz);
+        free(buffer);
+        buffer = (char*) malloc(message_sz);
+        m_connections[m_worker_id].m_buffer_read = buffer;
+        m_connections[m_worker_id].m_buffer_read_sz = message_sz;
+        (reinterpret_cast<uint32_t*>(buffer))[0] = message_sz;
+    }
     // read the rest of the message
     while(num_bytes_read < message_sz){
         recv_bytes = read(m_connections[m_worker_id].m_fd, buffer + num_bytes_read, message_sz - num_bytes_read);
@@ -213,6 +222,8 @@ void Client::load(const std::string& path) {
     request(RequestType::LOAD, path.c_str());
     if(response()->type() == ResponseType::NOT_SUPPORTED){
         ERROR("load(\"" << path << "\"): operation not supported by the remote interface");
+    } else if (response()->type() == ResponseType::ERROR){
+        RPC_ERROR(response()->get_string(0));
     }
     assert(response()->type() == ResponseType::OK);
 }
@@ -254,8 +265,9 @@ bool Client::delete_edge(graph::Edge e){
 }
 
 void Client::dump() const {
-    const_cast<Client*>(this)->request(RequestType::DUMP_STDOUT);
+    const_cast<Client*>(this)->request(RequestType::DUMP_CLIENT);
     assert(response()->type() == ResponseType::OK);
+    cout << response()->get_string(0) << endl;
 }
 
 void Client::dump(const std::string& path) const {

@@ -26,6 +26,7 @@
 #include <thread>
 #include <unistd.h>
 
+#include "common/filesystem.hpp"
 #include "graph/edge.hpp"
 #include "library/interface.hpp"
 #include "configuration.hpp"
@@ -105,7 +106,7 @@ void Server::main_loop(){
         if(connection_fd < 0)
             ERROR_ERRNO("Cannot establish a connection with a remote client");
 
-        LOG("Connection received from: " << inet_ntoa(address.sin_addr) << ":" << address.sin_port);
+        LOG("[server] Connection received from: " << inet_ntoa(address.sin_addr) << ":" << address.sin_port);
 
         auto t = thread(&ConnectionHandler::execute, new ConnectionHandler(this, connection_fd));
         t.detach(); // do not explicitly wait for the thread to terminate
@@ -139,7 +140,7 @@ void Server::ConnectionHandler::execute(){
         num_bytes_read += recv_bytes;
         int64_t message_sz = static_cast<int64_t>(*(reinterpret_cast<uint32_t*>(m_buffer_read)));
         assert(message_sz + sizeof(uint32_t) < buffer_sz && "Message too long");
-        cout << "rcv message_sz: " << message_sz << endl;
+//        cout << "rcv message_sz: " << message_sz << endl;
         // read the rest of the message
         while(num_bytes_read < message_sz){
             recv_bytes = read(m_fd, m_buffer_read + num_bytes_read, message_sz - num_bytes_read);
@@ -258,6 +259,21 @@ void Server::ConnectionHandler::handle_request(){
             response(ResponseType::OK, result);
         }
     } break;
+    case RequestType::DUMP_CLIENT: {
+        ostringstream ss;
+        interface()->dump_ostream(ss);
+        string result = ss.str();
+
+        uint64_t message_sz = /* header */ sizeof(uint64_t) + /* length */ sizeof(uint64_t) + /* text */ result.size() /* \0 */ +1;
+        unique_ptr<char[]> no_memory_leak{ new char[result.size() + sizeof(uint64_t) * 3] };
+        char* buffer = no_memory_leak.get();
+        reinterpret_cast<uint32_t*>(buffer)[0] = message_sz;
+        reinterpret_cast<uint32_t*>(buffer)[1] = (uint32_t) ResponseType::OK;
+        reinterpret_cast<uint64_t*>(buffer)[1] = result.size();
+        char* text = buffer + sizeof(uint64_t) * 2;
+        strcpy(text, result.c_str());
+        send_message(buffer);
+    } break;
     case RequestType::BFS: {
         auto graphalytics = dynamic_cast<library::GraphalyticsInterface*>(interface());
         if(graphalytics == nullptr){
@@ -356,7 +372,12 @@ void Server::ConnectionHandler::response(ResponseType type, Args... args){
 
     uint64_t message_sz = *(reinterpret_cast<uint32_t*>(m_buffer_write));
     assert(message_sz < buffer_sz && "The message is too long");
-    ssize_t bytes_sent = send(m_fd, m_buffer_write, message_sz, /* flags */ 0);
+    send_message(m_buffer_write);
+}
+
+void Server::ConnectionHandler::send_message(char* buffer){
+    ssize_t message_sz = *(reinterpret_cast<uint32_t*>(buffer));
+    ssize_t bytes_sent = send(m_fd, buffer, message_sz, /* flags */ 0);
     if(bytes_sent == -1) ERROR_ERRNO("send_response, connection error");
     assert(bytes_sent == message_sz && "Message not fully sent");
 }

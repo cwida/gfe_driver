@@ -38,6 +38,7 @@ class Client : public virtual library::UpdateInterface, public virtual library::
 
     struct ConnectionState {
         int m_fd; // file descriptor for the connection
+        int m_buffer_read_sz; // current size of the read buffer
         char* m_buffer_read; // read buffer
         char* m_buffer_write; // write buffer
     };

@@ -37,6 +37,7 @@ std::ostream& operator<<(std::ostream& out, RequestType type){
     case RequestType::DELETE_VERTEX: out << "REMOVE_VERTEX"; break;
     case RequestType::ADD_EDGE: out << "ADD_EDGE"; break;
     case RequestType::DELETE_EDGE: out << "REMOVE_EDGE"; break;
+    case RequestType::DUMP_CLIENT: out << "DUMP_CLIENT"; break;
     case RequestType::DUMP_STDOUT: out << "DUMP_STDOUT"; break;
     case RequestType::DUMP_FILE: out << "DUMP_FILE"; break;
     case RequestType::BFS: out << "BFS (Graphalytics, Breath First Search)"; break;

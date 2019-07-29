@@ -46,6 +46,11 @@ class Server {
         void response(ResponseType type, Args... args);
 
         /**
+         * Send the given message to the client
+         */
+        void send_message(char* raw_message);
+
+        /**
          * Retrieve the request being current processed
          */
         const Request* request() const;
