@@ -59,7 +59,7 @@ namespace utility {
  *****************************************************************************/
 constexpr size_t BUFFER_SZ = 4096;
 
-template<typename T> static bool validate_value_typed(char* buffer){ }
+template<typename T> static bool validate_value_typed(char* buffer){ return false; /* it should never be instantiated */ }
 template<> bool validate_value_typed<int64_t>(char* buffer){ return isdigit(buffer[0]); }
 template<> bool validate_value_typed<double>(char* buffer){ return isdigit(buffer[0]) || buffer[0] == '.' || buffer[0] == 'i' /* infinity */ ; }
 template<typename T> static T parse_value_typed(char* buffer){ }

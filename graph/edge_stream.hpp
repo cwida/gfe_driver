@@ -47,12 +47,6 @@ class WeightedEdgeStream {
     uint64_t m_max_vertex_id { 0 };
 
 public:
-
-    /**
-     * Load the list of edges from the file specified in the configuration
-     */
-    WeightedEdgeStream();
-
     /**
      * Load the list of edges from the given file
      */

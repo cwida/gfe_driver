@@ -40,10 +40,6 @@ namespace network {
 
 thread_local int Client::m_worker_id { 0 };
 
-Client::Client() : Client(configuration().server_host(), configuration().server_port()) {
-    ASSERT(configuration().is_remote_client() && "Not expected to provide a remote connection");
-}
-
 Client::Client(const std::string& host, int port) : m_server_host(host), m_server_port(port) {
     // reset the content of the connections
     for(int i = 0; i < max_num_connections; i++){
@@ -57,9 +53,11 @@ Client::Client(const std::string& host, int port) : m_server_host(host), m_serve
 }
 
 Client::~Client(){
-    // when the client is destroyed, also the server should terminate
     m_worker_id = 0;
-    request(RequestType::TERMINATE_SERVER);
+    if(m_terminate_server_on_exit)
+        request(RequestType::TERMINATE_SERVER);
+    else
+        request(RequestType::TERMINATE_WORKER);
 
     // close all connections still open
     for(int i = 0; i < max_num_connections; i++){ disconnect(i); }
@@ -118,6 +116,7 @@ void Client::request(RequestType type, Args... args){
     char* buffer = m_connections[m_worker_id].m_buffer_write;
     new (buffer) Request(type, forward<Args>(args)...);
     uint64_t message_sz = reinterpret_cast<uint32_t*>(buffer)[0];
+    cout << "send message_sz: " << message_sz << endl;
 
     // send the request to the server
     ssize_t bytes_sent = send(m_connections[m_worker_id].m_fd, buffer, message_sz, /* flags */ 0);

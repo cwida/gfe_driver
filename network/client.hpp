@@ -32,6 +32,7 @@ class Client : public virtual library::UpdateInterface, public virtual library::
     static thread_local int m_worker_id; // keep track which worker
     const std::string m_server_host;
     const int m_server_port;
+    bool m_terminate_server_on_exit { false }; // whether to terminate the server when closing the client
     static constexpr int max_num_connections = 1024;
     static constexpr size_t buffer_sz = 4096;
 
@@ -71,11 +72,6 @@ class Client : public virtual library::UpdateInterface, public virtual library::
 
 public:
     /**
-     * Connect the proxy to the address specified in the configuration
-     */
-    Client();
-
-    /**
      * Connect the proxy to the server at the given host/port
      */
     Client(const std::string& host, int port);
@@ -99,6 +95,11 @@ public:
      * Operation not supported: the output stream is only local ftb
      */
     virtual void dump_ostream(std::ostream& out) const override;
+
+    /**
+     * Shall we terminate the server also when the client ends?
+     */
+    void set_terminate_server_on_exit(bool value) { m_terminate_server_on_exit = value; }
 
     // Proxy to the rest of the functions in the library
     virtual void on_main_init(int num_threads) override;

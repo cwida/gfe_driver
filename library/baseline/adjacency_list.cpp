@@ -650,7 +650,6 @@ void AdjacencyList::dump_ostream(std::ostream& out) const {
             out << "\n";
         }
     }
-
 }
 
 

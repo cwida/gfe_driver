@@ -24,11 +24,16 @@
 #include "common/error.hpp"
 
 class Configuration; // forward declaration
+class ClientConfiguration; // forward declaration
+class ServerConfiguration; // forward declaration
 namespace common { class Database; } // forward declaration
 namespace library { class Interface; } // forward declaration
 
 // Singleton interface
 Configuration& configuration();
+ClientConfiguration& cfgclient();
+ServerConfiguration& cfgserver();
+void cfgfree(); // invoked by the end to release the configuration
 
 // Generic configuration error
 DEFINE_EXCEPTION(ConfigurationError);
@@ -39,6 +44,9 @@ DEFINE_EXCEPTION(ConfigurationError);
 // Type of counter for the number of threads
 enum ThreadsType { THREADS_READ, THREADS_WRITE, THREADS_TOTAL };
 
+/**
+ * Base class for the configuration. The actual type can be either ClientConfiguration or ServerConfiguration.
+ */
 class Configuration {
     // remove the copy ctors
     Configuration(const Configuration& ) = delete;
@@ -47,27 +55,37 @@ class Configuration {
     // properties
     common::Database* m_database { nullptr }; // handle to the database
     std::string m_database_path { "" }; // the path where to store the results
-    std::string m_graph_path { "" };
-    std::string m_library_name; // the library to test
-    std::unique_ptr<library::Interface> (*m_library_factory)(void) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
-    uint64_t m_max_weight { 1024 }; // the maximum weight that can be assigned when reading non weighted graphs
-    uint64_t m_num_aging_updates { 0 }; // number of additional updates to perform
-    int m_num_threads_read { 0 }; // number of threads to use for the read operations
-    int m_num_threads_write { 0 }; // number of threads to use for the write (insert/update/delete) operations
+//    std::string m_graph_path { "" };
+//    std::string m_library_name; // the library to test
+//    std::unique_ptr<library::Interface> (*m_library_factory)(void) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
+    double m_max_weight { 1024.0 }; // the maximum weight that can be assigned when reading non weighted graphs
+//    uint64_t m_num_aging_updates { 0 }; // number of additional updates to perform
+//    int m_num_threads_read { 0 }; // number of threads to use for the read operations
+//    int m_num_threads_write { 0 }; // number of threads to use for the write (insert/update/delete) operations
     uint64_t m_seed = 5051789ull; // random seed, used in various places in the experiments
-    std::string m_server_host = ""; // the hostname for the remote server
-    int m_server_port = -1; // the port of the remote server
+//    std::string m_server_host = ""; // the hostname for the remote server
+//    int m_server_port = -1; // the port of the remote server
     bool m_verbose { false }; // verbose mode?
 
+protected:
+    // Set the path to the database
+    void set_database_path(const std::string& path){ m_database_path = path; }
+
+    // The max weight that can be assigned by graph readers when parsing a non weighted graph
+    void set_max_weight(double value);
+
+    // Set the property verbose
+    void set_verbose(bool value){ m_verbose = value; }
+
+    // Set the property seed
+    void set_seed(uint64_t value){ m_seed = value; }
+
 public:
-    // Do not explicitly initialise the configuration, use the method ::configuration();
+    // Constructor
     Configuration();
 
     // Destructor
-    ~Configuration();
-
-    // Parse the command line arguments
-    void parse_command_line_args(int argc, char* argv[]);
+    virtual ~Configuration();
 
     // Check whether the configuration/results need to be stored into a database
     bool has_database() const;
@@ -76,10 +94,10 @@ public:
     common::Database* db();
 
     // The path of the graph to load
-    std::string graph() const { return m_graph_path; }
+//    std::string graph() const { return m_graph_path; }
 
-    // Save the configuration into the database
-    void save_parameters();
+    // Save the configuration properties into the database
+    virtual void save_parameters() = 0;
 
     // Random seed, used in various places in the experiments
     uint64_t seed() const { return m_seed; };
@@ -87,27 +105,103 @@ public:
     // Check whether we are in verbose mode, to print additional message to the output
     bool verbose() const { return m_verbose; }
 
-    // Get the max weight that can be assigned when
-    uint64_t max_weight() const { return m_max_weight; }
+    // Is this a client or the server?
+    bool is_client() const;
+    bool is_server() const;
 
-    // Get the number of threads to use
-    int num_threads(ThreadsType type) const;
+    // Get the max weight that can be assigned by the reader to
+    double max_weight() const { return m_max_weight; }
 
-    // Do we conduct the experiment on a remote server?
-    bool is_remote_client() const;
+//    // Get the number of threads to use
+//    int num_threads(ThreadsType type) const;
 
-    // Check whether this process is a remote server
-    bool is_remote_server() const;
+    // Retrieve the path to the database
+    const std::string& get_database_path() const { return m_database_path; }
+};
 
-    // Get the hostname of the remote host
-    std::string server_host() const;
+class ServerConfiguration : public Configuration {
+public:
+    // remove the copy ctors
+    ServerConfiguration(const ServerConfiguration& ) = delete;
+    ServerConfiguration& operator=(const ServerConfiguration& ) = delete;
+    static constexpr uint32_t DEFAULT_PORT = 18286;
 
-    // Retrieve the port of the remote server
-    int server_port() const;
+private:
+    bool m_graph_directed = true; // whether the graph is undirected or directed
+    std::string m_library_name; // the library to test
+    std::unique_ptr<library::Interface> (*m_library_factory)(bool directed) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
+    uint32_t m_port = DEFAULT_PORT; // the port to wait for new connections
+
+protected:
+    // Do not explicitly initialise the configuration, use the method ::initialise();
+    ServerConfiguration();
+
+    // Parse the arguments from the command line
+    void parse_command_line_args(int argc, char* argv[]);
+
+public:
+    // Initialise the server configuration
+    static void initialise(int argc, char* argv[]);
+
+    // Destructor
+    ~ServerConfiguration();
+
+    // Get the port to wait for new client connections
+    uint32_t get_port() const { return m_port; }
+
+    const std::string& get_library_name() const { return m_library_name; }
 
     // Generate an instance of the graph library to evaluate
     std::unique_ptr<library::Interface> generate_graph_library();
+
+    // Save the configuration properties into the database
+    virtual void save_parameters() override;
+
+    // Whether the graph is directed or undirected
+    bool is_graph_directed() const { return m_graph_directed; }
 };
 
+class ClientConfiguration : public Configuration {
+    // remove the copy ctors
+    ClientConfiguration(const ClientConfiguration& ) = delete;
+    ClientConfiguration& operator=(const ClientConfiguration& ) = delete;
+
+private:
+    bool m_is_interactive { false }; // interactive while loop
+    int m_num_threads_read { 0 }; // number of threads to use for the read operations
+    int m_num_threads_write { 0 }; // number of threads to use for the write (insert/update/delete) operations
+    std::string m_path_graph_to_load; // the file must be accessible to the server
+    std::string m_server_host = "localhost";
+    uint32_t m_server_port = ServerConfiguration::DEFAULT_PORT;
+
+protected:
+    // Do not explicitly initialise the configuration, use the method ::initialise();
+    ClientConfiguration();
+
+    // Parse the arguments from the command line
+    void parse_command_line_args(int argc, char* argv[]);
+
+public:
+    // Initialise the server configuration
+    static void initialise(int argc, char* argv[]);
+
+    // Destructor
+    ~ClientConfiguration();
+
+    // Save the configuration properties into the database
+    virtual void save_parameters() override;
+
+    // Get the hostname address of the server
+    const std::string& get_server_host() const { return m_server_host; }
+
+    // Get the port of the server
+    const uint32_t get_server_port() const { return m_server_port; }
+
+    // The remote address for the server, as a pair hostname:port
+    std::string get_server_string() const;
+
+    // Interactive mode?
+    bool is_interactive() const { return m_is_interactive; }
+};
 
 

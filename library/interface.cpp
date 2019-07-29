@@ -22,6 +22,7 @@
 #include <memory>
 #include "common/error.hpp"
 
+#include "baseline/adjacency_list.hpp"
 #if defined(HAVE_STINGER)
 #include "stinger/stinger.hpp"
 #endif
@@ -35,17 +36,23 @@ namespace library {
  *  Factory                                                                  *
  *                                                                           *
  *****************************************************************************/
-ImplementationManifest::ImplementationManifest(const string& name, const string& description, unique_ptr<Interface> (*factory)(void)) :
+ImplementationManifest::ImplementationManifest(const string& name, const string& description, unique_ptr<Interface> (*factory)(bool)) :
     m_name(name), m_description(description), m_factory(factory){ }
 
+std::unique_ptr<Interface> generate_baseline_adjlist(bool directed_graph){ // directed or undirected graph
+    return unique_ptr<Interface>{ new AdjacencyList(directed_graph) };
+}
+
 #if defined(HAVE_STINGER)
-std::unique_ptr<Interface> generate_stinger(){
+std::unique_ptr<Interface> generate_stinger(bool directed_graph){
     return unique_ptr<Interface>{ new Stinger() };
 }
 #endif
 
 vector<ImplementationManifest> implementations() {
     vector<ImplementationManifest> result;
+
+    result.emplace_back("baseline", "Sequential baseline, based on adjacency list", &generate_baseline_adjlist);
 
 #if defined(HAVE_STINGER)
     result.emplace_back("stinger", "Stinger library", &generate_stinger);

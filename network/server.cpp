@@ -42,10 +42,8 @@ namespace network {
  *                                                                           *
  *****************************************************************************/
 
-Server::Server(shared_ptr<library::Interface> interface) : Server(interface, configuration().server_port()) { }
+Server::Server(shared_ptr<library::Interface> interface) : Server(interface, cfgserver().get_port()) { }
 Server::Server(shared_ptr<library::Interface> interface, int port) : m_interface(interface), m_port(port){
-    LOG("Initialising the server to listen on port: " << port);
-
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if(fd < 0) ERROR_ERRNO("Cannot initialise the socket");
     m_server_fd = fd;
@@ -57,7 +55,7 @@ Server::Server(shared_ptr<library::Interface> interface, int port) : m_interface
     struct sockaddr_in address;
     memset(&address, 0, sizeof(address));
     address.sin_family = AF_INET;
-    address.sin_port = m_port;
+    address.sin_port = htons(m_port);
     address.sin_addr.s_addr = INADDR_ANY; // accept everything
     int rc = bind(m_server_fd, (struct sockaddr*) &address, sizeof(address));
     if(rc != 0) ERROR_ERRNO("Cannot bind the server socket to port: " << m_port);
@@ -76,7 +74,7 @@ Server::~Server(){
 }
 
 void Server::main_loop(){
-    LOG("Server listening to port: " << m_port);
+    cout << "[server] Server listening to port: " << m_port << endl;
 
     while(!m_server_stop){
         // Set the timeout to 1 second (it may be changed after each call to select)
@@ -113,7 +111,7 @@ void Server::main_loop(){
         t.detach(); // do not explicitly wait for the thread to terminate
     }
 
-    LOG("Server terminated");
+    cout << "[server] Connection loop terminated" << endl;
 }
 
 
@@ -141,6 +139,7 @@ void Server::ConnectionHandler::execute(){
         num_bytes_read += recv_bytes;
         int64_t message_sz = static_cast<int64_t>(*(reinterpret_cast<uint32_t*>(m_buffer_read)));
         assert(message_sz + sizeof(uint32_t) < buffer_sz && "Message too long");
+        cout << "rcv message_sz: " << message_sz << endl;
         // read the rest of the message
         while(num_bytes_read < message_sz){
             recv_bytes = read(m_fd, m_buffer_read + num_bytes_read, message_sz - num_bytes_read);
@@ -156,6 +155,9 @@ void Server::ConnectionHandler::execute(){
 }
 
 void Server::ConnectionHandler::handle_request(){
+    try {
+
+
     switch(request()->type()){
     case RequestType::TERMINATE_WORKER:
         response(ResponseType::OK);
@@ -208,8 +210,8 @@ void Server::ConnectionHandler::handle_request(){
             LOG("Operation not supported by the current interface: " << request()->type());
             response(ResponseType::NOT_SUPPORTED);
         } else {
-            string path(request()->buffer());
-            LOG("[Server] Attempting to load the graph from path: " << path);
+            string path(request()->get_string(0));
+            LOG("[server] Attempting to load the graph from path: " << path);
             loader_interface->load(path);
             response(ResponseType::OK);
         }
@@ -331,6 +333,12 @@ void Server::ConnectionHandler::handle_request(){
     default:
         ERROR("Invalid request type: " << request()->type());
         break;
+    }
+
+    } catch(common::Error& e){
+        stringstream ss;
+        ss << e;
+        response(ResponseType::ERROR, ss.str());
     }
 }
 

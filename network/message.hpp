@@ -21,6 +21,7 @@
 #include <cinttypes>
 #include <cmath>
 #include <cstring>
+#include <iostream>
 #include <ostream>
 #include <type_traits>
 
@@ -47,6 +48,7 @@ enum class RequestType : uint32_t {
 enum class ResponseType: uint32_t {
     OK, // ok, the request has been processed correctly
     NOT_SUPPORTED, // the remote server does not support the given operation
+    ERROR, // an error occured, the message contains the error message
 };
 
 /**
@@ -114,6 +116,8 @@ store_single_arg(char* buffer, TFloat arg){
 
 inline static uint64_t
 store_single_arg(char* buffer, const char* str){
+    std::cout << "[store_single_arg] buffer: " << (void*) (buffer) << ", str: " << str << std::endl;
+
     uint64_t* length = reinterpret_cast<uint64_t*>(buffer);
     if(str == nullptr){
         *length = 0;
@@ -122,7 +126,9 @@ store_single_arg(char* buffer, const char* str){
         strcpy(buffer + sizeof(uint64_t), str); // can overflow
     }
 
-    return sizeof(uint64_t) + ceil(static_cast<double>(*length) / sizeof(uint64_t)); // round up
+    std::cout << "[store_single_arg] length: " << (*length) << ", round up: " << (sizeof(uint64_t) * (1+ ceil(static_cast<double>(*length) / sizeof(uint64_t)))) << std::endl;
+
+    return /* length field */  sizeof(uint64_t) + /* actual content */ sizeof(uint64_t) * ceil(static_cast<double>(*length) / sizeof(uint64_t)); // round up
 }
 
 inline static uint64_t

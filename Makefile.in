@@ -40,7 +40,6 @@ LDFLAGS := @LIBS@
 
 #############################################################################
 # List of the sources to compile
-
 sources := \
 	graph/cbytearray.cpp \
 	graph/edge.cpp \
@@ -60,15 +59,12 @@ sources := \
 	reader/utility.cpp \
 	utility/graphalytics_validate.cpp \
 	configuration.cpp \
-	main.cpp
-
+	main_client.cpp \
+	main_server.cpp 
+	
 ifneq (,$(findstring -DHAVE_STINGER,${ALL_CPPFLAGS}))
 	sources += $(addprefix library/stinger/,shortest_paths.cpp stinger.cpp)
 endif
-	
-#############################################################################
-# The executables to create
-artifact := driver
 
 #############################################################################
 # Helper variables
@@ -78,16 +74,18 @@ makedepend_cxx = @$(CXX) -MM $(ALL_CXXFLAGS) -MP -MT $@ -MF $(basename $@).d $<
 objectdirs := $(patsubst %./, %, $(sort $(addprefix ${objectdir}/, $(dir ${sources}))))
 objects_c := $(addprefix ${objectdir}/, $(patsubst %.c, %.o, $(filter %.c, ${sources})))
 objects_cxx := $(addprefix ${objectdir}/, $(patsubst %.cpp, %.o, $(filter %.cpp, ${sources})))
-objects := $(patsubst %main.o,,${objects_c} ${objects_cxx})
+objects := $(filter-out main_%.o, ${objects_c} ${objects_cxx})
 
 .DEFAULT_GOAL = all
 .PHONY: all
 
-all: Makefile ${builddir}/${artifact}
+all: Makefile ${builddir}/server ${builddir}/client
 
 #############################################################################
 # Artifacts to build
-${builddir}/${artifact}: ${objectdir}/main.o ${dependencies} | ${builddir}
+${builddir}/client: ${objectdir}/main_client.o ${dependencies} | ${builddir}
+	${CXX} ${LDFLAGS} $^ -o $@
+${builddir}/server: ${objectdir}/main_server.o ${dependencies} | ${builddir}
 	${CXX} ${LDFLAGS} $^ -o $@
 
 #############################################################################

@@ -35,8 +35,6 @@ using namespace std;
 
 namespace graph {
 
-WeightedEdgeStream::WeightedEdgeStream() : WeightedEdgeStream(configuration().graph()) { }
-
 WeightedEdgeStream::WeightedEdgeStream(const std::string& path){
     m_sources = new CByteArray(/* bytes per element */ 8, /* capacity */ 8);
     m_destinations = new CByteArray(/* bytes per element */ 8, /* capacity */ 8);
