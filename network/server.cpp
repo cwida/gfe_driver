@@ -135,7 +135,14 @@ void Server::ConnectionHandler::execute(){
 
         // read the size of the message
         recv_bytes = recv(m_fd, m_buffer_read + num_bytes_read, sizeof(uint32_t), /* flags */ 0);
-        if(recv_bytes == -1) ERROR_ERRNO("recv, connection interrupted?");
+        if(recv_bytes == -1) {
+            ERROR_ERRNO("recv, connection interrupted?");
+        } else if(recv_bytes == 0){
+            LOG("Connection closed by the remote end without sending a TERMINATE_WORKER message");
+            m_terminate = true;
+            break;
+        }
+
         assert(recv_bytes == sizeof(uint32_t) && "What the heck have we read?");
         num_bytes_read += recv_bytes;
         int64_t message_sz = static_cast<int64_t>(*(reinterpret_cast<uint32_t*>(m_buffer_read)));

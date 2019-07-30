@@ -183,7 +183,9 @@ static void run_client_interactive(){
     while(true){
         Command command = parse_command();
         const string& stmt = command.get_command();
-        cout << "command parsed: " << command << endl;
+        if(stmt == "" && cin.eof()) { cout << "\n";  break; } // CTRL-D, we're done
+
+        cout << "command parsed: " << command << ", cin status: " << std::cin.eof() << endl;
 
         try {
             if(stmt == "dump") {
@@ -201,9 +203,6 @@ static void run_client_interactive(){
             } else if(stmt == "terminate"){
                 impl.set_terminate_server_on_exit(true);
                 break;
-            } else if(stmt == "load"){
-
-
             } else {
                 cout << "[client] ERROR, invalid command: " << stmt << endl;
             }
