@@ -27,6 +27,7 @@
 #include <unistd.h>
 
 #include "common/filesystem.hpp"
+#include "common/system.hpp"
 #include "graph/edge.hpp"
 #include "library/interface.hpp"
 #include "configuration.hpp"
@@ -128,7 +129,9 @@ Server::ConnectionHandler::~ConnectionHandler() {
 }
 
 void Server::ConnectionHandler::execute(){
-    LOG("Remote worker started");
+    int num_active_connections = ++(m_instance->m_num_active_connections);
+    int64_t thread_id = common::concurrency::get_thread_id();
+    LOG("[server] [thread " << thread_id << "] Connection opened, num active connections: " << num_active_connections);
 
     while(!m_terminate){
         int64_t num_bytes_read { 0 }, recv_bytes { 0 };
@@ -138,7 +141,7 @@ void Server::ConnectionHandler::execute(){
         if(recv_bytes == -1) {
             ERROR_ERRNO("recv, connection interrupted?");
         } else if(recv_bytes == 0){
-            LOG("Connection closed by the remote end without sending a TERMINATE_WORKER message");
+            LOG("[server] [thread " << thread_id << "] Connection closed by the remote end without sending a TERMINATE_WORKER message");
             m_terminate = true;
             break;
         }
@@ -159,7 +162,8 @@ void Server::ConnectionHandler::execute(){
         handle_request();
     }
 
-    LOG("Remote worker terminated");
+    num_active_connections = --(m_instance->m_num_active_connections);
+    LOG("[server] [thread " << thread_id << "] Connection terminated, remaining active connections: " << num_active_connections);
 }
 
 void Server::ConnectionHandler::handle_request(){

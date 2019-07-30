@@ -78,7 +78,7 @@ WeightedEdgeStream::WeightedEdgeStream(const std::string& path){
 
     timer.stop();
 
-    LOG("Loaded " << m_num_edges << ", max vertex id: " << m_max_vertex_id << ". Load performed in " << timer);
+    LOG("Loaded " << m_num_edges << " edges, max vertex id: " << m_max_vertex_id << ". Load performed in " << timer);
 }
 
 WeightedEdgeStream::WeightedEdgeStream(const std::vector<WeightedEdge>& vector){

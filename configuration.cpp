@@ -41,6 +41,8 @@ using namespace std;
  *  Base class                                                               *
  *                                                                           *
  *****************************************************************************/
+mutex _log_mutex;
+
 static Configuration* singleton {nullptr};
 Configuration& configuration(){
     if(singleton == nullptr){ ERROR("Configuration not initialised"); }
@@ -109,13 +111,20 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
     Options opts(argv[0], "Client program for the GFE");
 
     opts.add_options("Generic")
+        ("a, aging", "The number of additional updates for the aging experiment to perform", value<Quantity>()->default_value(to_string(m_num_aging_updates)))
         ("c, connect", "The server address, in the form hostname:port. The default is " + get_server_string(), value<string>())
         ("d, database", "Store the current configuration value into the a sqlite3 database at the given location", value<string>())
+        ("e, experiment", "The experiment to execute", value<string>())
         ("h, help", "Show this help menu")
+        ("G, graph", "The path to the graph to load", value<string>())
         ("i, interactive", "Show the command loop to interact with the server")
         ("max_weight", "The maximum weight that can be assigned when reading non weighted graphs", value<double>()->default_value(to_string(max_weight())))
+        ("R, repetitions", "The number of repetitions of the same experiment (where applicable)", value<uint64_t>()->default_value(to_string(m_num_repetitions)))
+        ("r, readers", "The number of client threads to use for the read operations", value<int>()->default_value(to_string(m_num_threads_read)))
         ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(seed())))
-        ("v, verbose", "Print additional messages to the output")
+        ("t, threads", "The number of threads to use for both the read and write operations", value<int>()->default_value(to_string(m_num_threads_read + m_num_threads_write)))
+//        ("v, verbose", "Print additional messages to the output")
+        ("w, writers", "The number of client threads to use for the write operations", value<int>()->default_value(to_string(m_num_threads_write)))
     ;
 
     try {
@@ -127,7 +136,7 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
         }
 
         set_seed( result["seed"].as<uint64_t>() );
-        set_verbose( ( result.count("verbose") > 0 ) );
+//        set_verbose( ( result.count("verbose") > 0 ) );
         set_max_weight( result["max_weight"].as<double>() );
         if( result["database"].count() > 0 ){ set_database_path( result["database"].as<string>() ); }
 
@@ -152,7 +161,36 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
         };
 
         m_is_interactive = (result["interactive"].count() > 0);
+        m_num_aging_updates = result["aging"].as<Quantity>();
 
+        // number of threads
+        if( result["threads"].count() > 0) {
+           ASSERT( result["threads"].as<int>() >= 0 );
+           m_num_threads_read = m_num_threads_write = result["threads"].as<int>();
+        }
+        if( result["readers"].count() > 0) {
+            ASSERT( result["readers"].as<int>() >= 0 );
+            m_num_threads_read = result["readers"].as<int>();
+        }
+        if( result["writers"].count() > 0 ){
+            ASSERT( result["writers"].as<int>() >= 0 );
+            m_num_threads_write = result["writers"].as<int>();
+        }
+
+        // the graph to work with
+        if( result["graph"].count() > 0 ){
+            m_path_graph_to_load = result["graph"].as<string>();
+        }
+
+        // the experiment to execute
+        if( result["experiment"].count() > 0 ){
+            m_experiment = result["experiment"].as<string>();
+            transform(begin(m_experiment), end(m_experiment), begin(m_experiment), ::tolower);
+        }
+
+        uint64_t num_repetitions = result["repetitions"].as<uint64_t>();
+        if(num_repetitions <= 0) ERROR("Invalid value for the parameter --repetitions: " << num_repetitions << ". Expected a positive value");
+        m_num_repetitions = num_repetitions;
     } catch ( argument_incorrect_type& e){
         ERROR(e.what());
     }
@@ -163,15 +201,23 @@ void ClientConfiguration::save_parameters() {
 
     using P = pair<string, string>;
     vector<P> params;
+    params.push_back(P{"aging", to_string(m_num_aging_updates)});
     params.push_back(P{"database", get_database_path()});
+    if(!get_experiment_name().empty()) params.push_back(P{"experiment", get_experiment_name()});
     params.push_back(P{"git_commit", common::git_last_commit()});
+    if(!get_path_graph().empty()){ params.push_back(P{"graph", get_path_graph()}); }
     params.push_back(P{"interactive", to_string( is_interactive() )});
     params.push_back(P{"hostname", common::hostname()});
+    params.push_back(P{"num_aging_updates", to_string(m_num_aging_updates)});
+    params.push_back(P{"num_repetitions", to_string(m_num_repetitions)});
+    params.push_back(P{"num_threads_read", to_string(m_num_threads_read)});
+    params.push_back(P{"num_threads_write", to_string(m_num_threads_write)});
     params.push_back(P{"role", "client"});
     params.push_back(P{"seed", to_string(seed())});
     params.push_back(P{"server_host", get_server_host()});
     params.push_back(P{"server_port", to_string(get_server_port())});
-    params.push_back(P{"verbose", to_string(verbose())});
+//    params.push_back(P{"verbose", to_string(verbose())});
+
 
     sort(begin(params), end(params));
     db()->store_parameters(params);
@@ -183,6 +229,18 @@ string ClientConfiguration::get_server_string() const {
     return ss.str();
 }
 
+int ClientConfiguration::num_threads(ThreadsType type) const {
+    switch(type){
+    case THREADS_READ:
+        return m_num_threads_read;
+    case THREADS_WRITE:
+        return m_num_threads_write;
+    case THREADS_TOTAL:
+        return m_num_threads_read + m_num_threads_write;
+    default:
+        ERROR("Invalid thread type: " << ((int) type));
+    }
+}
 
 /*****************************************************************************
  *                                                                           *
@@ -234,7 +292,7 @@ void ServerConfiguration::parse_command_line_args(int argc, char* argv[]){
         ("p, port", "The port where to accept remote connections from the clients", value<uint32_t>()->default_value( to_string(get_port()) ))
         ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(seed())))
         ("u, undirected", "Is the graph undirected? By default, it's considered directed.")
-        ("v, verbose", "Print additional messages to the output")
+//        ("v, verbose", "Print additional messages to the output")
     ;
 
     try {
@@ -247,7 +305,7 @@ void ServerConfiguration::parse_command_line_args(int argc, char* argv[]){
         }
 
         set_seed( result["seed"].as<uint64_t>() );
-        set_verbose( ( result.count("verbose") > 0 ) );
+//        set_verbose( ( result.count("verbose") > 0 ) );
         set_max_weight( result["max_weight"].as<double>() );
         if( result["database"].count() > 0 ){ set_database_path( result["database"].as<string>() ); }
 
@@ -290,7 +348,7 @@ void ServerConfiguration::save_parameters() {
     params.push_back(P{"port", to_string(get_port())});
     params.push_back(P{"role", "server"});
     params.push_back(P{"seed", to_string(seed())});
-    params.push_back(P{"verbose", to_string(verbose())});
+//    params.push_back(P{"verbose", to_string(verbose())});
 
     sort(begin(params), end(params));
     db()->store_parameters(params);
@@ -353,7 +411,7 @@ std::unique_ptr<library::Interface> ServerConfiguration::generate_graph_library(
 //            exit(0);
 //        }
 //
-//        m_num_aging_updates = result["aging"].as<Quantity>();
+//
 //        m_graph_path = result["graph"].as<string>();
 //        m_seed = result["seed"].as<uint64_t>();
 //        m_verbose = ( result.count("verbose") > 0 );
@@ -422,80 +480,5 @@ std::unique_ptr<library::Interface> ServerConfiguration::generate_graph_library(
 //    } catch ( argument_incorrect_type& e){
 //        ERROR(e.what());
 //    }
-//}
-//
-/*****************************************************************************
- *                                                                           *
- *  Database                                                                 *
- *                                                                           *
- *****************************************************************************/
-
-
-//void Configuration::save_parameters() {
-//    if(db() == nullptr) ERROR("Path where to store the results not set");
-//
-//    using P = pair<string, string>;
-//    vector<P> params;
-//    params.push_back(P{"database", m_database_path});
-//    params.push_back(P{"git_commit", common::git_last_commit()});
-//    params.push_back(P{"graph", graph()});
-//    params.push_back(P{"hostname", common::hostname()});
-//    params.push_back(P{"library", m_library_name});
-//    params.push_back(P{"num_aging_updates", to_string(m_num_aging_updates)});
-//    params.push_back(P{"num_threads_read", to_string(m_num_threads_read)});
-//    params.push_back(P{"num_threads_write", to_string(m_num_threads_write)});
-//    params.push_back(P{"seed", to_string(m_seed)});
-//    params.push_back(P{"verbose", to_string(m_verbose)});
-//
-//    // remote connection
-//    if(is_remote_client()){
-//        params.push_back(P{"remote_role", "client"});
-//        params.push_back(P{"server_host", server_host()});
-//        params.push_back(P{"server_port", to_string(server_port())});
-//    } else if (is_remote_server()){
-//        params.push_back(P{"remote_role", "server"});
-//        params.push_back(P{"server_port", to_string(server_port())});
-//    }
-//
-//    sort(begin(params), end(params));
-//    db()->store_parameters(params);
-//}
-
-///*****************************************************************************
-// *                                                                           *
-// *  Properties                                                               *
-// *                                                                           *
-// *****************************************************************************/
-//int Configuration::num_threads(ThreadsType type) const {
-//    switch(type){
-//    case THREADS_READ:
-//        return m_num_threads_read;
-//    case THREADS_WRITE:
-//        return m_num_threads_write;
-//    case THREADS_TOTAL:
-//        return m_num_threads_read + m_num_threads_write;
-//    default:
-//        ERROR("Invalid thread type: " << ((int) type));
-//    }
-//}
-//
-//bool Configuration::is_remote_client() const {
-//    return !m_server_host.empty() && m_server_port > 0;
-//}
-//
-//bool Configuration::is_remote_server() const {
-//    return m_server_host.empty() && m_server_port > 0;
-//}
-//
-//std::string Configuration::server_host() const {
-//    return m_server_host;
-//}
-//
-//int Configuration::server_port() const {
-//    return m_server_port;
-//}
-//
-//std::unique_ptr<library::Interface> Configuration::generate_graph_library() {
-//    return m_library_factory();
 //}
 

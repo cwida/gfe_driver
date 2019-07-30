@@ -20,6 +20,10 @@
 #include <iostream>
 
 #include "common/error.hpp"
+#include "experiment/aging.hpp"
+#include "experiment/insert_only.hpp"
+#include "experiment/graphalytics.hpp"
+#include "graph/edge_stream.hpp"
 #include "library/interface.hpp"
 #include "network/client.hpp"
 #include "network/error.hpp"
@@ -34,7 +38,7 @@ using namespace std;
  *                                                                           *
  *****************************************************************************/
 #define DEBUG
-#define COUT_DEBUG_FORCE(msg) { std::cout << "[main_client::" << __FUNCTION__ << "] " << msg << std::endl; }
+#define COUT_DEBUG_FORCE(msg) { LOG("[main_client::" << __FUNCTION__ << "] " << msg) }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
 #else
@@ -177,7 +181,7 @@ static Command parse_command(){
 
 static void run_client_interactive(){
     // Open a connection with the server
-    cout << "[client] Connecting to the server at " << cfgclient().get_server_string() << endl;
+    LOG("[client] Connecting to the server at " << cfgclient().get_server_string());
     network::Client impl { cfgclient().get_server_host(), (int) cfgclient().get_server_port() };
 
     while(true){
@@ -185,10 +189,10 @@ static void run_client_interactive(){
         const string& stmt = command.get_command();
         if(stmt == "" && cin.eof()) { cout << "\n";  break; } // CTRL-D, we're done
 
-        cout << "command parsed: " << command << ", cin status: " << std::cin.eof() << endl;
+//        cout << "command parsed: " << command << ", cin status: " << std::cin.eof() << endl;
 
         try {
-            if(stmt == "dump") {
+            if(stmt == "d" || stmt == "dump") {
                 if(command.num_arguments() == 0){
                     impl.dump();
                 }
@@ -216,25 +220,81 @@ static void run_client_interactive(){
 
 /*****************************************************************************
  *                                                                           *
+ *  Non-interactive mode                                                     *
+ *                                                                           *
+ *****************************************************************************/
+
+static void run_experiments(){
+    using namespace experiment;
+
+    const string& experiment = cfgclient().get_experiment_name();
+    if(experiment.empty()) ERROR("Experiment not set (use the parameter --experiment)");
+    LOG("[client] Experiment: " << experiment);
+
+    if(experiment == "basic"){
+        const std::string& path_graph = cfgclient().get_path_graph(); // graph to use?
+        if(path_graph.empty()) ERROR("Path to the graph to load not set (use the parameter --graph)");
+
+        // implementation to the evaluate
+        LOG("[client] Connecting to the server at " << cfgclient().get_server_string());
+        auto impl = make_shared<network::Client>( cfgclient().get_server_host(), (int) cfgclient().get_server_port() );
+
+        if(cfgclient().num_updates() == 0){ // insert the elements in the graph one by one
+            LOG("[client] Loading the graph from " << path_graph);
+            auto stream = make_shared<graph::WeightedEdgeStream > ( cfgclient().get_path_graph() );
+            LOG("[client] Number of concurrent threads: " << cfgclient().num_threads(THREADS_WRITE) );
+            InsertOnly experiment { impl, stream, cfgclient().num_threads(THREADS_WRITE) };
+            experiment.execute();
+            if(configuration().has_database()) experiment.save();
+        } else {
+            // aging ...
+        }
+
+        // run the graphalytics suite
+        GraphalyticsAlgorithms properties { path_graph };
+        GraphalyticsSequential exp_seq { impl, cfgclient().num_repetitions(), properties };
+        exp_seq.execute();
+        exp_seq.report(configuration().has_database());
+
+    } else {
+        ERROR("Experiment not recognised: " << experiment);
+    }
+}
+
+/*****************************************************************************
+ *                                                                           *
  *  Main                                                                     *
  *                                                                           *
  *****************************************************************************/
 
 static void run_client(int argc, char* argv[]){
-    cout << "[client] Init configuration ... " << endl;
+    LOG("[client] Init configuration ... " );
     ClientConfiguration::initialise(argc, argv);
 
     if(configuration().has_database()){
-        cout << "[client] Save the current configuration properties in " << configuration().get_database_path() << endl;
+        LOG( "[client] Save the current configuration properties in " << configuration().get_database_path() )
         configuration().save_parameters();
     }
 
     if(cfgclient().is_interactive()){
-        cout << "[client] Interactive mode" << endl;
+        LOG( "[client] Interactive mode" )
         run_client_interactive();
+    } else {
+        run_experiments();
+
+//        // test
+//        vector<uint64_t> values;
+//        values.emplace_back(15);
+//        values.emplace_back(75);
+//        values.emplace_back(40);
+//        values.emplace_back(60);
+//        experiment::ExecStatistics stats{values};
+//        cout << stats << endl;
+//        stats.save("this_is_a_test");
+
     }
 
-    cout << "[client] Done" << endl;
+    LOG( "[client] Done" );
 }
 
 int main(int argc, char* argv[]){

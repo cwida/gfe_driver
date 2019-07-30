@@ -23,6 +23,7 @@
 #include <thread>
 #include <vector>
 
+#include "common/database.hpp"
 #include "common/timer.hpp"
 #include "configuration.hpp"
 #include "third-party/libcuckoo/cuckoohash_map.hh"
@@ -32,9 +33,9 @@ using namespace std;
 
 namespace experiment {
 
-InsertOnly::InsertOnly(std::shared_ptr<library::UpdateInterface> interface) : InsertOnly(interface, make_shared<graph::WeightedEdgeStream>()){ }
-InsertOnly::InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> graph) : InsertOnly(interface, graph, configuration().num_threads(THREADS_WRITE)){ }
-InsertOnly::InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> graph, int64_t num_threads) : m_interface(interface), m_stream(graph), m_num_threads(num_threads){ }
+InsertOnly::InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> graph, int64_t num_threads) : m_interface(interface), m_stream(graph), m_num_threads(num_threads){
+    if(m_num_threads == 0) ERROR("Invalid number of threads: " << m_num_threads);
+}
 
 bool InsertOnly::is_static_scheduler() const {
     return m_schedule_chunks == 0;
@@ -150,7 +151,15 @@ chrono::microseconds InsertOnly::execute() {
     LOG("Insertions performed with " << m_num_threads << " threads in " << timer);
     LOG("Edge stream size: " << m_stream->num_edges() << ", num edges stored in the graph: " << m_interface->num_edges() << ", match: " << (m_stream->num_edges() == m_interface->num_edges() ? "yes" : "no"));
 
+    m_execution_time = timer.microseconds();
     return timer.duration< chrono::microseconds >();
+}
+
+void InsertOnly::save() {
+    assert(configuration().db() != nullptr);
+    auto db = configuration().db()->add("insert_only");
+    db.add("scheduler", is_static_scheduler() ? "static" : "round_robin");
+    db.add("execution_time", m_execution_time); // microseconds
 }
 
 } // namespace experiment

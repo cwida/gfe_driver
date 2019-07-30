@@ -26,7 +26,9 @@ Format get_graph_format(const char* path) {
     char* extension = strrchr(path, '.');
     if(extension != nullptr){
         extension++; // skip the '.'
-        if( strcasecmp(extension, "el") == 0){
+        if ( strcasecmp(extension, "properties") == 0 ){ // properties file of the Graphalytics suite
+            return reader::Format::LDBC_GRAPHALYTICS;
+        } else if( strcasecmp(extension, "el") == 0){
             return reader::Format::PLAIN;
         } else if( strcasecmp(extension, "wel") == 0 ){
             return reader::Format::PLAIN_WEIGHTED;

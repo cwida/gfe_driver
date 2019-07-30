@@ -53,7 +53,7 @@ namespace reader {
  *                                                                           *
  *****************************************************************************/
 GraphalyticsReader::GraphalyticsReader(const std::string& path_properties){
-    if(!common::filesystem::file_exists(path_properties)) ERROR("THe given file does not exist: " << path_properties);
+    if(!common::filesystem::file_exists(path_properties)) ERROR("The given file does not exist: " << path_properties);
     string abs_path_properties = common::filesystem::absolute_path(path_properties);
     m_properties.insert({string("property-file"), abs_path_properties});
     string basedir = common::filesystem::directory(abs_path_properties);

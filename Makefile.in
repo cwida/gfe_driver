@@ -41,6 +41,9 @@ LDFLAGS := @LIBS@
 #############################################################################
 # List of the sources to compile
 sources := \
+	experiment/graphalytics.cpp \
+	experiment/insert_only.cpp \
+	experiment/statistics.cpp \
 	graph/cbytearray.cpp \
 	graph/edge.cpp \
 	graph/edge_stream.cpp \
@@ -181,7 +184,8 @@ ${libbacktrace}: ${libcommon}
 # Remove everything from the current build
 .PHONY: clean
 clean:
-	rm -rf ${builddir}/${artifact}
+	rm -rf ${builddir}/client
+	rm -rf ${builddir}/server
 	rm -rf ${builddir}/${archive}
 	rm -rf ${builddir}/${objectdir}
 	rm -rf ${builddir}/third-party/libcommon

@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <memory>
 
 #include "message.hpp"
@@ -30,6 +31,7 @@ class Server {
     const int m_port; // server port
     int m_server_fd {-1}; // file descriptor used by the server to listen for connections
     bool m_server_stop { false }; // flag to stop the server accepting connections
+    std::atomic<int> m_num_active_connections = 0;
 
     class ConnectionHandler {
         Server* m_instance;

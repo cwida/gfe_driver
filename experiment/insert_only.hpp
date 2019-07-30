@@ -32,6 +32,7 @@ class InsertOnly {
     std::shared_ptr<graph::WeightedEdgeStream> m_stream; // the graph to insert
     const int64_t m_num_threads; // the number of threads to use
     uint64_t m_schedule_chunks = 0; // if >0, schedule the edges to insert in round robin fashion, in chunks of the given size
+    uint64_t m_execution_time = 0; // the amount of time to insert all elements in the database
 
     // Execute the experiment with the static scheduler
     void execute_static(void* /* opaque */ cb);
@@ -40,11 +41,6 @@ class InsertOnly {
     void execute_round_robin(void* /* opaque */ cb);
 
 public:
-
-    InsertOnly(std::shared_ptr<library::UpdateInterface> interface);
-
-    InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream);
-
     InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, int64_t num_threads);
 
     // Check whether to use a round robin or a static scheduler
@@ -56,7 +52,11 @@ public:
     // Static scheduler, each thread inserts a fixed amount of edges
     void set_static_scheduler();
 
+    // Execute the experiment
     std::chrono::microseconds execute();
+
+    // Store the results into the database
+    void save();
 };
 
 } // namespace experiment
