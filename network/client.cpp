@@ -178,6 +178,7 @@ void Client::on_thread_destroy(int thread_id) {
     request(RequestType::ON_THREAD_DESTROY, thread_id);
     assert(response()->type() == ResponseType::OK);
     if(thread_id == m_worker_id && m_worker_id > 0){
+        request(RequestType::TERMINATE_WORKER);
         disconnect();
     }
     m_worker_id = 0;

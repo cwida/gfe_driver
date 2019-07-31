@@ -41,6 +41,7 @@ LDFLAGS := @LIBS@
 #############################################################################
 # List of the sources to compile
 sources := \
+	experiment/aging.cpp \
 	experiment/graphalytics.cpp \
 	experiment/insert_only.cpp \
 	experiment/statistics.cpp \

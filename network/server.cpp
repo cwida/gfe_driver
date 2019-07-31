@@ -40,6 +40,19 @@ namespace network {
 
 /*****************************************************************************
  *                                                                           *
+ * Debug                                                                     *
+ *                                                                           *
+ *****************************************************************************/
+#define DEBUG
+#define COUT_DEBUG_FORCE(msg) { LOG("[Server::" << __FUNCTION__ << "] " << msg); }
+#if defined(DEBUG)
+    #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
+#else
+    #define COUT_DEBUG(msg)
+#endif
+
+/*****************************************************************************
+ *                                                                           *
  * Server                                                                    *
  *                                                                           *
  *****************************************************************************/
@@ -185,10 +198,12 @@ void Server::ConnectionHandler::handle_request(){
         response(ResponseType::OK);
         break;
     case RequestType::ON_THREAD_INIT:
+        COUT_DEBUG("ON_THREAD_INIT: " << request()->get<int>(0));
         interface()->on_thread_init((int) request()->get<int>(0));
         response(ResponseType::OK);
         break;
     case RequestType::ON_THREAD_DESTROY:
+        COUT_DEBUG("ON_THREAD_DESTROY: " << request()->get<int>(0));
         interface()->on_thread_destroy((int) request()->get<int>(0));
         response(ResponseType::OK);
         break;
@@ -229,6 +244,7 @@ void Server::ConnectionHandler::handle_request(){
         }
     } break;
     case RequestType::ADD_VERTEX: {
+        COUT_DEBUG("ADD_VERTEX: " << request()->get<int>(0));
         library::UpdateInterface* update_interface = dynamic_cast<library::UpdateInterface*>(interface());
         if(update_interface == nullptr){
             LOG("Operation not supported by the current interface: " << request()->type());
@@ -239,6 +255,7 @@ void Server::ConnectionHandler::handle_request(){
         }
     } break;
     case RequestType::DELETE_VERTEX: {
+        COUT_DEBUG("DELETE_VERTEX: " << request()->get<int>(0));
         library::UpdateInterface* update_interface = dynamic_cast<library::UpdateInterface*>(interface());
         if(update_interface == nullptr){
             LOG("Operation not supported by the current interface: " << request()->type());
@@ -255,6 +272,7 @@ void Server::ConnectionHandler::handle_request(){
             response(ResponseType::NOT_SUPPORTED);
         } else {
             graph::WeightedEdge edge { request()->get(0),  request()->get(1), request()->get<double>(2)};
+            COUT_DEBUG("ADD_EDGE: " << edge);
             bool result = update_interface->add_edge(edge);
             response(ResponseType::OK, result);
         }
@@ -266,6 +284,7 @@ void Server::ConnectionHandler::handle_request(){
             response(ResponseType::NOT_SUPPORTED);
         } else {
             graph::Edge edge { request()->get(0),  request()->get(1)};
+            COUT_DEBUG("DELETE_EDGE: " << edge);
             bool result = update_interface->delete_edge(edge);
             response(ResponseType::OK, result);
         }

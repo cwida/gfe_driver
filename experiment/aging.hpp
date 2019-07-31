@@ -47,17 +47,18 @@ class Aging {
 
     cuckoohash_map<uint64_t, bool> m_vertices_present; // current list of vertices present
     const cuckoohash_map<uint64_t, bool> m_vertices_final; // list of vertices in the final graph
-    const uint64_t m_vertex_id; // the maximum vertex id that can be generated
 
     std::atomic<int64_t> m_num_operations_performed = 0; // current number of operations performed
     const uint64_t m_num_operations_total; // total number of operations to perform
     const int64_t m_num_threads; // the total number of concurrent threads to use
+    const int64_t m_num_edges; // the total number of edges in the final graph
+    const uint64_t m_max_vertex_id; // the maximum vertex id that can be generated
 
     double m_expansion_factor = 1.3; // set the maximum size, in terms of number of edges, that the underlying interface should contain
-    uint64_t m_granularity = 1024; // the granularity of each burst of insertions/deletions, as execute by a worker thread
+    int64_t m_granularity = 64; // the granularity of each burst of insertions/deletions, as execute by a worker thread
 
     // A single partition handled by a worker thread
-    class AgingPartition { public: const uint64_t m_start; const uint64_t m_length; };
+    struct AgingPartition { const uint64_t m_start; const int64_t m_length; AgingPartition(uint64_t s, uint64_t l) : m_start(s), m_length(l) { } };
 
     // The single operations that can be performed by the worker threads
     enum class AgingOperation { NONE, START, STOP, COMPUTE_FINAL_EDGES, EXECUTE_EXPERIMENT };
@@ -92,21 +93,18 @@ class Aging {
         // Remove the temporary edge at the head of the queue m_edges2remove
         void remove_temporary_edge();
 
-        // Remove the given edge if it does not belong to the final graph (i.e. it is not part of m_edges)
-        void remove_temporary_edge(graph::Edge edge);
-
         // Create a random edge, respecting the relative partitioning
         graph::WeightedEdge generate_random_edge(uint64_t src_id, uint64_t dst_id, uint32_t weight);
 
         // Check whether the given vertex id (src) belongs to the set of partitions to handle
-        bool vertex_belongs(uint64_t m_vertex_id) const;
+        bool vertex_belongs(uint64_t vertex_id) const;
 
         // Logic to run the experiment
         void main_experiment();
 
     public:
         // Initialise the worker with the list of partitions in the adjacency matrix to handle
-        AgingThread(Aging* instance, std::vector<AgingPartition> partitions, int worker_id);
+        AgingThread(Aging* instance, const std::vector<AgingPartition>& partitions, int worker_id);
 
         // Destructor
         ~AgingThread();
@@ -122,12 +120,10 @@ class Aging {
     // Insert a single vertex in the graph system/library. Invoked concurrently by the worker threads
     void insert_edge(graph::WeightedEdge edge);
 
+    // Execute the given action on all workers
+    void all_workers_execute(const std::vector<std::unique_ptr<AgingThread>>& workers, AgingOperation operation);
 
 public:
-    Aging(std::shared_ptr<library::UpdateInterface> interface);
-
-    Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream);
-
     Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads);
 
     // run the experiment

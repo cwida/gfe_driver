@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "common/optimisation.hpp"
+#include "common/system.hpp"
 #include "common/timer.hpp"
 #include "graph/edge.hpp"
 #include "graph/edge_stream.hpp"
@@ -34,14 +35,25 @@ using namespace std;
 
 namespace experiment {
 
-Aging::Aging(std::shared_ptr<library::UpdateInterface> interface) : Aging(interface, make_shared<graph::WeightedEdgeStream>()){ }
-Aging::Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream) : Aging(interface, stream, configuration().num_threads(THREADS_WRITE)) { }
-Aging::Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads) : m_interface(interface), m_stream(stream),
-        m_num_operations_total(num_operations),
-        m_num_threads(num_threads),
+/*****************************************************************************
+ *                                                                           *
+ * Debug                                                                     *
+ *                                                                           *
+ *****************************************************************************/
+#define DEBUG
+#define COUT_DEBUG_FORCE(msg) { LOG("[Aging::" << __FUNCTION__ << "] [" << concurrency::get_thread_id() << "] " << msg); }
+#if defined(DEBUG)
+    #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
+#else
+    #define COUT_DEBUG(msg)
+#endif
+
+Aging::Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads) :
+        m_interface(interface), m_stream(stream),
         m_vertices_final(move(* (stream->vertex_table().get()) ) ),
-        m_vertex_id(std::max<uint64_t>(/* avoid overflows */ stream->max_vertex_id(), stream->max_vertex_id() * /* noise */ 2)) {
-    LOG("Aging experiment initialised!");
+        m_num_operations_total(num_operations), m_num_threads(num_threads), m_num_edges(stream->num_edges()),
+        m_max_vertex_id(std::max<uint64_t>(/* avoid overflows */ stream->max_vertex_id(), stream->max_vertex_id() * /* noise */ 2)) {
+    LOG("Aging experiment initialised. Number of threads: " << m_num_threads << ", number of operations: " << m_num_operations_total);
 }
 
 void Aging::set_expansion_factor(double factor){
@@ -66,6 +78,12 @@ void Aging::insert_edge(graph::WeightedEdge edge){
     while( ! interface->add_edge(edge) ) { /* nop */ }
 }
 
+void Aging::all_workers_execute(const vector<unique_ptr<AgingThread>>& workers, AgingOperation operation){
+    vector<future<void>> sync;
+    for(auto& w: workers){ sync.push_back( w->execute(operation) ); }
+    for(auto& s: sync) { s.get(); }
+}
+
 // run the experiment
 std::chrono::microseconds Aging::execute(){
     auto interface = m_interface.get();
@@ -76,8 +94,8 @@ std::chrono::microseconds Aging::execute(){
     std::vector<AgingPartition> partitions[m_num_threads];
     {
         int64_t num_partitions = m_num_threads * 4;
-        int64_t part_length = (m_vertex_id +1) / num_partitions;
-        int64_t odd_partitions = (m_vertex_id +1) % num_partitions;
+        int64_t part_length = (m_max_vertex_id +1) / num_partitions;
+        int64_t odd_partitions = (m_max_vertex_id +1) % num_partitions;
         int64_t start = 0;
 
         for(int64_t part_id = 0; part_id < num_partitions; part_id++){
@@ -88,48 +106,42 @@ std::chrono::microseconds Aging::execute(){
     }
 
     // start the threads
-    LOG("Initialising " << m_num_threads << " threads ...");
+    LOG("[Aging] Initialising " << m_num_threads << " threads ...");
     vector<thread> threads; threads.reserve(m_num_threads);
-    vector<AgingThread> workers; workers.reserve(m_num_threads);
-    for(int64_t i = 0; i < m_num_threads; i++){
-        workers.emplace_back(this, partitions[i], /* worker_id */ i +1);
-        threads.emplace_back(&AgingThread::main_thread, workers[i]);
+    vector<unique_ptr<AgingThread>> workers; workers.reserve(m_num_threads);
+    for(int i = 0; i < m_num_threads; i++){
+        workers.push_back(make_unique<AgingThread>( this, partitions[i], /* worker_id */ i +1 ));
+        threads.emplace_back(&AgingThread::main_thread, workers[i].get());
     }
 
     // init all threads
-    vector<future<void>> sync;
-    for(auto& w: workers){ sync.push_back( w.execute(AgingOperation::COMPUTE_FINAL_EDGES) ); }
-    for(auto& s: sync){ s.get(); }
-    sync.clear();
+    all_workers_execute(workers, AgingOperation::START);
+    all_workers_execute(workers, AgingOperation::COMPUTE_FINAL_EDGES);
     m_stream.reset(); // we don't need anymore the list of edges
 
     // execute the experiment
+    LOG("[Aging] Experiment started!");
     Timer timer; timer.start();
-    for(auto& w: workers){ sync.push_back( w.execute(AgingOperation::EXECUTE_EXPERIMENT) ); }
-    LOG("Experiment started!");
-    for(auto& s: sync){ s.get(); }
+    all_workers_execute(workers, AgingOperation::EXECUTE_EXPERIMENT);
     timer.stop();
-    LOG("Experiment done!");
-    sync.clear();
+    LOG("[Aging] Experiment done!");
 
     // stop all threads
-    LOG("Waiting for all worker threads to stop...");
-    for(auto& w: workers){ sync.push_back( w.execute(AgingOperation::STOP) ); }
-    for(auto& s: sync){ s.get(); }
-    sync.clear();
+    LOG("[Aging] Waiting for all worker threads to stop...");
+    all_workers_execute(workers, AgingOperation::STOP);
     for(auto& t : threads) t.join();
-    LOG("Worker threads terminated");
+    LOG("[Aging] Worker threads terminated");
 
     // remove all vertices that are not present in the final graph
-    LOG("Removing the vertices in surplus, that should not appear in the final graph ...");
+    LOG("[Aging] Removing the vertices in surplus, that should not appear in the final graph ...");
     auto lst_vertices = m_vertices_present.lock_table();
     for(auto vertex : lst_vertices){
-        if(m_vertices_final.find(vertex.first) == end(m_vertices_final)){
+        if(!m_vertices_final.contains(vertex.first)){ // FIXME to check
             m_interface->delete_vertex(vertex.first);
         }
     }
     lst_vertices.unlock();
-    LOG("Surplus vertices removed");
+    LOG("[Aging] Surplus vertices removed");
 
     interface->on_thread_destroy(0); // main
 
@@ -142,7 +154,7 @@ std::chrono::microseconds Aging::execute(){
  *  Aging thread                                                             *
  *                                                                           *
  *****************************************************************************/
-Aging::AgingThread::AgingThread(Aging* instance, std::vector<AgingPartition> partitions, int worker_id) : m_instance(instance), m_interface(instance->m_interface.get()), m_worker_id(worker_id), m_partitions(partitions) {
+Aging::AgingThread::AgingThread(Aging* instance, const std::vector<AgingPartition>& partitions, int worker_id) : m_instance(instance), m_interface(instance->m_interface.get()), m_worker_id(worker_id), m_partitions(partitions) {
     // compute the number of vertices we are responsible to handle
     for(auto& p : m_partitions) { m_num_src_vertices_in_partitions += p.m_length; }
 }
@@ -162,7 +174,7 @@ std::future<void> Aging::AgingThread::execute(AgingOperation operation){
     m_current_operation = operation;
     compiler_barrier();
 
-    return std::move(future);
+    return future;
 }
 
 void Aging::AgingThread::main_thread(){
@@ -195,43 +207,46 @@ void Aging::AgingThread::main_thread(){
         m_callback.set_value();
     }
 
-    assert(m_current_operation = AgingOperation::STOP && "Invalid state, it should still be in the loop");
+    assert(m_current_operation == AgingOperation::STOP && "Invalid state, it should still be in the loop");
     m_interface->on_thread_destroy(m_worker_id);
     m_callback.set_value_at_thread_exit();
 }
 
 void Aging::AgingThread::main_experiment(){
-    // internal generator
-    mt19937_64 random( random_device() );
-    uniform_real_distribution<double> uniform{ 0., 1. };
-    uniform_int_distribution<uint64_t> genrndsrc {0, m_num_src_vertices_in_partitions };
-    uniform_int_distribution<uint64_t> genrnddst {0, m_instance->m_stream->max_vertex_id() };
-    uniform_int_distribution<int32_t> genrndweight{0, numeric_limits<int32_t>::max() };
+    // constants
+    const uint64_t max_number_edges = static_cast<uint64_t>(m_instance->m_expansion_factor * m_instance->m_num_edges);
+    const int64_t num_total_ops = static_cast<int64_t>(m_instance->m_num_operations_total);
+//    double prob_insert_final = static_cast<double>(m_edges.size()) / (static_cast<double>(num_total_ops)); // probability of inserting an edge
+//    LOG("prob_insert_final: " << prob_insert_final);
 
-    int64_t global_operation_count = 0;
-    while( (global_operation_count = m_instance->m_num_operations_performed.fetch_add(m_instance->m_granularity)) < m_instance->m_num_operations_total ){
+    // internal generator
+    mt19937_64 random { random_device{}() };
+    uniform_real_distribution<double> uniform{ 0., 1. };
+    uniform_int_distribution<uint64_t> genrndsrc {0, m_num_src_vertices_in_partitions -1 };
+    uniform_int_distribution<uint64_t> genrnddst {0, m_instance->m_max_vertex_id };
+    uniform_real_distribution<double> genrndweight{0, configuration().max_weight() };
+
+    int64_t num_ops_done = 0;
+    while( (num_ops_done = m_instance->m_num_operations_performed.fetch_add(m_instance->m_granularity) ) < num_total_ops ){
 
         // shall we perform a burst of insertions or deletions ?
         if(m_edges2remove.empty() /* There are no edges to remove */ ||
-                m_interface->num_edges() < static_cast<uint64_t>(m_expansion_factor * m_stream->num_edges()) /* the size of the current graph is no more than the 50% of the final graph */){
+                m_interface->num_edges() < max_number_edges /* the size of the current graph is no more than (exp_factor)x of the final graph */){
 
             // insert `m_granularity' edges then
-            for(uint64_t i = 0, end = m_instance->m_granularity; i < end; i++){
-
-                // shall we insert an edge from the final graph or a random edge?
-                if ( uniform(random) < ( static_cast<double>(missing_edges_final()) / (missing_edges_final() + (m_instance->m_num_operations_total - global_operation_count) ) ) ) {
-                    // insert from the final graph
-
+            for(int64_t i = 0, end = m_instance->m_granularity; i < end; i++){
+                double prob_insert_final = static_cast<double>(missing_edges_final()) / (num_total_ops - num_ops_done);
+                if ( uniform(random) < prob_insert_final){ // insert from the final graph
                     assert(m_final_edges_current_position < m_edges.size());
-
 
                     auto edge = m_edges[m_final_edges_current_position];
                     m_final_edges_current_position++;
 
                     // if this edge has been previously inserted remove it
                     auto raw_edge = edge.edge();
+                    COUT_DEBUG("[Prob: " << prob_insert_final << "] ADD_EDGE FINAL: " << edge);
                     auto res = m_edges_already_inserted.insert_or_assign(raw_edge, /* final */ true);
-                    if(! res.second /* the edge was already present */){
+                    if(! res.second ){ /* the edge was already present */
                         m_interface->delete_edge(raw_edge);
                     }
                     insert_edge(edge);
@@ -240,15 +255,17 @@ void Aging::AgingThread::main_experiment(){
                     // insert a random edge (noise)
                     uint64_t src_id = src_rel2abs(genrndsrc(random));
                     uint64_t dst_id = genrnddst(random);
-                    uint32_t weight = static_cast<uint32_t>( genrndweight(random) );
+                    double weight = genrndweight(random);
                     graph::WeightedEdge edge { src_id, dst_id, weight };
                     auto raw_edge = edge.edge();
                     auto res = m_edges_already_inserted.find(raw_edge);
                     bool do_insert = true;
+                    bool is_already_registered = false;
                     if(res == m_edges_already_inserted.end()){ // this edge is not already present
                         m_edges_already_inserted[raw_edge] = false;
                     } else if (!res->second){
                         // already present, but it's not final, overwrite its value
+                        is_already_registered = true;
                         m_interface->delete_edge(raw_edge);
                     } else {
                         // already present and final, that is it belongs to the final graph
@@ -256,28 +273,38 @@ void Aging::AgingThread::main_experiment(){
                     }
 
                     if(do_insert){
+//                        COUT_DEBUG("[Prob: " << prob_insert_final << "] ADD_EDGE TEMP: " << edge);
                         insert_edge(edge);
-                        m_edges2remove.append(raw_edge);
+                        if(!is_already_registered) m_edges2remove.append(raw_edge); /* otherwise already present in the list of edges to remove */
                     } /* else {
                         global_operation_count--;
                     }*/
-
                 }
-
-                global_operation_count++;
             }
-
         } else {
             // perform a burst of deletions
-
-            for(uint64_t i = 0, end = std::min<uint64_t>(m_instance->m_granularity, m_edges2remove.size()); i < end; i++){
+            for(uint64_t i = 0, end = std::min<uint64_t>(m_instance->m_granularity, m_edges2remove.size()); i < end && !m_edges2remove.empty(); i++){
                 remove_temporary_edge();
             }
-
         } // end if (burst of insertions or deletions)
 
     } // end while (operation count)
 
+    // insert the missing edges from the final graph
+    for( ; m_final_edges_current_position < m_edges.size(); m_final_edges_current_position++){
+        auto edge = m_edges[m_final_edges_current_position];
+
+        // if this edge has been previously inserted remove it
+        auto raw_edge = edge.edge();
+        auto res = m_edges_already_inserted.insert_or_assign(raw_edge, /* final */ true);
+
+        COUT_DEBUG("ADD_EDGE FINAL [2]: " << edge);
+        if(! res.second ){ /* the edge was already present */
+            m_interface->delete_edge(raw_edge);
+        }
+
+        insert_edge(edge);
+    }
 
     // remove all edges that do not belong to the final graph
     while(!m_edges2remove.empty()){
@@ -285,24 +312,27 @@ void Aging::AgingThread::main_experiment(){
     }
 }
 
-void Aging::AgingThread::insert(graph::WeightedEdge edge){
+void Aging::AgingThread::insert_edge(graph::WeightedEdge edge){
     m_instance->insert_edge(edge);
 }
 
 void Aging::AgingThread::remove_temporary_edge(){
     assert(!m_edges2remove.empty());
-    auto edge = m_edges2remove[0]; m_edges2remove.pop();
-    remove_temporary_edge(edge);
-}
 
-void Aging::AgingThread::remove_temporary_edge(graph::Edge edge){
-    assert(m_edges_already_inserted.find(edge) != m_edges_already_inserted.end() && "This should be in the list of the edges inserted");
-    auto it = m_edges_already_inserted.find(edge);
-    if(it->second == false /* this is not an edge of the final graph */ ){
-        m_interface->delete_edge(edge);
-        m_edges_already_inserted.erase(it);
+    bool removed = false;
+    while(!m_edges2remove.empty() && !removed){
+        auto edge = m_edges2remove[0]; m_edges2remove.pop();
+        assert(m_edges_already_inserted.find(edge) != m_edges_already_inserted.end() && "This should be in the list of the edges inserted");
+        auto it = m_edges_already_inserted.find(edge);
+        if(it->second == false /* this is not an edge of the final graph */ ){
+//            COUT_DEBUG("DELETE_EDGE TEMP: " << edge);
+            m_interface->delete_edge(edge);
+            m_edges_already_inserted.erase(it);
+            removed = true;
+        }
     }
 }
+
 
 int64_t Aging::AgingThread::missing_edges_final() const {
     assert(m_final_edges_current_position <= m_edges.size());
@@ -324,6 +354,18 @@ uint64_t Aging::AgingThread::src_rel2abs(uint64_t relative_vertex_id) const {
 
     assert(false && "Invalid vertex ID");
     ERROR("Invalid relative vertex ID: " << relative_vertex_id);
+}
+
+bool Aging::AgingThread::vertex_belongs(uint64_t vertex_id) const {
+    for(auto& p: m_partitions){
+        uint64_t start = p.m_start;
+        uint64_t end = start + p.m_length;
+        if(vertex_id >= start && vertex_id < end){
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

@@ -192,13 +192,15 @@ unique_ptr<cuckoohash_map<uint64_t, bool>> WeightedEdgeStream::vertex_table() co
     LOG("Computing the list of vertices ... ")
     Timer timer; timer.start();
 
-    unique_ptr<cuckoohash_map<uint64_t, bool>> ptr_vertex_table;
+//    unique_ptr<cuckoohash_map<uint64_t, bool>> ptr_vertex_table;
+    auto ptr_vertex_table = make_unique<cuckoohash_map<uint64_t, bool>>();
     auto vertex_table = ptr_vertex_table.get();
 
     auto populate_vertex_table = [this, vertex_table](uint64_t start, uint64_t length){
         for(uint64_t i = start, end = start + length; i < end; i++){
-            vertex_table[m_sources->get_value_at(i)] = true;
-            vertex_table[m_destinations->get_value_at(i)] = true;
+//            LOG("source: " << m_sources->get_value_at(i) << ", destination: " << m_destinations->get_value_at(i));
+            vertex_table->insert(m_sources->get_value_at(i), true);
+            vertex_table->insert(m_destinations->get_value_at(i), true);
         }
     };
 

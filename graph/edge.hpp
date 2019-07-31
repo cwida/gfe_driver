@@ -18,6 +18,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <functional> // std::hash
 #include <ostream>
 
 namespace graph {
@@ -55,8 +56,12 @@ public:
 
 std::ostream& operator<<(std::ostream& out, const Edge& e);
 std::ostream& operator<<(std::ostream& out, const WeightedEdge& e);
-
 } // namespace graph
 
+namespace std {
+template<> struct hash<graph::Edge>{ // hash function for graph::Edge
+    size_t operator()(const graph::Edge& e) const { return hash<uint64_t>{}(e.source()) ^ hash<uint64_t>{}(e.destination()); }
+};
 
+} // namespace std
 

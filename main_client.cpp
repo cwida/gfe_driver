@@ -192,7 +192,7 @@ static void run_client_interactive(){
 //        cout << "command parsed: " << command << ", cin status: " << std::cin.eof() << endl;
 
         try {
-            if(stmt == "d" || stmt == "dump") {
+            if(stmt == "d" || stmt == "dump" || stmt == "\\d") {
                 if(command.num_arguments() == 0){
                     impl.dump();
                 }
@@ -202,7 +202,7 @@ static void run_client_interactive(){
                 } else {
                     impl.load(command[0]);
                 }
-            } else if(stmt == "q" || stmt == "quit"){
+            } else if(stmt == "q" || stmt == "quit" || stmt == "\\q"){
                 break;
             } else if(stmt == "terminate"){
                 impl.set_terminate_server_on_exit(true);
@@ -239,15 +239,19 @@ static void run_experiments(){
         LOG("[client] Connecting to the server at " << cfgclient().get_server_string());
         auto impl = make_shared<network::Client>( cfgclient().get_server_host(), (int) cfgclient().get_server_port() );
 
+        LOG("[client] Loading the graph from " << path_graph);
+        auto stream = make_shared<graph::WeightedEdgeStream > ( cfgclient().get_path_graph() );
+        stream->permute();
+
+        LOG("[client] Number of concurrent threads: " << cfgclient().num_threads(THREADS_WRITE) );
         if(cfgclient().num_updates() == 0){ // insert the elements in the graph one by one
-            LOG("[client] Loading the graph from " << path_graph);
-            auto stream = make_shared<graph::WeightedEdgeStream > ( cfgclient().get_path_graph() );
-            LOG("[client] Number of concurrent threads: " << cfgclient().num_threads(THREADS_WRITE) );
-            InsertOnly experiment { impl, stream, cfgclient().num_threads(THREADS_WRITE) };
+            InsertOnly experiment { impl, move(stream), cfgclient().num_threads(THREADS_WRITE) };
             experiment.execute();
             if(configuration().has_database()) experiment.save();
         } else {
-            // aging ...
+            LOG("[client] Number of updates to perform: " << cfgclient().num_updates());
+            Aging experiment(impl, move(stream), cfgclient().num_updates(), cfgclient().num_threads(THREADS_WRITE));
+            experiment.execute();
         }
 
         // run the graphalytics suite
