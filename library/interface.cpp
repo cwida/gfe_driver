@@ -85,4 +85,8 @@ void Interface::dump(const std::string& path) const {
     handle.close();
 }
 
+bool Interface::is_undirected() const {
+    return !is_directed();
+}
+
 } // namespace library

@@ -109,6 +109,7 @@ public:
     virtual void on_main_destroy() override;
     virtual uint64_t num_edges() const override;
     virtual uint64_t num_vertices() const override;
+    virtual bool is_directed() const override;
     virtual bool has_vertex(uint64_t vertex_id) const override;
     virtual bool has_edge(uint64_t source, uint64_t destination) const override;
     virtual double get_weight(uint64_t source, uint64_t destination) const override;

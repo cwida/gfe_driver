@@ -22,6 +22,7 @@
 #include <thread>
 #include <vector>
 
+#include "common/database.hpp"
 #include "common/optimisation.hpp"
 #include "common/system.hpp"
 #include "common/timer.hpp"
@@ -125,6 +126,7 @@ std::chrono::microseconds Aging::execute(){
     all_workers_execute(workers, AgingOperation::EXECUTE_EXPERIMENT);
     timer.stop();
     LOG("[Aging] Experiment done!");
+    m_completion_time = timer.microseconds();
 
     // stop all threads
     LOG("[Aging] Waiting for all worker threads to stop...");
@@ -146,6 +148,17 @@ std::chrono::microseconds Aging::execute(){
     interface->on_thread_destroy(0); // main
 
     return timer.duration<chrono::microseconds>();
+}
+
+
+void Aging::save() {
+    assert(configuration().db() != nullptr);
+    auto db = configuration().db()->add("aging");
+    db.add("granularity", m_granularity);
+    db.add("num_threads", m_num_threads);
+    db.add("num_updates_requested", m_num_operations_total);
+    db.add("num_updates_executed", m_num_operations_performed);
+    db.add("completion_time", m_completion_time); // microseconds
 }
 
 

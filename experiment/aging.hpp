@@ -63,6 +63,8 @@ class Aging {
     // The single operations that can be performed by the worker threads
     enum class AgingOperation { NONE, START, STOP, COMPUTE_FINAL_EDGES, EXECUTE_EXPERIMENT };
 
+    uint64_t m_completion_time = 0; // the amount of time to complete all updates, in microsecs
+
     // A single worker thread in the aging experiment
     class AgingThread {
         Aging* m_instance; // aging instance
@@ -135,6 +137,9 @@ public:
 
     // Set the granularity of a single round of operation inside a thread
     void set_operation_granularity(uint64_t granularity);
+
+    // Store the results into the database
+    void save();
 };
 
 }

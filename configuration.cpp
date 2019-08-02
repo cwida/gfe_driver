@@ -119,6 +119,7 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
         ("G, graph", "The path to the graph to load", value<string>())
         ("i, interactive", "Show the command loop to interact with the server")
         ("max_weight", "The maximum weight that can be assigned when reading non weighted graphs", value<double>()->default_value(to_string(max_weight())))
+        ("p, port", "Specify the port of the remote server", value<uint32_t>())
         ("R, repetitions", "The number of repetitions of the same experiment (where applicable)", value<uint64_t>()->default_value(to_string(m_num_repetitions)))
         ("r, readers", "The number of client threads to use for the read operations", value<int>()->default_value(to_string(m_num_threads_read)))
         ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(seed())))
@@ -140,6 +141,7 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
         set_max_weight( result["max_weight"].as<double>() );
         if( result["database"].count() > 0 ){ set_database_path( result["database"].as<string>() ); }
 
+        bool port_specified_in_connect = false;
         if( result["connect"].count() > 0 ){
             string param_server = result["connect"].as<string>();
             auto pos_colon = param_server.find(':');
@@ -155,10 +157,22 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
                 int port = stoi(param_port); // throws invalid_argument if the conversion cannot be performed
                 if(port <= 0 || port >= (1<<16)){ throw invalid_argument("invalid port number"); }
                 m_server_port = port;
+                port_specified_in_connect = true;
             } catch (invalid_argument& e){
                 ERROR("Invalid parameter --connect: " << param_server << ". The port number cannot be recognised: `" << param_port << "'");
             }
         };
+        if( result["port"].count() > 0 ){ // alias for -c <port>
+            // parse the port number
+            uint32_t param_port = result["port"].as<uint32_t>();
+            if(port_specified_in_connect && param_port != m_server_port){
+                ERROR("The parameter port has been specified twice with different values -c " << m_server_port << " and -p " << param_port);
+            } else if (param_port <= 0 || param_port >= (1<<16)){
+                throw invalid_argument("invalid port number");
+            } else {
+                m_server_port = param_port;
+            }
+        }
 
         m_is_interactive = (result["interactive"].count() > 0);
         m_num_aging_updates = result["aging"].as<Quantity>();

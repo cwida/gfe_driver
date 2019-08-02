@@ -110,6 +110,17 @@ public:
      * Returns the weight of the given edge is the edge is present, or NaN otherwise
      */
     virtual double get_weight(uint64_t source, uint64_t destination) const = 0;
+
+    /**
+     * Check whether the graph is directed
+     */
+    virtual bool is_directed() const = 0;
+
+
+    /**
+     * Check whether the graph is undirected
+     */
+    virtual bool is_undirected() const;
 };
 
 

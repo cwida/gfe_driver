@@ -20,6 +20,7 @@
 #include <iostream>
 
 #include "common/error.hpp"
+#include "common/timer.hpp"
 #include "experiment/aging.hpp"
 #include "experiment/insert_only.hpp"
 #include "experiment/graphalytics.hpp"
@@ -27,9 +28,11 @@
 #include "library/interface.hpp"
 #include "network/client.hpp"
 #include "network/error.hpp"
+#include "third-party/cxxopts/cxxopts.hpp"
 
 #include "configuration.hpp"
 
+using namespace common;
 using namespace std;
 
 /*****************************************************************************
@@ -68,8 +71,24 @@ class Argument {
 
 public:
     string to_string() const{ return m_argument; }
+    string to_s() const { return to_string(); } // alias
+
+    uint64_t to_unsigned() const {
+        try {
+            return stoull(m_argument);
+        } catch(std::invalid_argument& e){
+            PARSE_COMMAND_ERROR("Cannot convert the value `" << m_argument << "' to an unsigned interger");
+        }
+    }
+    uint64_t to_u() { return to_unsigned(); } // alias
+
     operator string() const { return to_string(); }
 };
+
+ostream& operator<<(ostream& out, const Argument& argument){
+    out << argument.to_string();
+    return out;
+}
 
 class Command {
     friend Command parse_command();
@@ -133,33 +152,47 @@ static Command parse_command(){
     }
 
     bool stop = false;
+    bool skip_next_comma = false;
     while(pos < user_prompt.length() && !stop){ // next argument
         if(isspace(user_prompt[pos])){ pos++; continue; } // skip empty spaces at the start
+        if(skip_next_comma && user_prompt[pos] == ','){ skip_next_comma = false; pos++; continue; }
+        skip_next_comma = false;
+//        cout << "character [1]: " << user_prompt[pos] << "\n";
 
         int string_delimiter = 0;
         if(match_opened_parenthesis && user_prompt[pos] == ')'){
+//            cout << "match closed parenthesis [1]" << endl;
             break; // done
         } else if(user_prompt[pos] == '"' || user_prompt[pos] == '\''){
+//            cout << "match start of string [1]\n";
             string_delimiter = user_prompt[pos];
             start = pos +1;
         } else {
+//            cout << "match start [1]\n";
             start = pos;
         }
+
         pos++;
 
         bool terminated = false;
         while(pos < user_prompt.length() && !terminated){
+//            cout << "character [2]: " << user_prompt[pos] << "\n";
             if(user_prompt[pos] == '\\'){
                 pos+=2;
             } else if (string_delimiter == 0 && match_opened_parenthesis && user_prompt[pos] == ')'){
+//                cout << "match closed parenthesis [2]" << endl;
                 end = pos;
                 terminated = true;
                 stop = true;
-            } else if (string_delimiter == 0 && isspace(user_prompt[pos])){
+            } else if (string_delimiter == 0 && (isspace(user_prompt[pos]) || user_prompt[pos] == ',')){
+//                cout << "match end parameter [2]" << endl;
+                skip_next_comma = (user_prompt[pos] != ',');
                 end = pos;
                 terminated = true;
             } else if (string_delimiter != 0 && user_prompt[pos] == string_delimiter){
-                end = pos; pos++;
+//                cout << "match closed string [2]" << endl;
+                end = pos;
+                skip_next_comma = true;
                 terminated = true;
             } else {
                 pos++;
@@ -189,18 +222,56 @@ static void run_client_interactive(){
         const string& stmt = command.get_command();
         if(stmt == "" && cin.eof()) { cout << "\n";  break; } // CTRL-D, we're done
 
-//        cout << "command parsed: " << command << ", cin status: " << std::cin.eof() << endl;
+//        cout << "command parsed: " << command << endl;
 
         try {
-            if(stmt == "d" || stmt == "dump" || stmt == "\\d") {
+            if(stmt == "bfs"){
+                bool error = false;
+                if(command.num_arguments() == 0 || command.num_arguments() > 2) {
+                    cerr<< "[client] Invalid number of arguments: " << command.num_arguments() << ". Syntax: bfs( source_vertex [, path_dump] );" << endl;
+                    error = true;
+                } else { // either 1 or 2 arguments
+                    uint64_t source_vertex;
+                    string str_path_dump;
+                    try {
+                        source_vertex = command[0].to_unsigned();
+
+                        if(command.num_arguments() > 1){ str_path_dump = command[1]; }
+
+                    } catch(ParseCommandError& e){
+                        error = true;
+                        cerr<< "[client] Invalid argument source_vertex: `" << command[0] << "'. Syntax: bfs( source_vertex [, path_dump] );" << endl;
+                    }
+
+                    if(!error){
+                        Timer timer; timer.start();
+                        impl.bfs(source_vertex, str_path_dump.c_str());
+                        timer.stop();
+                        cout << "[client] BFS on source vertex `" << source_vertex << "' completed in " << timer << "\n";
+                    }
+                }
+            } else if(stmt == "d" || stmt == "dump" || stmt == "\\d") {
                 if(command.num_arguments() == 0){
                     impl.dump();
+                } else {
+                    cerr << "[client] ERROR: invalid number of arguments: " << command.num_arguments() << ". Expected 0\n";
+                }
+            } else if (stmt == "directed" || stmt == "is_directed" || stmt == "undirected" || stmt == "is_undirected") {
+                if(command.num_arguments() == 0){
+                    if(impl.is_directed()){
+                        cout << "[client] The graph is directed\n";
+                    } else {
+                        cout << "[client] The graph is undirected\n";
+                    }
+                } else {
+                    cerr << "[client] ERROR: invalid number of arguments: " << command.num_arguments() << ". Expected 0\n";
                 }
             } else if(stmt == "load"){
                 if(command.num_arguments() != 1){
-                    cout << "[client] [load] invalid number of arguments, expected 1: load (path);" << endl;
+                    cerr << "[client] [load] invalid number of arguments, expected 1: load (path);" << endl;
                 } else {
                     impl.load(command[0]);
+                    cout << "[client] Load done\n";
                 }
             } else if(stmt == "q" || stmt == "quit" || stmt == "\\q"){
                 break;
@@ -208,7 +279,7 @@ static void run_client_interactive(){
                 impl.set_terminate_server_on_exit(true);
                 break;
             } else {
-                cout << "[client] ERROR, invalid command: " << stmt << endl;
+                cerr << "[client] ERROR, invalid command: " << stmt << endl;
             }
 
         } catch(network::RPCError& e){
@@ -240,7 +311,7 @@ static void run_experiments(){
         auto impl = make_shared<network::Client>( cfgclient().get_server_host(), (int) cfgclient().get_server_port() );
 
         LOG("[client] Loading the graph from " << path_graph);
-        auto stream = make_shared<graph::WeightedEdgeStream > ( cfgclient().get_path_graph() );
+        auto stream = make_shared<graph::WeightedEdgeStream> ( cfgclient().get_path_graph() );
         stream->permute();
 
         LOG("[client] Number of concurrent threads: " << cfgclient().num_threads(THREADS_WRITE) );
@@ -252,6 +323,7 @@ static void run_experiments(){
             LOG("[client] Number of updates to perform: " << cfgclient().num_updates());
             Aging experiment(impl, move(stream), cfgclient().num_updates(), cfgclient().num_threads(THREADS_WRITE));
             experiment.execute();
+            if(configuration().has_database()) experiment.save();
         }
 
         // run the graphalytics suite
@@ -308,6 +380,9 @@ int main(int argc, char* argv[]){
     } catch(common::Error& e){
         cerr << e << endl;
         cerr << "Client terminating due to exception..." << endl;
+        rc = 1;
+    } catch(cxxopts::option_not_exists_exception& e){
+        cerr << "ERROR: " << e.what() << "\n";
         rc = 1;
     }
 

@@ -201,6 +201,12 @@ uint64_t Client::num_vertices() const {
     return response()->get(0);
 }
 
+bool Client::is_directed() const {
+    const_cast<Client*>(this)->request(RequestType::IS_DIRECTED);
+    assert(response()->type() == ResponseType::OK);
+    return (bool) response()->get(0);
+}
+
 bool Client::has_vertex(uint64_t vertex_id) const {
     const_cast<Client*>(this)->request(RequestType::HAS_VERTEX, vertex_id);
     assert(response()->type() == ResponseType::OK);
@@ -281,9 +287,14 @@ void Client::dump_ostream(std::ostream& out) const {
 }
 
 void Client::bfs(uint64_t source_vertex_id, const char* dump2file){
+    if(dump2file != nullptr && dump2file[0] == '\0') dump2file = nullptr;
+
+
     request(RequestType::BFS, source_vertex_id, dump2file);
     if(response()->type() == ResponseType::NOT_SUPPORTED){
         ERROR("bfs(" << source_vertex_id << ", \"" << dump2file << "\"): operation not supported by the remote interface");
+    } else if (response()->type() == ResponseType::ERROR){
+        RPC_ERROR(response()->get_string(0));
     }
     assert(response()->type() == ResponseType::OK);
 }

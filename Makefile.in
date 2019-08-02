@@ -83,13 +83,13 @@ objects := $(filter-out main_%.o, ${objects_c} ${objects_cxx})
 .DEFAULT_GOAL = all
 .PHONY: all
 
-all: Makefile ${builddir}/server ${builddir}/client
+all: Makefile ${builddir}/gfe_server ${builddir}/gfe_client
 
 #############################################################################
 # Artifacts to build
-${builddir}/client: ${objectdir}/main_client.o ${dependencies} | ${builddir}
+${builddir}/gfe_client: ${objectdir}/main_client.o ${dependencies} | ${builddir}
 	${CXX} ${LDFLAGS} $^ -o $@
-${builddir}/server: ${objectdir}/main_server.o ${dependencies} | ${builddir}
+${builddir}/gfe_server: ${objectdir}/main_server.o ${dependencies} | ${builddir}
 	${CXX} ${LDFLAGS} $^ -o $@
 
 #############################################################################
@@ -185,8 +185,8 @@ ${libbacktrace}: ${libcommon}
 # Remove everything from the current build
 .PHONY: clean
 clean:
-	rm -rf ${builddir}/client
-	rm -rf ${builddir}/server
+	rm -rf ${builddir}/gfe_client
+	rm -rf ${builddir}/gfe_server
 	rm -rf ${builddir}/${archive}
 	rm -rf ${builddir}/${objectdir}
 	rm -rf ${builddir}/third-party/libcommon

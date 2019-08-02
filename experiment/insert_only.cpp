@@ -159,7 +159,7 @@ void InsertOnly::save() {
     assert(configuration().db() != nullptr);
     auto db = configuration().db()->add("insert_only");
     db.add("scheduler", is_static_scheduler() ? "static" : "round_robin");
-    db.add("execution_time", m_execution_time); // microseconds
+    db.add("completion_time", m_execution_time); // microseconds
 }
 
 } // namespace experiment

@@ -219,6 +219,10 @@ void Server::ConnectionHandler::handle_request(){
         uint64_t num_vertices = interface()->num_vertices();
         response(ResponseType::OK, num_vertices);
     } break;
+    case RequestType::IS_DIRECTED: {
+        bool value = interface()->is_directed();
+        response(ResponseType::OK, (uint64_t) value);
+    } break;
     case RequestType::HAS_VERTEX: {
         bool result = interface()->has_vertex(request()->get(0));
         response(ResponseType::OK, result);

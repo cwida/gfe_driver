@@ -29,6 +29,7 @@ std::ostream& operator<<(std::ostream& out, RequestType type){
     case RequestType::ON_MAIN_DESTROY: out << "ON_MAIN_DESTROY"; break;
     case RequestType::NUM_EDGES: out << "NUM_EDGES"; break;
     case RequestType::NUM_VERTICES: out << "NUM_VERTICES"; break;
+    case RequestType::IS_DIRECTED: out << "IS_DIRECTED"; break;
     case RequestType::HAS_VERTEX: out << "HAS_VERTEX"; break;
     case RequestType::HAS_EDGE: out << "HAS_EDGE"; break;
     case RequestType::GET_WEIGHT: out << "GET_WEIGHT"; break;

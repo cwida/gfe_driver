@@ -34,7 +34,7 @@ enum class RequestType : uint32_t {
     TERMINATE_SERVER, // terminate the server, imply this connection as well
     TERMINATE_WORKER, // terminate only the worker connection
     ON_MAIN_INIT, ON_THREAD_INIT, ON_THREAD_DESTROY, ON_MAIN_DESTROY,
-    NUM_EDGES, NUM_VERTICES,
+    NUM_EDGES, NUM_VERTICES, IS_DIRECTED,
     HAS_VERTEX, HAS_EDGE, GET_WEIGHT,
     LOAD, // load the graph from disk
     ADD_VERTEX, DELETE_VERTEX, ADD_EDGE, DELETE_EDGE,
