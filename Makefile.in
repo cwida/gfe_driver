@@ -33,6 +33,7 @@ libcommon := third-party/libcommon/obj/libcommon.a
 libbacktrace := third-party/libcommon/lib/backtrace/lib/libbacktrace.a
 archive := libgrapheval.a
 dependencies := ${archive} ${libcommon} ${libbacktrace}
+dependencies_cmake_flags := -DCMAKE_CXX_COMPILER=$(firstword ${CXX}) $(if $(filter -stdlib=libc++, ${CXX}),-DCMAKE_CXX_FLAGS="-stdlib=libc++")
 
 # Linker
 LIBS := @LIBS@ 
@@ -153,7 +154,7 @@ ${testartifacts}: % : %.cpp | ${testbindir} ${testgraphs}
 ${gtestlibs}: ${gtestdir}
 ${gtestdir}:
 	mkdir -pv ${gtestdir}
-	cmake -S ${srcdir}/third-party/googletest/ -B ${gtestdir}
+	cmake -S ${srcdir}/third-party/googletest/ ${dependencies_cmake_flags} -B ${gtestdir}
 	make -C ${gtestdir} -j
 	
 ${testgraphs}: | ${testbindir}
@@ -170,7 +171,6 @@ ${builddir} ${objectdirs} ${testbindir}:
 libcommon: ${libcommon}
 libcommon_path := third-party/libcommon
 libcommon_build_path := $(abspath ${builddir})/${libcommon_path}
-libcommon_cmake_flags := $(if $(filter -stdlib=libc++, ${CXX}),-DCMAKE_CXX_FLAGS="-stdlib=libc++")
 
 # `common' is the target name for the rule in the libcommon project
 ${libcommon}: ${libcommon_build_path}
@@ -179,7 +179,7 @@ ${libcommon}: ${libcommon_build_path}
 ${libcommon_build_path}:	
 	mkdir -pv $@
 	cd ${builddir}/third-party/libcommon && \
-		cmake -DBUILD_TEST=OFF -DCMAKE_BUILD_TYPE=@CMAKE_BUILD_TYPE@ ${libcommon_cmake_flags} $(abspath ${srcdir})/third-party/libcommon
+		cmake -DBUILD_TEST=OFF -DCMAKE_BUILD_TYPE=@CMAKE_BUILD_TYPE@ ${dependencies_cmake_flags} $(abspath ${srcdir})/third-party/libcommon
 
 ${libbacktrace}: ${libcommon}
 
