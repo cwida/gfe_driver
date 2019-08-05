@@ -23,7 +23,7 @@
 namespace reader {
 
 Format get_graph_format(const char* path) {
-    char* extension = strrchr(path, '.');
+    const char* extension = strrchr(path, '.');
     if(extension != nullptr){
         extension++; // skip the '.'
         if ( strcasecmp(extension, "properties") == 0 ){ // properties file of the Graphalytics suite

@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 
 #include <cstdio>
+#include <cstdlib> // getenv
 #include <iostream>
 #include <string>
 
@@ -31,13 +32,26 @@ using namespace experiment;
 using namespace std;
 using namespace library;
 
+extern char** environ;
+
 constexpr static int num_threads = 1;
 constexpr static bool is_directed = false; // whether the graph is directed
-static string path_graph = "/home/dean/workspace/graphalytics/datasets/dota-league/dota-league.properties";
+
+static const char* path_graph_default = "/home/dean/workspace/graphalytics/datasets/dota-league/dota-league.properties";
+static string get_path_graph(){
+    static const char* path_graph = getenv("GFE_PATH_GRAPH");
+    if(path_graph == nullptr){
+        cout << "Warning: env. var. GFE_PATH_GRAPH not set. Using the default: " << path_graph_default << endl;
+        path_graph = path_graph_default;
+    }
+    return string(path_graph);
+}
+
 
 TEST(Performance, InsertOnly) {
     auto impl = make_shared<AdjacencyList>(is_directed);
     Timer timer;
+    string path_graph = get_path_graph();
 
     cout << "[Performance::InsertOnly] Loading the graph from `" << path_graph << "' ... \n";
     timer.start();
@@ -53,4 +67,33 @@ TEST(Performance, InsertOnly) {
     experiment.execute();
     timer.stop();
     cout << "Execution completed in " << timer << "\n";
+}
+
+
+TEST(Performance, LCC) {
+    auto impl = make_shared<AdjacencyList>(is_directed);
+    Timer timer;
+    string path_graph = get_path_graph();
+
+    cout << "[Performance::LCC] Loading the graph from `" << path_graph << "' ... \n";
+    timer.start();
+    auto stream = make_shared<graph::WeightedEdgeStream>(path_graph);
+    timer.stop();
+    cout << "Graph loaded in " << timer << "\n";
+    stream->permute(1910);
+
+
+    cout << "[Performance::LCC] Executing the insertions ...\n";
+    timer.start();
+    InsertOnly experiment(impl, move(stream), num_threads);
+    experiment.execute();
+    timer.stop();
+    cout << "Execution completed in " << timer << "\n";
+
+    cout << "[Performance::LCC] Executing the LCC algorithm ...\n";
+    timer.start();
+    impl->lcc();
+    timer.stop();
+    cout << "Execution completed in " << timer << "\n";
+
 }
