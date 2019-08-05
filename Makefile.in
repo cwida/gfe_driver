@@ -78,7 +78,7 @@ makedepend_cxx = @$(CXX) -MM $(ALL_CXXFLAGS) -MP -MT $@ -MF $(basename $@).d $<
 objectdirs := $(patsubst %./, %, $(sort $(addprefix ${objectdir}/, $(dir ${sources}))))
 objects_c := $(addprefix ${objectdir}/, $(patsubst %.c, %.o, $(filter %.c, ${sources})))
 objects_cxx := $(addprefix ${objectdir}/, $(patsubst %.cpp, %.o, $(filter %.cpp, ${sources})))
-objects := $(filter-out main_%.o, ${objects_c} ${objects_cxx})
+objects := $(filter-out ${objectdir}/main_%.o, ${objects_c} ${objects_cxx})
 
 .DEFAULT_GOAL = all
 .PHONY: all
@@ -95,6 +95,7 @@ ${builddir}/gfe_server: ${objectdir}/main_server.o ${dependencies} | ${builddir}
 #############################################################################
 # Compiling the objects
 ${archive}: ${objects}
+	echo "$(objects)"
 	$(AR) $(AR_FLAGS) $@ $?
 
 # Objects from C files

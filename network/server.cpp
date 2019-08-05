@@ -43,7 +43,7 @@ namespace network {
  * Debug                                                                     *
  *                                                                           *
  *****************************************************************************/
-#define DEBUG
+//#define DEBUG
 #define COUT_DEBUG_FORCE(msg) { LOG("[Server::" << __FUNCTION__ << "] " << msg); }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
@@ -404,8 +404,7 @@ template<typename... Args>
 void Server::ConnectionHandler::response(ResponseType type, Args... args){
     new (m_buffer_write) Response(type, std::forward<Args>(args)...);
 
-    uint64_t message_sz = *(reinterpret_cast<uint32_t*>(m_buffer_write));
-    assert(message_sz < buffer_sz && "The message is too long");
+    assert(/* message_sz */ (*(reinterpret_cast<uint32_t*>(m_buffer_write))) < buffer_sz && "The message is too long");
     send_message(m_buffer_write);
 }
 
