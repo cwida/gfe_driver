@@ -53,12 +53,13 @@ class Aging {
     const int64_t m_num_threads; // the total number of concurrent threads to use
     const int64_t m_num_edges; // the total number of edges in the final graph
     const uint64_t m_max_vertex_id; // the maximum vertex id that can be generated
+    const bool m_is_directed; // whether the graph is directed
 
     double m_expansion_factor = 1.3; // set the maximum size, in terms of number of edges, that the underlying interface should contain
     int64_t m_granularity = 64; // the granularity of each burst of insertions/deletions, as execute by a worker thread
 
     // A single partition handled by a worker thread
-    struct AgingPartition { const uint64_t m_start; const int64_t m_length; AgingPartition(uint64_t s, uint64_t l) : m_start(s), m_length(l) { } };
+    struct Partition { const uint64_t m_start; const int64_t m_length; Partition(uint64_t s, uint64_t l) : m_start(s), m_length(l) { } };
 
     // The single operations that can be performed by the worker threads
     enum class AgingOperation { NONE, START, STOP, COMPUTE_FINAL_EDGES, EXECUTE_EXPERIMENT };
@@ -71,7 +72,7 @@ class Aging {
         library::UpdateInterface* m_interface; // the graph library we are operating on
         const int m_worker_id; // the id of this thread
 
-        std::vector<AgingPartition> m_partitions;
+        std::vector<Partition> m_partitions;
         uint64_t m_num_src_vertices_in_partitions {0};
 
         std::vector<graph::WeightedEdge> m_edges; // primary edges to insert in the final graph
@@ -106,7 +107,7 @@ class Aging {
 
     public:
         // Initialise the worker with the list of partitions in the adjacency matrix to handle
-        AgingThread(Aging* instance, const std::vector<AgingPartition>& partitions, int worker_id);
+        AgingThread(Aging* instance, const std::vector<Partition>& partitions, int worker_id);
 
         // Destructor
         ~AgingThread();
@@ -125,11 +126,18 @@ class Aging {
     // Execute the given action on all workers
     void all_workers_execute(const std::vector<std::unique_ptr<AgingThread>>& workers, AgingOperation operation);
 
+    std::vector<std::vector<Partition>> compute_partitions_undirected() const;
+    std::vector<std::vector<Partition>> compute_partitions_directed() const;
+
 public:
     Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads);
+    Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads, bool is_directed);
 
     // run the experiment
     std::chrono::microseconds execute();
+
+    // check whether the graph is directed
+    bool is_directed() const;
 
     // Set the max expansion factor of the graph, in terms of number of active edges, for the underlying interface. It should be a value >= 1.
     // For instance with f = 1.3, then the graph can grow up to 30% than the size of the final graph

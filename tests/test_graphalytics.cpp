@@ -21,6 +21,8 @@
 #include <string>
 #include "common/error.hpp"
 #include "common/filesystem.hpp"
+#include "experiment/aging.hpp"
+#include "graph/edge_stream.hpp"
 #include "library/baseline/adjacency_list.hpp"
 #include "library/interface.hpp"
 #include "reader/graphalytics_reader.hpp"
@@ -58,6 +60,10 @@ static void load_graph(library::UpdateInterface* interface, const std::string& p
 
     interface->on_thread_destroy(0);
     interface->on_main_destroy();
+}
+
+static void experiment_aging(library::UpdateInterface* interface, const std::string& path_graphalytics_graph){
+
 }
 
 // Get the path to non existing temporary file
@@ -154,5 +160,13 @@ TEST(AdjacencyList, GraphalyticsDirected){
 TEST(AdjacencyList, GraphalyticsUndirected){
     auto adjlist = make_unique<AdjacencyList>(/* directed */ false);
     load_graph(adjlist.get(), path_example_undirected);
+    validate(adjlist.get(), path_example_undirected);
+}
+
+TEST(AdjacencyList, Aging){
+    auto adjlist = make_shared<AdjacencyList>(/* directed */ false);
+    auto edge_stream = make_shared<graph::WeightedEdgeStream>(path_example_undirected + ".properties" );
+    experiment::Aging aging(adjlist, move(edge_stream), 1024, 8);
+    aging.execute();
     validate(adjlist.get(), path_example_undirected);
 }

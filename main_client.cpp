@@ -310,6 +310,9 @@ static void run_experiments(){
         LOG("[client] Connecting to the server at " << cfgclient().get_server_string());
         auto impl = make_shared<network::Client>( cfgclient().get_server_host(), (int) cfgclient().get_server_port() );
 
+        bool remote_graph_is_directed = impl->is_directed();
+        LOG("[client] The remote server expects " << (remote_graph_is_directed ? "a directed" : "an undirected") << " graph");
+
         LOG("[client] Loading the graph from " << path_graph);
         auto stream = make_shared<graph::WeightedEdgeStream> ( cfgclient().get_path_graph() );
         stream->permute();
@@ -321,7 +324,7 @@ static void run_experiments(){
             if(configuration().has_database()) experiment.save();
         } else {
             LOG("[client] Number of updates to perform: " << cfgclient().num_updates());
-            Aging experiment(impl, move(stream), cfgclient().num_updates(), cfgclient().num_threads(THREADS_WRITE));
+            Aging experiment(impl, move(stream), cfgclient().num_updates(), cfgclient().num_threads(THREADS_WRITE), remote_graph_is_directed);
             experiment.execute();
             if(configuration().has_database()) experiment.save();
         }

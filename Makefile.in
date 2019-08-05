@@ -33,7 +33,7 @@ libcommon := third-party/libcommon/obj/libcommon.a
 libbacktrace := third-party/libcommon/lib/backtrace/lib/libbacktrace.a
 archive := libgrapheval.a
 dependencies := ${archive} ${libcommon} ${libbacktrace}
-dependencies_cmake_flags := -DCMAKE_CXX_COMPILER=$(firstword ${CXX}) $(if $(filter -stdlib=libc++, ${CXX}),-DCMAKE_CXX_FLAGS="-stdlib=libc++")
+dependencies_cmake_flags := -DCMAKE_CXX_COMPILER="$(firstword ${CXX})" $(if $(filter -stdlib=libc++, ${CXX}),-DCMAKE_CXX_FLAGS="-stdlib=libc++")
 
 # Linker
 LIBS := @LIBS@ 

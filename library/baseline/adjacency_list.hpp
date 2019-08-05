@@ -67,6 +67,10 @@ class AdjacencyList : public virtual UpdateInterface, public virtual LoaderInter
     bool add_edge0(graph::WeightedEdge e);
     bool delete_edge0(graph::Edge e);
 
+    // Compute the local clustering coefficient
+    void lcc_undirected(std::unordered_map<uint64_t, double>& result);
+    void lcc_directed(std::unordered_map<uint64_t, double>& result);
+
 
 public:
     /**

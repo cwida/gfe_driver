@@ -49,11 +49,16 @@ namespace experiment {
     #define COUT_DEBUG(msg)
 #endif
 
+
 Aging::Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads) :
+        Aging(interface,stream,num_operations, num_threads, interface->is_directed()) { }
+
+Aging::Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads, bool graph_is_directed) :
         m_interface(interface), m_stream(stream),
         m_vertices_final(move(* (stream->vertex_table().get()) ) ),
         m_num_operations_total(num_operations), m_num_threads(num_threads), m_num_edges(stream->num_edges()),
-        m_max_vertex_id(std::max<uint64_t>(/* avoid overflows */ stream->max_vertex_id(), stream->max_vertex_id() * /* noise */ 2)) {
+        m_max_vertex_id(std::max<uint64_t>(/* avoid overflows */ stream->max_vertex_id(), stream->max_vertex_id() * /* noise */ 2)),
+        m_is_directed(graph_is_directed){
     LOG("Aging experiment initialised. Number of threads: " << m_num_threads << ", number of operations: " << m_num_operations_total);
 }
 
@@ -67,6 +72,58 @@ void Aging::set_operation_granularity(uint64_t granularity){
     if(granularity < 1) INVALID_ARGUMENT("the granularity given must be > 0: " << granularity);
     LOG("[Aging] Granularity set to: " << granularity);
     m_granularity = granularity;
+}
+
+vector<vector<Aging::Partition>> Aging::compute_partitions_directed() const{
+    vector<vector<Partition>> partitions ( m_num_threads );
+    int64_t num_partitions = m_num_threads * 4;
+    int64_t part_length = (m_max_vertex_id +1) / num_partitions;
+    int64_t odd_partitions = (m_max_vertex_id +1) % num_partitions;
+    int64_t start = 0;
+
+    for(int64_t part_id = 0; part_id < num_partitions; part_id++){
+        int64_t length = part_length + (part_id < odd_partitions);
+        partitions[part_id % m_num_threads].emplace_back(start, length);
+        start += length; // next partition
+    }
+    return partitions;
+}
+
+vector<vector<Aging::Partition>> Aging::compute_partitions_undirected() const{
+    vector<vector<Partition>> partitions ( m_num_threads );
+    int64_t num_partitions = m_num_threads * 8;
+    int64_t max_num_edges = m_max_vertex_id * (m_max_vertex_id -1) / 2; // (n-1)*(n-2) /2;
+    int64_t e = max_num_edges / num_partitions; // edges per partition
+
+    LOG("Computing the list of partitions...");
+    COUT_DEBUG("num_partitions: " << num_partitions << ", max_vertex_id: " << m_max_vertex_id << ", max_num_edges: " << max_num_edges << ", edges_per_partition: " << e);
+
+    int64_t vertex_from = 0;
+    for(int64_t i = 0; i < num_partitions -1; i++){
+        // how many edges can we create from vertex_from ?
+        int64_t S = (m_max_vertex_id +1 -vertex_from) * (m_max_vertex_id -vertex_from) /2;
+
+        // solve the inequation S - [(x^2 +x) /2] < e
+        // that is x^2 +x +2(e -s) > 0 => [ -1 + sqrt( 1 - 8(e-s) ) ] / 2
+        int64_t x = (-1.0 + sqrt(1ll - 8ll*(e-S)) ) / 2.0;
+
+        int64_t vertex_upto = m_max_vertex_id -x;
+
+        COUT_DEBUG("partition[" << i << "] interval: [" << vertex_from << ", " << vertex_upto << ")");
+        partitions[i % m_num_threads].emplace_back(vertex_from, vertex_upto - vertex_from);
+
+        vertex_from = vertex_upto; // next iteration
+    }
+
+    COUT_DEBUG("partition[" << num_partitions -1 << "] interval: [" << vertex_from << ", " << m_max_vertex_id << "]" );
+    partitions[num_partitions -1 % m_num_threads].emplace_back(vertex_from, m_max_vertex_id - vertex_from +1);
+
+    return partitions;
+}
+
+
+bool Aging::is_directed() const {
+    return m_is_directed;
 }
 
 void Aging::insert_edge(graph::WeightedEdge edge){
@@ -92,19 +149,8 @@ std::chrono::microseconds Aging::execute(){
     interface->on_thread_init(0);
 
     // compute the set of partitions for each worker
-    std::vector<AgingPartition> partitions[m_num_threads];
-    {
-        int64_t num_partitions = m_num_threads * 4;
-        int64_t part_length = (m_max_vertex_id +1) / num_partitions;
-        int64_t odd_partitions = (m_max_vertex_id +1) % num_partitions;
-        int64_t start = 0;
-
-        for(int64_t part_id = 0; part_id < num_partitions; part_id++){
-            int64_t length = part_length + (part_id < odd_partitions);
-            partitions[part_id % m_num_threads].emplace_back(start, length);
-            start += length; // next partition
-        }
-    }
+    vector<vector<Partition>> partitions = is_directed() ? compute_partitions_directed() : compute_partitions_undirected();
+    exit(0);
 
     // start the threads
     LOG("[Aging] Initialising " << m_num_threads << " threads ...");
@@ -151,6 +197,8 @@ std::chrono::microseconds Aging::execute(){
 }
 
 
+
+
 void Aging::save() {
     assert(configuration().db() != nullptr);
     auto db = configuration().db()->add("aging");
@@ -167,7 +215,7 @@ void Aging::save() {
  *  Aging thread                                                             *
  *                                                                           *
  *****************************************************************************/
-Aging::AgingThread::AgingThread(Aging* instance, const std::vector<AgingPartition>& partitions, int worker_id) : m_instance(instance), m_interface(instance->m_interface.get()), m_worker_id(worker_id), m_partitions(partitions) {
+Aging::AgingThread::AgingThread(Aging* instance, const std::vector<Partition>& partitions, int worker_id) : m_instance(instance), m_interface(instance->m_interface.get()), m_worker_id(worker_id), m_partitions(partitions) {
     // compute the number of vertices we are responsible to handle
     for(auto& p : m_partitions) { m_num_src_vertices_in_partitions += p.m_length; }
 }
@@ -242,9 +290,12 @@ void Aging::AgingThread::main_experiment(){
     int64_t num_ops_done = 0;
     while( (num_ops_done = m_instance->m_num_operations_performed.fetch_add(m_instance->m_granularity) ) < num_total_ops ){
 
+
         // shall we perform a burst of insertions or deletions ?
         if(m_edges2remove.empty() /* There are no edges to remove */ ||
                 m_interface->num_edges() < max_number_edges /* the size of the current graph is no more than (exp_factor)x of the final graph */){
+
+            COUT_DEBUG("LOOP: " << num_ops_done << "/" << num_total_ops);
 
             // insert `m_granularity' edges then
             for(int64_t i = 0, end = m_instance->m_granularity; i < end; i++){
@@ -269,6 +320,10 @@ void Aging::AgingThread::main_experiment(){
                     uint64_t src_id = src_rel2abs(genrndsrc(random));
                     uint64_t dst_id = genrnddst(random);
                     double weight = genrndweight(random);
+                    if(dst_id == src_id){ // avoid having the same src & dst for an edge
+                        dst_id = (dst_id != m_instance->m_max_vertex_id) ? dst_id +1 : 0;
+                    }
+
                     graph::WeightedEdge edge { src_id, dst_id, weight };
                     auto raw_edge = edge.edge();
                     auto res = m_edges_already_inserted.find(raw_edge);

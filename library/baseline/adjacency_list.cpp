@@ -526,12 +526,49 @@ void AdjacencyList::cdlp(uint64_t max_iterations, const char* dump2file){
     }
 }
 
-void AdjacencyList::lcc(const char* dump2file){
-    shared_lock<mutex_t> lock(mutex);
+void AdjacencyList::lcc_undirected(unordered_map<uint64_t, double>& result){
+    unordered_set<uint64_t> H;
 
-    // init
-    std::unordered_map<uint64_t, double> lcc;
+    for(const auto& p : m_adjacency_list){
+        uint64_t vertex1 = p.first;
+        uint64_t degree = get_degree(vertex1);
 
+        if(degree >= 2){
+            uint64_t num_triangles = 0;
+            H.clear();
+
+            // build the hash table
+            for_all_edges(p.second, [&H](uint64_t vertex){ H.insert(vertex); });
+
+            // probe the hash table
+            for_all_edges(p.second, [&](uint64_t vertex2){
+               const EdgeList& vertex2_neighbours = m_adjacency_list.at(vertex2).first;
+               for(auto& edge : vertex2_neighbours){
+                   num_triangles += (H.find(edge.first) != end(H));
+               }
+            });
+
+//            for_all_edges(p.second, [&](uint64_t vertex2){
+//                for_all_edges(p.second, [&, vertex2](uint64_t vertex3){
+//                    if(vertex2 != vertex3){
+//#if defined(DEBUG)
+//                        if( check_directed_edge_exists(vertex2, vertex3) ){
+//                            COUT_DEBUG("triangle " << vertex1 << " - " << vertex2 << " - " << vertex3);
+//                        }
+//#endif
+//                        num_triangles += check_directed_edge_exists(vertex2, vertex3);
+//                    }
+//                });
+//            });
+
+            result[vertex1] = static_cast<double>(num_triangles) / (degree * (degree-1));
+        } else {
+            result[vertex1] = 0;
+        }
+    }
+}
+
+void AdjacencyList::lcc_directed(unordered_map<uint64_t, double>& result){
     for(const auto& p : m_adjacency_list){
         uint64_t vertex1 = p.first;
         uint64_t degree = get_degree(vertex1);
@@ -552,10 +589,24 @@ void AdjacencyList::lcc(const char* dump2file){
                 });
             });
 
-            lcc[vertex1] = static_cast<double>(num_triangles) / (degree * (degree-1));
+            result[vertex1] = static_cast<double>(num_triangles) / (degree * (degree-1));
         } else {
-            lcc[vertex1] = 0;
+            result[vertex1] = 0;
         }
+    }
+}
+
+void AdjacencyList::lcc(const char* dump2file){
+    shared_lock<mutex_t> lock(mutex);
+
+    // init
+    std::unordered_map<uint64_t, double> lcc;
+
+    // computation
+    if(is_directed()){
+        lcc_directed(lcc);
+    } else {
+        lcc_undirected(lcc);
     }
 
     if(dump2file != nullptr){
