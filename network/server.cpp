@@ -72,7 +72,7 @@ Server::Server(shared_ptr<library::Interface> interface, int port) : m_interface
     address.sin_family = AF_INET;
     address.sin_port = htons(m_port);
     address.sin_addr.s_addr = INADDR_ANY; // accept everything
-    int rc = bind(m_server_fd, (struct sockaddr*) &address, (socklen_t) sizeof(address));
+    int rc = ::bind(m_server_fd, (struct sockaddr*) &address, sizeof(address));
     if(rc != 0) ERROR_ERRNO("Cannot bind the server socket to port: " << m_port);
 
     // be ready to accept connections
