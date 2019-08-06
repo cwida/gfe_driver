@@ -179,7 +179,7 @@ bool Stinger::add_vertex(uint64_t vertex_id){
     }
 }
 
-bool Stinger::delete_vertex(uint64_t ext_vertex_id){
+bool Stinger::remove_vertex(uint64_t ext_vertex_id){
     int64_t vertex_id = get_internal_id(ext_vertex_id);
     if(vertex_id < 0) return false; // the vertex does not exist
 
@@ -205,7 +205,7 @@ bool Stinger::add_edge(graph::WeightedEdge e){
     return (rc == 0 || rc == 1);
 }
 
-bool Stinger::delete_edge(graph::Edge e){
+bool Stinger::remove_edge(graph::Edge e){
     // get the indices in the adjacency lists
     int64_t src = get_internal_id(e.source());
     if(src < 0) return false; // the source does not exist

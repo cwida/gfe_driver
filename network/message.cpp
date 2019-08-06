@@ -35,9 +35,9 @@ std::ostream& operator<<(std::ostream& out, RequestType type){
     case RequestType::GET_WEIGHT: out << "GET_WEIGHT"; break;
     case RequestType::LOAD: out << "LOAD"; break;
     case RequestType::ADD_VERTEX: out << "ADD_VERTEX"; break;
-    case RequestType::DELETE_VERTEX: out << "REMOVE_VERTEX"; break;
+    case RequestType::REMOVE_VERTEX: out << "REMOVE_VERTEX"; break;
     case RequestType::ADD_EDGE: out << "ADD_EDGE"; break;
-    case RequestType::DELETE_EDGE: out << "REMOVE_EDGE"; break;
+    case RequestType::REMOVE_EDGE: out << "REMOVE_EDGE"; break;
     case RequestType::DUMP_CLIENT: out << "DUMP_CLIENT"; break;
     case RequestType::DUMP_STDOUT: out << "DUMP_STDOUT"; break;
     case RequestType::DUMP_FILE: out << "DUMP_FILE"; break;
@@ -69,13 +69,13 @@ std::ostream& operator<<(std::ostream& out, const Request& request){
         out << ", source: " << request.get(0) << ", destination: " << request.get(1);
         break;
     case RequestType::ADD_VERTEX:
-    case RequestType::DELETE_VERTEX:
+    case RequestType::REMOVE_VERTEX:
         out << ", vertex_id: " << request.get(0);
         break;
     case RequestType::ADD_EDGE:
         out << ", source: " << request.get(0) << ", destination: " << request.get(1)<< ", weight: " << request.get(2);
         break;
-    case RequestType::DELETE_EDGE:
+    case RequestType::REMOVE_EDGE:
         out << ", source: " << request.get(0) << ", destination: " << request.get(1);
         break;
     case RequestType::BFS:

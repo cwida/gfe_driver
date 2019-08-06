@@ -123,7 +123,7 @@ public:
      * Remove the given vertex and all edges attached to it.
      * @return true in case of success, false otherwise
      */
-    virtual bool delete_vertex(uint64_t vertex_id);
+    virtual bool remove_vertex(uint64_t vertex_id);
 
     /**
      * Add the given edge in the graph
@@ -135,7 +135,7 @@ public:
      * Remove the given edge from the graph
      * @return true if the given edge has been removed, false otherwise (e.g. this edge does not exist)
      */
-    virtual bool delete_edge(graph::Edge e);
+    virtual bool remove_edge(graph::Edge e);
 
     /**
      * Load the whole graph representation from the given path

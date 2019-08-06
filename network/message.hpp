@@ -37,7 +37,7 @@ enum class RequestType : uint32_t {
     NUM_EDGES, NUM_VERTICES, IS_DIRECTED,
     HAS_VERTEX, HAS_EDGE, GET_WEIGHT,
     LOAD, // load the graph from disk
-    ADD_VERTEX, DELETE_VERTEX, ADD_EDGE, DELETE_EDGE,
+    ADD_VERTEX, REMOVE_VERTEX, ADD_EDGE, REMOVE_EDGE,
     DUMP_CLIENT, DUMP_STDOUT, DUMP_FILE, // #dump()
     BFS, PAGERANK, WCC, CDLP, LCC, SSSP // graphalytics interface
 };

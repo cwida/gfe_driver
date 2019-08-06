@@ -244,8 +244,8 @@ bool Client::add_vertex(uint64_t vertex_id){
     return response()->get<bool>(0);
 }
 
-bool Client::delete_vertex(uint64_t vertex_id){
-    request(RequestType::DELETE_VERTEX, vertex_id);
+bool Client::remove_vertex(uint64_t vertex_id){
+    request(RequestType::REMOVE_VERTEX, vertex_id);
     if(response()->type() == ResponseType::NOT_SUPPORTED){
         ERROR("delete_vertex(" << vertex_id << "): operation not supported by the remote interface");
     }
@@ -262,8 +262,8 @@ bool Client::add_edge(graph::WeightedEdge e){
     return response()->get<bool>(0);
 }
 
-bool Client::delete_edge(graph::Edge e){
-    request(RequestType::DELETE_EDGE, e.source(), e.destination());
+bool Client::remove_edge(graph::Edge e){
+    request(RequestType::REMOVE_EDGE, e.source(), e.destination());
     if(response()->type() == ResponseType::NOT_SUPPORTED){
         ERROR("delete_edge(" << e.source() << ", " << e.destination() << "): operation not supported by the remote interface");
     }

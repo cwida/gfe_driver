@@ -20,6 +20,7 @@
 #include <cinttypes>
 #include <functional> // std::hash
 #include <ostream>
+#include <utility> // std::swap
 
 namespace graph {
 
@@ -35,6 +36,9 @@ public:
     // Check whether the two edges are equal
     bool operator==(const Edge&) const noexcept;
     bool operator!=(const Edge&) const noexcept;
+
+    // Swap source & destination ID for the current edge
+    void swap_src_dst() noexcept { std::swap(m_source, m_destination); }
 };
 
 // Simple representation of an edge as a tuple <source, destination, weight>

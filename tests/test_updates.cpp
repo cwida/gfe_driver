@@ -86,7 +86,7 @@ static void sequential(shared_ptr<UpdateInterface> interface, bool deletions = t
         for(uint64_t i =0, sz = edge_list->num_edges(); i < sz; i++){
             auto w_edge = edge_list->get(i);
 
-            interface->delete_edge(w_edge.edge());
+            interface->remove_edge(w_edge.edge());
             num_edges--;
             ASSERT_EQ(num_edges, interface->num_edges());
         }
@@ -171,7 +171,7 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
 
             for(int64_t pos = start, end = start + length; pos < end; pos++){
                 auto w_edge = edge_list->get(pos);
-                interface->delete_edge(w_edge.edge());
+                interface->remove_edge(w_edge.edge());
             }
 
             interface->on_thread_destroy(thread_id);
@@ -199,7 +199,7 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
             interface->on_thread_init(thread_id);
 
             for(int64_t pos = start, end = start + length; pos < end; pos++){
-                interface->delete_vertex(pos +1);
+                interface->remove_vertex(pos +1);
             }
 
             interface->on_thread_destroy(thread_id);

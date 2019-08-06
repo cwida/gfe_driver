@@ -258,14 +258,14 @@ void Server::ConnectionHandler::handle_request(){
             response(ResponseType::OK, result);
         }
     } break;
-    case RequestType::DELETE_VERTEX: {
+    case RequestType::REMOVE_VERTEX: {
         COUT_DEBUG("DELETE_VERTEX: " << request()->get<int>(0));
         library::UpdateInterface* update_interface = dynamic_cast<library::UpdateInterface*>(interface());
         if(update_interface == nullptr){
             LOG("Operation not supported by the current interface: " << request()->type());
             response(ResponseType::NOT_SUPPORTED);
         } else {
-            bool result = update_interface->delete_vertex(request()->get(0));
+            bool result = update_interface->remove_vertex(request()->get(0));
             response(ResponseType::OK, result);
         }
     } break;
@@ -281,15 +281,15 @@ void Server::ConnectionHandler::handle_request(){
             response(ResponseType::OK, result);
         }
     } break;
-    case RequestType::DELETE_EDGE: {
+    case RequestType::REMOVE_EDGE: {
         library::UpdateInterface* update_interface = dynamic_cast<library::UpdateInterface*>(interface());
         if(update_interface == nullptr){
             LOG("Operation not supported by the current interface: " << request()->type());
             response(ResponseType::NOT_SUPPORTED);
         } else {
             graph::Edge edge { request()->get(0),  request()->get(1)};
-            COUT_DEBUG("DELETE_EDGE: " << edge);
-            bool result = update_interface->delete_edge(edge);
+            COUT_DEBUG("REMOVE_EDGE: " << edge);
+            bool result = update_interface->remove_edge(edge);
             response(ResponseType::OK, result);
         }
     } break;

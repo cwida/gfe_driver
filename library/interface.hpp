@@ -142,7 +142,7 @@ public:
      * @param vertex_id the vertex to remove
      * @return true in case of success, false otherwise.
      */
-    virtual bool delete_vertex(uint64_t vertex_id) = 0;
+    virtual bool remove_vertex(uint64_t vertex_id) = 0;
 
     /**
      * Add the given edge in the graph
@@ -154,7 +154,7 @@ public:
      * Remove the given edge from the graph
      * @return true if the given edge has been removed, false otherwise (e.g. this edge does not exist)
      */
-    virtual bool delete_edge(graph::Edge e) = 0;
+    virtual bool remove_edge(graph::Edge e) = 0;
 };
 
 

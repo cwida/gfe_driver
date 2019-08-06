@@ -182,7 +182,7 @@ bool AdjacencyList::add_vertex0(uint64_t vertex_id){
     return pair.second;
 }
 
-bool AdjacencyList::delete_vertex(uint64_t vertex_id){
+bool AdjacencyList::remove_vertex(uint64_t vertex_id){
     scoped_lock<mutex_t> lock(m_mutex);
     return delete_vertex0(vertex_id);
 }
@@ -267,7 +267,7 @@ bool AdjacencyList::add_edge0(graph::WeightedEdge e){
     return true;
 }
 
-bool AdjacencyList::delete_edge(graph::Edge e){
+bool AdjacencyList::remove_edge(graph::Edge e){
     scoped_lock<mutex_t> lock(m_mutex);
     return delete_edge0(e);
 }
