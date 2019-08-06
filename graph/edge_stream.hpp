@@ -45,6 +45,7 @@ class WeightedEdgeStream {
 
     // keep track of the maximum values for the vertices and the weights
     uint64_t m_max_vertex_id { 0 };
+    double m_max_weight { 0 };
 
 public:
     /**
@@ -83,6 +84,9 @@ public:
 
     // Get the max vertex id present
     uint64_t max_vertex_id() const { return m_max_vertex_id; };
+
+    // Get the max weight for an edge in the graph
+    double max_weight() const { return m_max_weight; }
 };
 
 } // namespace graph

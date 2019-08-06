@@ -26,9 +26,14 @@
 #include <mutex>
 #include <queue>
 #include <unordered_set>
-#include "common/circular_array.hpp"
-#include "reader/reader.hpp"
 
+#include "common/circular_array.hpp"
+#include "common/timer.hpp"
+#include "configuration.hpp" // LOG
+#include "reader/reader.hpp"
+#include "third-party/robin_hood/robin_hood.h"
+
+using namespace common;
 using namespace std;
 
 namespace library {
@@ -177,7 +182,7 @@ bool AdjacencyList::add_vertex(uint64_t vertex_id){
 }
 
 bool AdjacencyList::add_vertex0(uint64_t vertex_id){
-    COUT_DEBUG("vertex_id: " << vertex_id);
+//    COUT_DEBUG("vertex_id: " << vertex_id);
     auto pair = m_adjacency_list.emplace( vertex_id, EdgePair{} );
     return pair.second;
 }
@@ -230,7 +235,7 @@ bool AdjacencyList::add_edge(graph::WeightedEdge e){
 }
 
 bool AdjacencyList::add_edge0(graph::WeightedEdge e){
-    COUT_DEBUG("edge: " << e);
+//    COUT_DEBUG("edge: " << e);
 
     auto v_src = m_adjacency_list.find(e.source());
     if(v_src == m_adjacency_list.end()){
@@ -527,45 +532,64 @@ void AdjacencyList::cdlp(uint64_t max_iterations, const char* dump2file){
 }
 
 void AdjacencyList::lcc_undirected(unordered_map<uint64_t, double>& result){
-    unordered_set<uint64_t> H;
+//    unordered_set<uint64_t> H;
+//    unordered_map<uint64_t, bool> H;
+    robin_hood::unordered_map<uint64_t, bool> H;
+    robin_hood::unordered_map<uint64_t, uint64_t> already_visited;
+//    vector<bool> H (m_adjacency_list.size(), false);
+//    Bitset H(1ull<<32);
 
-    for(const auto& p : m_adjacency_list){
-        uint64_t vertex1 = p.first;
+    vector<uint64_t> nodes; nodes.reserve(m_adjacency_list.size());
+    for(const auto& p: m_adjacency_list){ nodes.push_back(p.first); }
+    std::sort(begin(nodes), end(nodes));
+
+    Timer t_build, t_probe;
+    uint64_t hash_probes = 0;
+
+    for(auto vertex1 : nodes){
+
         uint64_t degree = get_degree(vertex1);
 
         if(degree >= 2){
-            uint64_t num_triangles = 0;
             H.clear();
+            const EdgePair& vertex1_neighbours = m_adjacency_list[vertex1];
+            uint64_t num_triangles = already_visited[vertex1];
+//            COUT_DEBUG("vertex1: " << vertex1 << ", degree: " << degree << ", num_triangles: " << num_triangles);
 
             // build the hash table
-            for_all_edges(p.second, [&H](uint64_t vertex){ H.insert(vertex); });
+            t_build.resume();
+            for(auto& p: vertex1_neighbours.first){ H[p.first] = true; }
+            t_build.stop();
 
             // probe the hash table
-            for_all_edges(p.second, [&](uint64_t vertex2){
-               const EdgeList& vertex2_neighbours = m_adjacency_list.at(vertex2).first;
-               for(auto& edge : vertex2_neighbours){
-                   num_triangles += (H.find(edge.first) != end(H));
-               }
-            });
+            t_probe.resume();
+            for(auto& p: vertex1_neighbours.first){
+                uint64_t vertex2 = p.first;
+                if(vertex2 < vertex1) continue; // already visited
+//                COUT_DEBUG("vertex1: " << vertex1 << ", vertex2: " << vertex2);
 
-//            for_all_edges(p.second, [&](uint64_t vertex2){
-//                for_all_edges(p.second, [&, vertex2](uint64_t vertex3){
-//                    if(vertex2 != vertex3){
-//#if defined(DEBUG)
-//                        if( check_directed_edge_exists(vertex2, vertex3) ){
-//                            COUT_DEBUG("triangle " << vertex1 << " - " << vertex2 << " - " << vertex3);
-//                        }
-//#endif
-//                        num_triangles += check_directed_edge_exists(vertex2, vertex3);
-//                    }
-//                });
-//            });
+                const EdgeList& vertex2_neighbours = m_adjacency_list.at(vertex2).first;
+                for(auto& edge : vertex2_neighbours){
+                    hash_probes ++;
+                    bool triangle_found = H.find(edge.first) != cend(H);
+                    if(triangle_found){
+//                        COUT_DEBUG("triangle found: " << vertex1 << " - " << vertex2 << " - " << edge.first);
+                        num_triangles++;
+                        already_visited[vertex2] ++;
+                    }
+                }
+            }
+
+            t_probe.stop();
 
             result[vertex1] = static_cast<double>(num_triangles) / (degree * (degree-1));
         } else {
             result[vertex1] = 0;
         }
+
     }
+
+    LOG("timer build: " << t_build << ", timer probe: " << t_probe << ", number hashes: " << hash_probes);
 }
 
 void AdjacencyList::lcc_directed(unordered_map<uint64_t, double>& result){

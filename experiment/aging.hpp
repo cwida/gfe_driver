@@ -55,6 +55,7 @@ class Aging {
     const int64_t m_num_edges; // the total number of edges in the final graph
     const uint64_t m_max_vertex_id; // the maximum vertex id that can be generated
     const bool m_is_directed; // whether the graph is directed
+    const double m_max_weight; // the max weight for an edge in graph, incl.
 
     double m_expansion_factor = 1.3; // set the maximum size, in terms of number of edges, that the underlying interface should contain
     int64_t m_granularity = 64; // the granularity of each burst of insertions/deletions, as execute by a worker thread
@@ -150,7 +151,7 @@ class Aging {
 
 public:
     Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads);
-    Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads, bool is_directed);
+    Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads, bool is_directed, double max_weight);
 
     // run the experiment
     std::chrono::microseconds execute();

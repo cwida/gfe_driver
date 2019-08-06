@@ -41,7 +41,7 @@ namespace experiment {
  * Debug                                                                     *
  *                                                                           *
  *****************************************************************************/
-//#define DEBUG
+#define DEBUG
 #define COUT_DEBUG_FORCE(msg) { LOG("[Aging::" << __FUNCTION__ << "] [" << concurrency::get_thread_id() << "] " << msg); }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
@@ -51,14 +51,14 @@ namespace experiment {
 
 
 Aging::Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads) :
-        Aging(interface,stream,num_operations, num_threads, interface->is_directed()) { }
+        Aging(interface,stream,num_operations, num_threads, interface->is_directed(), stream->max_weight()) { }
 
-Aging::Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads, bool graph_is_directed) :
+Aging::Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads, bool graph_is_directed, double max_weight) :
         m_interface(interface), m_stream(stream),
         m_vertices_final(move(* (stream->vertex_table().get()) ) ),
         m_num_operations_total(num_operations), m_num_threads(num_threads), m_num_edges(stream->num_edges()),
         m_max_vertex_id(std::max<uint64_t>(/* avoid overflows */ stream->max_vertex_id(), stream->max_vertex_id() * /* noise */ 2)),
-        m_is_directed(graph_is_directed){
+        m_is_directed(graph_is_directed), m_max_weight(max_weight){
     LOG("Aging experiment initialised. Number of threads: " << m_num_threads << ", number of operations: " << m_num_operations_total);
 }
 
@@ -99,24 +99,29 @@ vector<vector<Aging::Partition>> Aging::compute_partitions_undirected() const{
     COUT_DEBUG("num_partitions: " << num_partitions << ", max_vertex_id: " << m_max_vertex_id << ", max_num_edges: " << max_num_edges << ", edges_per_partition: " << e);
 
     int64_t vertex_from = 0;
-    for(int64_t i = 0; i < num_partitions -1; i++){
+    int64_t part_id = 0;
+    while(part_id < num_partitions -1 && vertex_from < (m_max_vertex_id -1)){
         // how many edges can we create from vertex_from ?
         int64_t S = (m_max_vertex_id +1 -vertex_from) * (m_max_vertex_id -vertex_from) /2;
 
         // solve the inequation S - [(x^2 +x) /2] < e
         // that is x^2 +x +2(e -s) > 0 => [ -1 + sqrt( 1 - 8(e-s) ) ] / 2
-        int64_t x = (-1.0 + sqrt(1ll - 8ll*(e-S)) ) / 2.0;
+//        uint64_t x = ceil( (-1.0 + sqrt(1ll - 8ll*(e-S)) ) / 2.0 );
+        int64_t x = ceil( (-1.0 + sqrt(1ll - 8ll*(e-S)) ) / 2.0 );
 
-        int64_t vertex_upto = m_max_vertex_id -x;
+        int64_t vertex_upto = m_max_vertex_id - x;
+        if(vertex_from == vertex_upto) vertex_upto++; // corner case
+        else if(vertex_upto >= m_max_vertex_id) vertex_upto = (m_max_vertex_id -1); // corner case
 
-        COUT_DEBUG("partition[" << i << "] interval: [" << vertex_from << ", " << vertex_upto << ")");
-        partitions[i % m_num_threads].emplace_back(vertex_from, vertex_upto - vertex_from);
+        COUT_DEBUG("partition[" << part_id << "] S: " << S << ", max_vertex_id: " << m_max_vertex_id << ",  x: " << x << ", interval: [" << vertex_from << ", " << vertex_upto << ")");
+        partitions[part_id % m_num_threads].emplace_back(vertex_from, vertex_upto - vertex_from);
 
         vertex_from = vertex_upto; // next iteration
+        part_id++;
     }
 
-    COUT_DEBUG("partition[" << num_partitions -1 << "] interval: [" << vertex_from << ", " << m_max_vertex_id << "]" );
-    partitions[(num_partitions -1) % m_num_threads].emplace_back(vertex_from, m_max_vertex_id - vertex_from +1);
+    COUT_DEBUG("partition[" << part_id << "] interval: [" << vertex_from << ", " << m_max_vertex_id << "]" );
+    partitions[part_id % m_num_threads].emplace_back(vertex_from, m_max_vertex_id - vertex_from +1);
 
     return partitions;
 }
@@ -286,7 +291,7 @@ void Aging::AgingThread::main_experiment(){
     uniform_int_distribution<uint64_t> genrndsrc {0, m_num_src_vertices_in_partitions -1 }; // incl.
     uniform_int_distribution<uint64_t> genrnddst {0, m_instance->m_max_vertex_id }; // incl
     uniform_int_distribution<uint64_t> genrndarc {0, get_num_edges_in_my_partitions() -1 }; // incl
-    uniform_real_distribution<double> genrndweight{0, configuration().max_weight() };
+    uniform_real_distribution<double> genrndweight{0, m_instance->m_max_weight }; // incl.
 
     int64_t num_ops_done = 0;
     while( (num_ops_done = m_instance->m_num_operations_performed.fetch_add(m_instance->m_granularity) ) < num_total_ops ){

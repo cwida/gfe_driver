@@ -31,7 +31,7 @@ namespace reader {
 class GraphalyticsReader : public Reader {
     std::unordered_map<std::string, std::string> m_properties; // property file
     bool m_directed = true; // whether the graph being processed is directed or not
-    bool m_is_weighted = true; // whether the graph being processed contains weights or not
+    bool m_is_weighted = false; // whether the graph being processed contains weights or not
     void* m_handle_edge_file { nullptr }; // fstream, handle to parse the edge-file
     void* m_handle_vertex_file { nullptr }; // fstream, handle to parse the vertex-file
     uint64_t m_last_source {0}; uint64_t m_last_destination {0}; double m_last_weight {0.0}; // the last edge being parsed

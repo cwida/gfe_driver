@@ -71,6 +71,7 @@ WeightedEdgeStream::WeightedEdgeStream(const std::string& path){
 
         // keep track of the max vertex id and max weight
         m_max_vertex_id = std::max(m_max_vertex_id, std::max(edge.m_source, edge.m_destination));
+        m_max_weight = std::max(m_max_weight, edge.m_weight);
 
         // update the number of vertices loaded
         m_num_edges++;
@@ -94,6 +95,7 @@ WeightedEdgeStream::WeightedEdgeStream(const std::vector<WeightedEdge>& vector){
         m_weights.push_back(edge.m_weight);
 
         m_max_vertex_id = std::max(m_max_vertex_id, std::max(edge.m_source, edge.m_destination));
+        m_max_weight = std::max(m_max_weight, edge.m_weight);
     }
 }
 

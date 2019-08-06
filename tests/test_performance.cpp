@@ -37,7 +37,7 @@ extern char** environ;
 constexpr static int num_threads = 1;
 constexpr static bool is_directed = false; // whether the graph is directed
 
-static const char* path_graph_default = "/home/dean/workspace/graphalytics/datasets/dota-league/dota-league.properties";
+static const char* path_graph_default = "/home/dean/workspace/graphalytics/datasets/dota-league.properties";
 static string get_path_graph(){
     static const char* path_graph = getenv("GFE_PATH_GRAPH");
     if(path_graph == nullptr){
