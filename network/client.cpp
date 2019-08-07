@@ -56,10 +56,7 @@ Client::Client(const std::string& host, int port) : m_server_host(host), m_serve
 
 Client::~Client(){
     m_worker_id = 0;
-    if(m_terminate_server_on_exit)
-        request(RequestType::TERMINATE_SERVER);
-    else
-        request(RequestType::TERMINATE_WORKER);
+    request(RequestType::TERMINATE_WORKER);
 
     // close all connections still open
     for(int i = 0; i < max_num_connections; i++){ disconnect(i); }
@@ -104,6 +101,11 @@ void Client::disconnect(int worker_id){
     close(m_connections[worker_id].m_fd); m_connections[worker_id].m_fd = -1;
     free(m_connections[worker_id].m_buffer_read); m_connections[worker_id].m_buffer_read = nullptr;
     free(m_connections[worker_id].m_buffer_write); m_connections[worker_id].m_buffer_write = nullptr;
+}
+
+void Client::terminate_server_on_exit(){
+    request(RequestType::TERMINATE_ON_LAST_CONNECTION);
+    assert(response()->type() == ResponseType::OK);
 }
 
 /*****************************************************************************

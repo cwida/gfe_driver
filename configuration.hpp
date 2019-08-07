@@ -169,6 +169,7 @@ private:
     std::string m_path_graph_to_load; // the file must be accessible to the server
     std::string m_server_host = "localhost";
     uint32_t m_server_port = ServerConfiguration::DEFAULT_PORT;
+    bool m_terminate_server_on_exit { false }; // whether to terminate the server after the experiments have been completed
 
 protected:
     // Do not explicitly initialise the configuration, use the method ::initialise();
@@ -213,6 +214,8 @@ public:
 
     // The experiment to execute
     const std::string& get_experiment_name() const { return m_experiment; }
+
+    bool is_terminate_server_on_exit() const { return m_terminate_server_on_exit; }
 };
 
 

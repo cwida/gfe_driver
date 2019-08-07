@@ -110,6 +110,7 @@ void Server::main_loop(){
         if(ready < 0){
             ERROR_ERRNO("server, select");
         } else if(ready == 0){ // timeout, check the flag m_server_stop
+            if(m_terminate_on_last_connection && m_num_active_connections == 0) m_server_stop = true; // done
             continue;
         }
 
@@ -182,7 +183,6 @@ void Server::ConnectionHandler::execute(){
 void Server::ConnectionHandler::handle_request(){
     try {
 
-
     switch(request()->type()){
     case RequestType::TERMINATE_WORKER:
         response(ResponseType::OK);
@@ -192,6 +192,10 @@ void Server::ConnectionHandler::handle_request(){
         response(ResponseType::OK);
         m_terminate = true;
         m_instance->m_server_stop = true;
+        break;
+    case RequestType::TERMINATE_ON_LAST_CONNECTION:
+        response(ResponseType::OK);
+        m_instance->m_terminate_on_last_connection = true;
         break;
     case RequestType::ON_MAIN_INIT:
         interface()->on_main_init((int) request()->get<int>(0));
