@@ -21,6 +21,7 @@
 #include <cassert>
 #include <cstring>
 #include <netinet/ip.h> // TCP/IP protocol
+#include <signal.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <thread>
@@ -50,6 +51,48 @@ namespace network {
 #else
     #define COUT_DEBUG(msg)
 #endif
+
+
+/*****************************************************************************
+ *                                                                           *
+ * Signal handling                                                           *
+ *                                                                           *
+ *****************************************************************************/
+static Server* g_server_instance { nullptr }; // singleton with the Server instance currently running
+static struct sigaction g_sigaction_term;
+static struct sigaction g_sigaction_interrupt;
+
+static void signal_handler_execute(int signo, siginfo_t* siginfo, void* ucontext){
+    LOG("[server] Signal received `" << signo << "'");
+    assert(g_server_instance != nullptr);
+    g_server_instance->stop();
+}
+
+static void signal_handler_install(){
+    int rc { 0 };
+
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_sigaction = &signal_handler_execute;
+    sa.sa_flags = SA_SIGINFO;
+
+    rc = sigaction(SIGTERM, &sa, &g_sigaction_term);
+    if(rc != 0) ERROR_ERRNO("sigaction, sigterm [rc: " << rc << "]");
+    rc = sigaction(SIGINT, &sa, &g_sigaction_interrupt);
+    if(rc != 0) ERROR_ERRNO("sigaction, sigint");
+}
+
+
+static void signal_handler_uninstall(){
+    int rc { 0 };
+
+    rc = sigaction(SIGTERM, &g_sigaction_term, nullptr);
+    if(rc != 0) { cerr << "ERROR: signal_handler_uninstall, sigaction, sigterm, rc: " << rc << endl; }
+    rc = sigaction(SIGINT, &g_sigaction_interrupt, nullptr);
+    if(rc != 0) { cerr << "ERROR: signal_handler_uninstall, sigaction, sigint, rc: " << rc << endl; }
+}
+
+
 
 /*****************************************************************************
  *                                                                           *
@@ -86,6 +129,23 @@ Server::~Server(){
         close(m_server_fd);
         m_server_fd = -1;
     }
+
+    if(g_server_instance == this){
+        g_server_instance = nullptr;
+        signal_handler_uninstall();
+    }
+}
+
+void Server::stop(){ // Stop once there are no more connections active
+    m_server_stop = true;
+}
+
+
+void Server::handle_signals(){
+    if(g_server_instance == this) return; // already installed
+    else if (g_server_instance != nullptr){ ERROR("A signal handler is already installed for another instance of this class: " << g_server_instance); }
+    g_server_instance = this;
+    signal_handler_install();
 }
 
 void Server::main_loop(){
@@ -107,8 +167,15 @@ void Server::main_loop(){
 
         int ready = select(m_server_fd + 1, &server_ready, &dummy, &dummy, &timeout);
 
+
         if(ready < 0){
-            ERROR_ERRNO("server, select");
+            if(m_server_stop){
+                LOG("[server] Call to select() failed, server requested to terminate...");
+                m_server_stop = true;
+                continue;
+            } else {
+                ERROR_ERRNO("server, select");
+            }
         } else if(ready == 0){ // timeout, check the flag m_server_stop
             if(m_terminate_on_last_connection && m_num_active_connections == 0) m_server_stop = true; // done
             continue;

@@ -96,6 +96,18 @@ public:
      * Execute the server
      */
     void main_loop();
+
+
+    /**
+     * Terminate the server when receiving SIGINT and SIGKILL
+     */
+    void handle_signals();
+
+
+    /**
+     * Terminate the server
+     */
+    void stop();
 };
 
 }

@@ -40,6 +40,7 @@ static void run_server(int argc, char* argv[]){
 
     cout << "[server] Init che connection handler ..." << endl;
     network::Server server { impl2eval };
+    server.handle_signals();
 
     cout << "[server] Start the event loop ..." << endl;
     server.main_loop();
