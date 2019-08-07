@@ -264,6 +264,9 @@ void Server::ConnectionHandler::handle_request(){
         response(ResponseType::OK);
         m_instance->m_terminate_on_last_connection = true;
         break;
+    case RequestType::LIBRARY_NAME:
+        response(ResponseType::OK, cfgserver().get_library_name());
+        break;
     case RequestType::ON_MAIN_INIT:
         interface()->on_main_init((int) request()->get<int>(0));
         response(ResponseType::OK);

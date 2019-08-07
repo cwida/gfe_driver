@@ -101,6 +101,11 @@ public:
      */
     void terminate_server_on_exit();
 
+    /**
+     * Get the name of the library being evaluated in the server
+     */
+    std::string get_library_name() const;
+
     // Proxy to the rest of the functions in the library
     virtual void on_main_init(int num_threads) override;
     virtual void on_thread_init(int thread_id) override;

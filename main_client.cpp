@@ -309,12 +309,13 @@ static void run_experiments(){
         // implementation to the evaluate
         LOG("[client] Connecting to the server at " << cfgclient().get_server_string());
         auto impl = make_shared<network::Client>( cfgclient().get_server_host(), (int) cfgclient().get_server_port() );
-
         if(cfgclient().is_terminate_server_on_exit()) impl->terminate_server_on_exit();
+
+        string library_name = impl->get_library_name();
+        LOG("[client] Library name: " << library_name);
 
         bool remote_graph_is_directed = impl->is_directed();
         LOG("[client] The remote server expects " << (remote_graph_is_directed ? "a directed" : "an undirected") << " graph");
-
 
         LOG("[client] Loading the graph from " << path_graph);
         auto stream = make_shared<graph::WeightedEdgeStream> ( cfgclient().get_path_graph() );

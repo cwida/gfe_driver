@@ -191,6 +191,12 @@ void Client::on_main_destroy() {
     assert(response()->type() == ResponseType::OK);
 }
 
+string Client::get_library_name() const {
+    const_cast<Client*>(this)->request(RequestType::LIBRARY_NAME);
+    assert(response()->type() == ResponseType::OK);
+    return response()->get_string(0);
+}
+
 uint64_t Client::num_edges() const {
     const_cast<Client*>(this)->request(RequestType::NUM_EDGES);
     assert(response()->type() == ResponseType::OK);
