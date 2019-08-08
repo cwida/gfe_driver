@@ -75,12 +75,12 @@ class GraphalyticsSequential{
     const GraphalyticsAlgorithms m_properties; // the properties of the graphalytics algorithms
 
     // the completion times for each execution
-    std::vector<uint64_t> m_exec_bfs;
-    std::vector<uint64_t> m_exec_cdlp;
-    std::vector<uint64_t> m_exec_lcc;
-    std::vector<uint64_t> m_exec_pagerank;
-    std::vector<uint64_t> m_exec_sssp;
-    std::vector<uint64_t> m_exec_wcc;
+    std::vector<int64_t> m_exec_bfs;
+    std::vector<int64_t> m_exec_cdlp;
+    std::vector<int64_t> m_exec_lcc;
+    std::vector<int64_t> m_exec_pagerank;
+    std::vector<int64_t> m_exec_sssp;
+    std::vector<int64_t> m_exec_wcc;
 
 
 public:

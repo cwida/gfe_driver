@@ -19,6 +19,7 @@
 
 #include "reader.hpp"
 
+#include <random>
 #include <unordered_map>
 
 namespace graph { class WeightedEdge; } // forward decl.
@@ -37,6 +38,7 @@ class GraphalyticsReader : public Reader {
     uint64_t m_last_source {0}; uint64_t m_last_destination {0}; double m_last_weight {0.0}; // the last edge being parsed
     bool m_last_reported = true; // whether we have reported the last edge with source/dest vertices swapped in an undirected graph
     bool m_emit_directed_edges = false; // if the graph is undirected, report the same edge twice as src -> dest and dest -> src
+    std::mt19937_64 m_random_generator; // random generator for non weighted graphs, it will assign a random weight
 
     // Close the internal handles to parse the edge-file/vertex-file
     void close();

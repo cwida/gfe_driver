@@ -267,6 +267,10 @@ void Server::ConnectionHandler::handle_request(){
     case RequestType::LIBRARY_NAME:
         response(ResponseType::OK, cfgserver().get_library_name());
         break;
+    case RequestType::SET_TIMEOUT:
+        interface()->set_timeout(request()->get(0));
+        response(ResponseType::OK);
+        break;
     case RequestType::ON_MAIN_INIT:
         interface()->on_main_init((int) request()->get<int>(0));
         response(ResponseType::OK);
@@ -459,6 +463,9 @@ void Server::ConnectionHandler::handle_request(){
         break;
     }
 
+    } catch(library::TimeoutError& e){
+        LOG("Operation " << request()->type() << " timed out");
+        response(ResponseType::TIMEOUT);
     } catch(common::Error& e){
         stringstream ss;
         ss << e;

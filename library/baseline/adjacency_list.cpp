@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -138,6 +139,14 @@ const AdjacencyList::EdgeList& AdjacencyList::get_incoming_edges(const NodeList:
     return is_directed() ? /* directed graph */ adjlist_value.second : /* undirected graph */ adjlist_value.first;
 }
 
+bool AdjacencyList::has_timeout() const {
+    return m_timeout.count() > 0;
+}
+
+void AdjacencyList::set_timeout(uint64_t seconds){
+    COUT_DEBUG("Timeout set to " << seconds << " seconds");
+    m_timeout = chrono::seconds{seconds};
+}
 
 /*****************************************************************************
  *                                                                           *
@@ -326,7 +335,12 @@ void AdjacencyList::load(const std::string& path){
  *  Graphalytics                                                             *
  *                                                                           *
  *****************************************************************************/
+#define TIMER_INIT auto time_start = chrono::steady_clock::now();
+#define CHECK_TIMEOUT if(has_timeout() && (chrono::steady_clock::now() - time_start) > m_timeout) { \
+        RAISE_EXCEPTION(TimeoutError, "Timeout occurred after: " << chrono::duration_cast<chrono::seconds>(chrono::steady_clock::now() - time_start).count() << " seconds") };
+
 void AdjacencyList::bfs(uint64_t source_vertex_id, const char* dump2file){
+    TIMER_INIT
     shared_lock<mutex_t> lock(mutex);
 
     // init
@@ -334,6 +348,8 @@ void AdjacencyList::bfs(uint64_t source_vertex_id, const char* dump2file){
     common::CircularArray<uint64_t> queue; queue.append(source_vertex_id);
 
     while(!queue.empty()){
+        CHECK_TIMEOUT
+
         uint64_t vertex = queue[0]; queue.pop();
         int64_t distance = distances.at(vertex);
         const auto& outgoing_edges = m_adjacency_list.at(vertex).first;
@@ -365,6 +381,7 @@ void AdjacencyList::bfs(uint64_t source_vertex_id, const char* dump2file){
 }
 
 void AdjacencyList::pagerank(uint64_t num_iterations, double damping_factor, const char* dump2file){
+    TIMER_INIT
     shared_lock<mutex_t> lock(mutex);
 
     // init
@@ -379,12 +396,14 @@ void AdjacencyList::pagerank(uint64_t num_iterations, double damping_factor, con
 
     // perform `num_iterations' of the pagerank algorithm
     for(uint64_t iter = 0; iter < num_iterations; iter++){
+        CHECK_TIMEOUT
+
         // step #1, compute the `leakage', the score repartitioned from the sinks to all the other nodes in the graph
         // lines 5 - 10 of the spec v1.0 pp 36
         double dangling_sum = 0;
         for(uint64_t v : sinks){ dangling_sum += rank[v]; }
 
-        // step #2, compute teh rank for the current iteration, for all vertices
+        // step #2, compute the rank for the current iteration, for all vertices
         for(const auto& p : m_adjacency_list){
             uint64_t vertex_id = p.first;
             double score = 0;
@@ -419,6 +438,7 @@ void AdjacencyList::pagerank(uint64_t num_iterations, double damping_factor, con
 }
 
 void AdjacencyList::wcc(const char* dump2file){
+    TIMER_INIT
     shared_lock<mutex_t> lock(mutex);
 
     // init
@@ -428,6 +448,7 @@ void AdjacencyList::wcc(const char* dump2file){
     // repeat until it converges
     bool converged {false};
     do {
+        CHECK_TIMEOUT
         converged = true;
 
         for(const auto& p: m_adjacency_list){
@@ -467,6 +488,7 @@ void AdjacencyList::wcc(const char* dump2file){
 }
 
 void AdjacencyList::cdlp(uint64_t max_iterations, const char* dump2file){
+    TIMER_INIT
     shared_lock<mutex_t> lock(m_mutex);
 
     // init
@@ -483,6 +505,7 @@ void AdjacencyList::cdlp(uint64_t max_iterations, const char* dump2file){
     uint64_t iteration = 1;
     bool change = true;
     while(iteration <= max_iterations && change){
+        CHECK_TIMEOUT
         change = false;
 
         // for each vertex...
@@ -532,12 +555,9 @@ void AdjacencyList::cdlp(uint64_t max_iterations, const char* dump2file){
 }
 
 void AdjacencyList::lcc_undirected(unordered_map<uint64_t, double>& result){
-//    unordered_set<uint64_t> H;
-//    unordered_map<uint64_t, bool> H;
+    TIMER_INIT
     robin_hood::unordered_map<uint64_t, bool> H;
     robin_hood::unordered_map<uint64_t, uint64_t> already_visited;
-//    vector<bool> H (m_adjacency_list.size(), false);
-//    Bitset H(1ull<<32);
 
     vector<uint64_t> nodes; nodes.reserve(m_adjacency_list.size());
     for(const auto& p: m_adjacency_list){ nodes.push_back(p.first); }
@@ -547,7 +567,7 @@ void AdjacencyList::lcc_undirected(unordered_map<uint64_t, double>& result){
     uint64_t hash_probes = 0;
 
     for(auto vertex1 : nodes){
-
+        CHECK_TIMEOUT
         uint64_t degree = get_degree(vertex1);
 
         if(degree >= 2){
@@ -593,7 +613,9 @@ void AdjacencyList::lcc_undirected(unordered_map<uint64_t, double>& result){
 }
 
 void AdjacencyList::lcc_directed(unordered_map<uint64_t, double>& result){
+    TIMER_INIT
     for(const auto& p : m_adjacency_list){
+        CHECK_TIMEOUT
         uint64_t vertex1 = p.first;
         uint64_t degree = get_degree(vertex1);
 
@@ -647,6 +669,7 @@ void AdjacencyList::lcc(const char* dump2file){
 }
 
 void AdjacencyList::sssp(uint64_t source_vertex_id, const char* dump2file){
+    TIMER_INIT
     shared_lock<mutex_t> lock(mutex);
 
     // init
@@ -662,6 +685,7 @@ void AdjacencyList::sssp(uint64_t source_vertex_id, const char* dump2file){
     Q.push({source_vertex_id, 0.0});
 
     while(!Q.empty()){ // Dijkstra
+        CHECK_TIMEOUT
         auto elt = Q.top(); Q.pop();
         COUT_DEBUG("extract: " << elt.m_vertex_id << ", distance: " << elt.m_distance);
         if( !visited.insert(elt.m_vertex_id).second ) continue; // we already processed this vertex

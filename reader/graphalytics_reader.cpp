@@ -52,7 +52,7 @@ namespace reader {
  *  Initialisation                                                           *
  *                                                                           *
  *****************************************************************************/
-GraphalyticsReader::GraphalyticsReader(const std::string& path_properties){
+GraphalyticsReader::GraphalyticsReader(const std::string& path_properties) : m_random_generator(configuration().seed() + 12908478) {
     if(!common::filesystem::file_exists(path_properties)) ERROR("The given file does not exist: " << path_properties);
     string abs_path_properties = common::filesystem::absolute_path(path_properties);
     m_properties.insert({string("property-file"), abs_path_properties});
@@ -244,7 +244,9 @@ bool GraphalyticsReader::read_edge(graph::WeightedEdge& edge){
             if(!is_number(current)) ERROR("line: `" << current_line << "', cannot read the weight");
             m_last_weight = strtod(current, nullptr);
         } else {
-            m_last_weight = 1.0;
+//            m_last_weight = 1.0;
+            uniform_real_distribution<double> distribution{1.0, configuration().max_weight()};
+            m_last_weight = distribution(m_random_generator);
         }
 
         m_last_reported = false;

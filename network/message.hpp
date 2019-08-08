@@ -35,6 +35,7 @@ enum class RequestType : uint32_t {
     TERMINATE_WORKER, // terminate only the worker connection
     TERMINATE_ON_LAST_CONNECTION, // terminate the server when there no are more connections active
     LIBRARY_NAME, // the name of the library being evaluated
+    SET_TIMEOUT, // avoid a computation running more than the given amount of  seconds
     ON_MAIN_INIT, ON_THREAD_INIT, ON_THREAD_DESTROY, ON_MAIN_DESTROY,
     NUM_EDGES, NUM_VERTICES, IS_DIRECTED,
     HAS_VERTEX, HAS_EDGE, GET_WEIGHT,
@@ -51,6 +52,7 @@ enum class ResponseType: uint32_t {
     OK, // ok, the request has been processed correctly
     NOT_SUPPORTED, // the remote server does not support the given operation
     ERROR, // an error occured, the message contains the error message
+    TIMEOUT, // too many seconds elapsed to complete the operation
 };
 
 /**

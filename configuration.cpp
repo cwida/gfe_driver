@@ -124,6 +124,7 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
         ("r, readers", "The number of client threads to use for the read operations", value<int>()->default_value(to_string(m_num_threads_read)))
         ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(seed())))
         ("terminate_server_on_exit", "Terminate the server after the client has completed")
+        ("timeout", "Set the maximum time for an operation to complete", value<uint64_t>())
         ("t, threads", "The number of threads to use for both the read and write operations", value<int>()->default_value(to_string(m_num_threads_read + m_num_threads_write)))
 //        ("v, verbose", "Print additional messages to the output")
         ("w, writers", "The number of client threads to use for the write operations", value<int>()->default_value(to_string(m_num_threads_write)))
@@ -146,21 +147,21 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
         if( result["connect"].count() > 0 ){
             string param_server = result["connect"].as<string>();
             auto pos_colon = param_server.find(':');
-            string param_port = param_server;
-
-            if(pos_colon != string::npos){
+            if(pos_colon == string::npos) { // port not specified
+                m_server_host = param_server;
+            } else {
                 m_server_host = param_server.substr(0, pos_colon);
-                param_port = param_server.substr(pos_colon +1);
-            }
+                string param_port = param_server.substr(pos_colon +1);
 
-            // parse the port number
-            try {
-                int port = stoi(param_port); // throws invalid_argument if the conversion cannot be performed
-                if(port <= 0 || port >= (1<<16)){ throw invalid_argument("invalid port number"); }
-                m_server_port = port;
-                port_specified_in_connect = true;
-            } catch (invalid_argument& e){
-                ERROR("Invalid parameter --connect: " << param_server << ". The port number cannot be recognised: `" << param_port << "'");
+                // parse the port number
+                try {
+                    int port = stoi(param_port); // throws invalid_argument if the conversion cannot be performed
+                    if(port <= 0 || port >= (1<<16)){ throw invalid_argument("invalid port number"); }
+                    m_server_port = port;
+                    port_specified_in_connect = true;
+                } catch (invalid_argument& e){
+                    ERROR("Invalid parameter --connect: " << param_server << ". The port number cannot be recognised: `" << param_port << "'");
+                }
             }
         };
         if( result["port"].count() > 0 ){ // alias for -c <port>
@@ -207,6 +208,10 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
         if(num_repetitions <= 0) ERROR("Invalid value for the parameter --repetitions: " << num_repetitions << ". Expected a positive value");
         m_num_repetitions = num_repetitions;
         m_terminate_server_on_exit = result["terminate_server_on_exit"].count() > 0;
+
+        if(result["timeout"].count()>0){
+            m_timeout_seconds = result["timeout"].as<uint64_t>();
+        }
     } catch ( argument_incorrect_type& e){
         ERROR(e.what());
     }
@@ -233,6 +238,7 @@ void ClientConfiguration::save_parameters() {
     params.push_back(P{"server_host", get_server_host()});
     params.push_back(P{"server_port", to_string(get_server_port())});
     params.push_back(P{"terminate_server_on_exit", to_string(is_terminate_server_on_exit())});
+    params.push_back(P{"timeout", to_string(get_timeout_per_operation())});
 //    params.push_back(P{"verbose", to_string(verbose())});
 
 

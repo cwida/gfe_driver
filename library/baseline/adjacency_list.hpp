@@ -20,6 +20,7 @@
 #include "common/error.hpp"
 #include "library/interface.hpp"
 
+#include <chrono>
 #include <cinttypes>
 #include <shared_mutex>
 #include <unordered_map>
@@ -44,6 +45,7 @@ class AdjacencyList : public virtual UpdateInterface, public virtual LoaderInter
 
     using mutex_t = std::shared_mutex;
     mutable mutex_t m_mutex; // read-write mutex
+    std::chrono::seconds m_timeout {0}; // enforce a computation to terminate in tot seconds
 
     // Get the list of incoming edges
     const EdgeList& get_incoming_edges(uint64_t vertex_id) const;
@@ -71,6 +73,8 @@ class AdjacencyList : public virtual UpdateInterface, public virtual LoaderInter
     void lcc_undirected(std::unordered_map<uint64_t, double>& result);
     void lcc_directed(std::unordered_map<uint64_t, double>& result);
 
+    // Timeout
+    bool has_timeout() const;
 
 public:
     /**
@@ -141,6 +145,11 @@ public:
      * Load the whole graph representation from the given path
      */
     virtual void load(const std::string& path);
+
+    /**
+     * Set a timeout for a graph computation. If the computation does not terminate with the given time buget, it raises a TimeoutError
+     */
+    virtual void set_timeout(uint64_t seconds);
 
     /**
      * Perform a BFS from source_vertex_id to all the other vertices in the graph.

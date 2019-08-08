@@ -122,6 +122,7 @@ public:
     virtual bool remove_vertex(uint64_t vertex_id) override;
     virtual bool add_edge(graph::WeightedEdge e) override;
     virtual bool remove_edge(graph::Edge e) override;
+    virtual void set_timeout(uint64_t seconds) override;
     virtual void bfs(uint64_t source_vertex_id, const char* dump2file = nullptr) override; // graphalytics
     virtual void pagerank(uint64_t num_iterations, double damping_factor = 0.85, const char* dump2file = nullptr) override; // graphalytics
     virtual void wcc(const char* dump2file = nullptr) override; // graphalytics

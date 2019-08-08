@@ -22,6 +22,7 @@
 #include <ostream>
 #include <vector>
 
+#include "common/error.hpp"
 #include "graph/edge.hpp"
 
 namespace library {
@@ -30,6 +31,9 @@ namespace library {
 class Interface;
 class UpdateInterface;
 class LoaderInterface;
+
+// Raised if the computation did not complete in the given time budget.
+DEFINE_EXCEPTION(TimeoutError);
 
 /**
  * The list of registered implementations
@@ -116,11 +120,15 @@ public:
      */
     virtual bool is_directed() const = 0;
 
-
     /**
      * Check whether the graph is undirected
      */
     virtual bool is_undirected() const;
+
+    /**
+     * Imposes a timeout on each graph computation. If the computation
+     */
+    virtual void set_timeout(uint64_t seconds) = 0;
 };
 
 

@@ -33,6 +33,7 @@ using namespace std;
 namespace network {
 
 #define RPC_ERROR(message) RAISE_EXCEPTION(RPCError, "Error propagated by the remote server:\n" << message)
+#define TIMEOUT_ERROR RAISE_EXCEPTION(library::TimeoutError, "The operation requested timed out");
 
 /*****************************************************************************
  *                                                                           *
@@ -279,6 +280,11 @@ bool Client::remove_edge(graph::Edge e){
     return response()->get<bool>(0);
 }
 
+void Client::set_timeout(uint64_t seconds){
+    const_cast<Client*>(this)->request(RequestType::SET_TIMEOUT, seconds);
+    assert(response()->type() == ResponseType::OK);
+}
+
 void Client::dump() const {
     const_cast<Client*>(this)->request(RequestType::DUMP_CLIENT);
     assert(response()->type() == ResponseType::OK);
@@ -303,6 +309,8 @@ void Client::bfs(uint64_t source_vertex_id, const char* dump2file){
         ERROR("bfs(" << source_vertex_id << ", \"" << dump2file << "\"): operation not supported by the remote interface");
     } else if (response()->type() == ResponseType::ERROR){
         RPC_ERROR(response()->get_string(0));
+    } else if (response()->type() == ResponseType::TIMEOUT){
+        TIMEOUT_ERROR
     }
     assert(response()->type() == ResponseType::OK);
 }
@@ -311,6 +319,8 @@ void Client::pagerank(uint64_t num_iterations, double damping_factor, const char
     request(RequestType::PAGERANK, num_iterations, damping_factor, dump2file);
     if(response()->type() == ResponseType::NOT_SUPPORTED){
         ERROR("pagerank(" << num_iterations << ", " << damping_factor << ", \"" << dump2file << "\"): operation not supported by the remote interface");
+    } else if (response()->type() == ResponseType::TIMEOUT){
+        TIMEOUT_ERROR
     }
     assert(response()->type() == ResponseType::OK);
 }
@@ -319,32 +329,73 @@ void Client::wcc(const char* dump2file){
     request(RequestType::WCC, dump2file);
     if(response()->type() == ResponseType::NOT_SUPPORTED){
         ERROR("wcc(\"" << dump2file << "\"): operation not supported by the remote interface");
+    } else if (response()->type() == ResponseType::TIMEOUT){
+        TIMEOUT_ERROR
     }
     assert(response()->type() == ResponseType::OK);
 }
 
 void Client::cdlp(uint64_t max_iterations, const char* dump2file){
     request(RequestType::CDLP, max_iterations, dump2file);
-    if(response()->type() == ResponseType::NOT_SUPPORTED){
+
+    switch(response()->type()){
+    case ResponseType::NOT_SUPPORTED:
         ERROR("cdlp(" << max_iterations << ", \"" << dump2file << "\"): operation not supported by the remote interface");
+        break;
+    case ResponseType::TIMEOUT:
+        TIMEOUT_ERROR
+        break;
+    case ResponseType::ERROR:
+        RPC_ERROR(response()->get_string(0));
+        break;
+    case ResponseType::OK:
+        /* nop */
+        break;
+    default:
+        ERROR("Invalid response type: " << response()->type())
     }
-    assert(response()->type() == ResponseType::OK);
 }
 
 void Client::lcc(const char* dump2file){
     request(RequestType::LCC, dump2file);
-    if(response()->type() == ResponseType::NOT_SUPPORTED){
+
+    switch(response()->type()){
+    case ResponseType::NOT_SUPPORTED:
         ERROR("lcc(\"" << dump2file << "\"): operation not supported by the remote interface");
+        break;
+    case ResponseType::TIMEOUT:
+        TIMEOUT_ERROR
+        break;
+    case ResponseType::ERROR:
+        RPC_ERROR(response()->get_string(0));
+        break;
+    case ResponseType::OK:
+        /* nop */
+        break;
+    default:
+        ERROR("Invalid response type: " << response()->type())
     }
-    assert(response()->type() == ResponseType::OK);
 }
 
 void Client::sssp(uint64_t source_vertex_id, const char* dump2file){
     request(RequestType::SSSP, source_vertex_id, dump2file);
-    if(response()->type() == ResponseType::NOT_SUPPORTED){
+
+    switch(response()->type()){
+    case ResponseType::NOT_SUPPORTED:
         ERROR("sssp(" << source_vertex_id << ", \"" << dump2file << "\"): operation not supported by the remote interface");
+        break;
+    case ResponseType::TIMEOUT:
+        TIMEOUT_ERROR
+        break;
+    case ResponseType::ERROR:
+        RPC_ERROR(response()->get_string(0));
+        break;
+    case ResponseType::OK:
+        /* nop */
+        break;
+    default:
+        ERROR("Invalid response type: " << response()->type())
     }
-    assert(response()->type() == ResponseType::OK);
 }
 
 } // namespace network

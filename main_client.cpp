@@ -310,6 +310,7 @@ static void run_experiments(){
         LOG("[client] Connecting to the server at " << cfgclient().get_server_string());
         auto impl = make_shared<network::Client>( cfgclient().get_server_host(), (int) cfgclient().get_server_port() );
         if(cfgclient().is_terminate_server_on_exit()) impl->terminate_server_on_exit();
+        impl->set_timeout(cfgclient().get_timeout_per_operation());
 
         string library_name = impl->get_library_name();
         LOG("[client] Library name: " << library_name);
@@ -320,6 +321,7 @@ static void run_experiments(){
         LOG("[client] Loading the graph from " << path_graph);
         auto stream = make_shared<graph::WeightedEdgeStream> ( cfgclient().get_path_graph() );
         stream->permute();
+        uint64_t random_vertex = stream->num_edges() > 0 ? stream->get(0).m_source : 0;
         double max_weight = stream->max_weight();
 
         LOG("[client] Number of concurrent threads: " << cfgclient().num_threads(THREADS_WRITE) );
@@ -336,6 +338,13 @@ static void run_experiments(){
 
         // run the graphalytics suite
         GraphalyticsAlgorithms properties { path_graph };
+
+        if(properties.sssp.m_enabled == false){
+            LOG("[client] Enabling SSSP with random weights, source vertex: " << random_vertex);
+            properties.sssp.m_enabled = true;
+            properties.sssp.m_source_vertex = random_vertex;
+        }
+
         GraphalyticsSequential exp_seq { impl, cfgclient().num_repetitions(), properties };
         exp_seq.execute();
         exp_seq.report(configuration().has_database());

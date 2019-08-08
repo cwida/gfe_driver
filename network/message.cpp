@@ -25,6 +25,7 @@ std::ostream& operator<<(std::ostream& out, RequestType type){
     case RequestType::TERMINATE_WORKER: out << "TERMINATE_WORKER"; break;
     case RequestType::TERMINATE_ON_LAST_CONNECTION: out << "TERMINATE_ON_LAST_CONNECTION"; break;
     case RequestType::LIBRARY_NAME: out << "LIBRARY_NAME"; break;
+    case RequestType::SET_TIMEOUT: out << "SET_TIMEOUT"; break;
     case RequestType::ON_MAIN_INIT: out << "ON_MAIN_INIT"; break;
     case RequestType::ON_THREAD_INIT: out << "ON_THREAD_INIT"; break;
     case RequestType::ON_THREAD_DESTROY: out << "ON_THREAD_DESTROY"; break;

@@ -124,51 +124,81 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
     for(uint64_t i = 0; i < m_num_repetitions; i++){
         if(m_properties.bfs.m_enabled){
             LOG("Execution " << (i+1) << "/" << m_num_repetitions << ": BFS from source vertex: " << m_properties.bfs.m_source_vertex);
-            t_local.start();
-            interface->bfs(m_properties.bfs.m_source_vertex);
-            t_local.stop();
-            LOG(">> BFS Execution time: " << t_local);
-            m_exec_bfs.push_back(t_local.microseconds());
+            try {
+                t_local.start();
+                interface->bfs(m_properties.bfs.m_source_vertex);
+                t_local.stop();
+                LOG(">> BFS Execution time: " << t_local);
+                m_exec_bfs.push_back(t_local.microseconds());
+            } catch (library::TimeoutError& e){
+                LOG(">> BFS TIMEOUT");
+                m_exec_bfs.push_back(-1);
+            }
         }
         if(m_properties.cdlp.m_enabled){
             LOG("Execution " << (i+1) << "/" << m_num_repetitions << ": CDLP, max_iterations: " << m_properties.cdlp.m_max_iterations);
             t_local.start();
-            interface->cdlp(m_properties.cdlp.m_max_iterations);
-            t_local.stop();
-            LOG(">> CDLP Execution time: " << t_local);
-            m_exec_cdlp.push_back(t_local.microseconds());
+            try {
+                interface->cdlp(m_properties.cdlp.m_max_iterations);
+                t_local.stop();
+                LOG(">> CDLP Execution time: " << t_local);
+                m_exec_cdlp.push_back(t_local.microseconds());
+            } catch(library::TimeoutError& e){
+                LOG(">> CDLP TIMEOUT");
+                m_exec_cdlp.push_back(-1);
+            }
         }
         if(m_properties.lcc.m_enabled){
             LOG("Execution " << (i+1) << "/" << m_num_repetitions << ": LCC");
-            t_local.start();
-            interface->lcc();
-            t_local.stop();
-            LOG(">> LCC Execution time: " << t_local);
-            m_exec_lcc.push_back(t_local.microseconds());
+            try {
+                t_local.start();
+                interface->lcc();
+                t_local.stop();
+                LOG(">> LCC Execution time: " << t_local);
+                m_exec_lcc.push_back(t_local.microseconds());
+            } catch(library::TimeoutError& e){
+                LOG(">> LCC TIMEOUT");
+                m_exec_lcc.push_back(-1);
+            }
         }
         if(m_properties.pagerank.m_enabled){
             LOG("Execution " << (i+1) << "/" << m_num_repetitions << ": PageRank, damping factor: " << m_properties.pagerank.m_damping_factor << ", num_iterations: " << m_properties.pagerank.m_num_iterations);
-            t_local.start();
-            interface->pagerank(m_properties.pagerank.m_num_iterations, m_properties.pagerank.m_damping_factor);
-            t_local.stop();
-            LOG(">> PageRank Execution time: " << t_local);
-            m_exec_pagerank.push_back(t_local.microseconds());
+            try {
+                t_local.start();
+                interface->pagerank(m_properties.pagerank.m_num_iterations, m_properties.pagerank.m_damping_factor);
+                t_local.stop();
+                LOG(">> PageRank Execution time: " << t_local);
+                m_exec_pagerank.push_back(t_local.microseconds());
+            } catch(library::TimeoutError& e){
+                LOG(">> PageRank TIMEOUT");
+                m_exec_pagerank.push_back(-1);
+            }
         }
         if(m_properties.sssp.m_enabled){
             LOG("Execution " << (i+1) << "/" << m_num_repetitions << ": SSSP, source: " << m_properties.sssp.m_source_vertex);
-            t_local.start();
-            interface->sssp(m_properties.sssp.m_source_vertex);
-            t_local.stop();
-            LOG(">> SSSP Execution time: " << t_local);
-            m_exec_sssp.push_back(t_local.microseconds());
+            try {
+                t_local.start();
+                interface->sssp(m_properties.sssp.m_source_vertex);
+                t_local.stop();
+                LOG(">> SSSP Execution time: " << t_local);
+                m_exec_sssp.push_back(t_local.microseconds());
+            } catch(library::TimeoutError& e){
+                LOG(">> SSSP TIMEOUT");
+                m_exec_sssp.push_back(-1);
+            }
         }
         if(m_properties.wcc.m_enabled){
             LOG("Execution " << (i+1) << "/" << m_num_repetitions << ": WCC");
-            t_local.start();
-            interface->wcc();
-            t_local.stop();
-            LOG(">> WCC Execution time: " << t_local);
-            m_exec_wcc.push_back(t_local.microseconds());
+            try {
+                t_local.start();
+                interface->wcc();
+                t_local.stop();
+                LOG(">> WCC Execution time: " << t_local);
+                m_exec_wcc.push_back(t_local.microseconds());
+            } catch(library::TimeoutError& e){
+                LOG(">> WCC TIMEOUT");
+                m_exec_wcc.push_back(-1);
+            }
         }
     }
 

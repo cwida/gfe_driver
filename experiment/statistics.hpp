@@ -27,14 +27,22 @@ class ExecStatistics {
     friend std::ostream& operator<<(std::ostream& out, const ExecStatistics& stats);
 
     const uint64_t m_num_trials;
+    uint64_t m_num_timeouts {0};
     uint64_t m_mean {0};
     uint64_t m_stddev {0};
     uint64_t m_min {0};
     uint64_t m_max {0};
-    uint64_t m_percentile[99]; // percentile 1, ..., 99
+    uint64_t m_median {0};
+    uint64_t m_percentile90 {0};
+    uint64_t m_percentile95 {0};
+    uint64_t m_percentile97 {0};
+    uint64_t m_percentile99 {0};
+
+private:
+    static uint64_t get_percentile(const std::vector<uint64_t>& values_sorted, uint64_t position);
 
 public:
-    ExecStatistics(std::vector<uint64_t>& trials);
+    ExecStatistics(const std::vector<int64_t>& trials);
 
     /**
      * Save in the database
