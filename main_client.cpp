@@ -281,7 +281,8 @@ static void run_client_interactive(){
             } else {
                 cerr << "[client] ERROR, invalid command: " << stmt << endl;
             }
-
+        } catch(library::TimeoutError& e){
+            cerr << "[client] TIMEOUT" << endl;
         } catch(network::RPCError& e){
             cerr << e << endl;
         }

@@ -107,7 +107,7 @@ Server::Server(shared_ptr<library::Interface> interface, int port) : m_interface
     m_server_fd = fd;
 
     // avoid the error `address already in use'
-    bool reuse_value = true;
+    int reuse_value = 1;
     setsockopt(m_server_fd, SOL_SOCKET, SO_REUSEADDR, (void*) &reuse_value, sizeof(reuse_value));
 
     struct sockaddr_in address;
@@ -188,7 +188,7 @@ void Server::main_loop(){
         if(connection_fd < 0)
             ERROR_ERRNO("Cannot establish a connection with a remote client");
 
-        LOG("[server] Connection received from: " << inet_ntoa(address.sin_addr) << ":" << address.sin_port);
+//        LOG("[server] Connection received from: " << inet_ntoa(address.sin_addr) << ":" << address.sin_port);
 
         auto t = thread(&ConnectionHandler::execute, new ConnectionHandler(this, connection_fd));
         t.detach(); // do not explicitly wait for the thread to terminate
@@ -212,7 +212,11 @@ Server::ConnectionHandler::~ConnectionHandler() {
 void Server::ConnectionHandler::execute(){
     int num_active_connections = ++(m_instance->m_num_active_connections);
     int64_t thread_id = common::concurrency::get_thread_id();
-    LOG("[server] [thread " << thread_id << "] Connection opened, num active connections: " << num_active_connections);
+    struct sockaddr_in address; socklen_t address_len { 0 };
+    /* ignore rc */ getpeername(m_fd, (struct sockaddr *) &address, &address_len);
+    string remote_host { inet_ntoa(address.sin_addr) }; // thread-unsafe?
+    int remote_port = address.sin_port;
+    LOG("[server] [thread " << thread_id << "] Connected with " << remote_host << ":" << remote_port << ", num active connections: " << num_active_connections);
 
     while(!m_terminate){
         int64_t num_bytes_read { 0 }, recv_bytes { 0 };
@@ -245,6 +249,8 @@ void Server::ConnectionHandler::execute(){
 
     num_active_connections = --(m_instance->m_num_active_connections);
     LOG("[server] [thread " << thread_id << "] Connection terminated, remaining active connections: " << num_active_connections);
+
+    delete this; // done!
 }
 
 void Server::ConnectionHandler::handle_request(){
@@ -472,7 +478,6 @@ void Server::ConnectionHandler::handle_request(){
         response(ResponseType::ERROR, ss.str());
     }
 }
-
 
 /**
  * Retrieve the request being current processed

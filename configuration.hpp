@@ -42,7 +42,7 @@ DEFINE_EXCEPTION(ConfigurationError);
 // Print the given message only if we are in verbose mode
 extern std::mutex _log_mutex;
 
-#define LOG( msg ) { std::scoped_lock lock(_log_mutex); std::cout << msg << "\n"; }
+#define LOG( msg ) { std::scoped_lock lock(_log_mutex); std::cout << msg << /* flush immediately */ std::endl; }
 
 // Type of counter for the number of threads
 enum ThreadsType { THREADS_READ, THREADS_WRITE, THREADS_TOTAL };
@@ -88,17 +88,11 @@ public:
     // Retrieve the handle to the database connection, where the final results of the experiments are stored
     common::Database* db();
 
-    // The path of the graph to load
-//    std::string graph() const { return m_graph_path; }
-
     // Save the configuration properties into the database
-    virtual void save_parameters() = 0;
+    virtual void save_parameters(); // nop for this class, expected to be overriden by the subclasses
 
     // Random seed, used in various places in the experiments
     uint64_t seed() const { return m_seed; };
-
-    // Check whether we are in verbose mode, to print additional message to the output
-//    bool verbose() const { return m_verbose; }
 
     // Is this a client or the server?
     bool is_client() const;

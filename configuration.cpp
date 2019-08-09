@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cctype> // tolower
+#include <random>
 #include <sstream>
 #include <string>
 #include <unistd.h> // sysconf
@@ -45,7 +46,10 @@ mutex _log_mutex;
 
 static Configuration* singleton {nullptr};
 Configuration& configuration(){
-    if(singleton == nullptr){ ERROR("Configuration not initialised"); }
+    if(singleton == nullptr){
+//        LOG("[configuration] initialising a test configuration ... ");
+        singleton = new Configuration();
+    }
     return *singleton;
 }
 
@@ -84,6 +88,9 @@ bool Configuration::is_server() const {
     return dynamic_cast<const ServerConfiguration*>(this) != nullptr;
 }
 
+void Configuration::save_parameters() {
+    // nop, it should be overriden by subclasses
+}
 
 /*****************************************************************************
  *                                                                           *
