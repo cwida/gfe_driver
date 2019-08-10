@@ -33,11 +33,11 @@ class Client : public virtual library::UpdateInterface, public virtual library::
     const std::string m_server_host;
     const int m_server_port;
     static constexpr int max_num_connections = 1024;
-    static constexpr size_t buffer_sz = 4096;
 
     struct ConnectionState {
         int m_fd; // file descriptor for the connection
-        int m_buffer_read_sz; // current size of the read buffer
+        uint32_t m_buffer_read_sz; // current size of the read buffer
+        uint32_t m_buffer_write_sz; // current size of the write buffer
         char* m_buffer_read; // read buffer
         char* m_buffer_write; // write buffer
     };
@@ -64,6 +64,11 @@ class Client : public virtual library::UpdateInterface, public virtual library::
      */
     template<typename... Args>
     void request(RequestType type, Args... args);
+
+    /**
+     * Receive the response from the server
+     */
+    void wait_response();
 
     /**
      * Retrieve the current response from the server
@@ -122,6 +127,7 @@ public:
     virtual bool remove_vertex(uint64_t vertex_id) override;
     virtual bool add_edge(graph::WeightedEdge e) override;
     virtual bool remove_edge(graph::Edge e) override;
+    virtual bool batch(library::UpdateInterface::SingleUpdate* batch, uint64_t batch_sz) override;
     virtual void set_timeout(uint64_t seconds) override;
     virtual void bfs(uint64_t source_vertex_id, const char* dump2file = nullptr) override; // graphalytics
     virtual void pagerank(uint64_t num_iterations, double damping_factor = 0.85, const char* dump2file = nullptr) override; // graphalytics

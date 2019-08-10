@@ -26,6 +26,7 @@
 #include "common/database.hpp"
 #include "common/timer.hpp"
 #include "configuration.hpp"
+#include "library/interface.hpp"
 #include "third-party/libcuckoo/cuckoohash_map.hh"
 
 using namespace common;
@@ -50,6 +51,62 @@ void InsertOnly::set_static_scheduler(){
     m_schedule_chunks = 0;
 }
 
+void InsertOnly::set_batch_size(uint64_t batch_size){
+    m_batch_size = batch_size;
+}
+
+// Execute an update at the time
+static void run_one_by_one(library::UpdateInterface* interface, graph::WeightedEdgeStream* graph, cuckoohash_map<uint64_t, bool>& vertices, uint64_t start, uint64_t end){
+    for(uint64_t pos = start; pos < end; pos++){
+        auto edge = graph->get(pos);
+
+        if(vertices.insert(edge.source(), true)) interface->add_vertex(edge.source());
+        if(vertices.insert(edge.destination(), true)) interface->add_vertex(edge.destination());
+
+        // the function returns true if the edge has been inserted. Repeat the loop if it cannot insert the edge as one of
+        // the vertices is still being inserted by another thread
+        while( ! interface->add_edge(edge) ) { /* nop */ } ;
+    }
+}
+
+// Send batches of updates
+static void run_batched(library::UpdateInterface* interface, graph::WeightedEdgeStream* graph, cuckoohash_map<uint64_t, bool>& vertices, uint64_t start, uint64_t end, uint64_t batch_size){
+    unique_ptr<library::UpdateInterface::SingleUpdate[]> ptr_batch { new library::UpdateInterface::SingleUpdate[batch_size] };
+    library::UpdateInterface::SingleUpdate* __restrict batch = ptr_batch.get();
+    uint64_t batch_index = 0;
+
+    for(uint64_t pos = start; pos < end; pos++){
+        auto edge = graph->get(pos);
+
+        if(vertices.insert(edge.source(), true)) interface->add_vertex(edge.source());
+        if(vertices.insert(edge.destination(), true)) interface->add_vertex(edge.destination());
+
+        if(batch_index == batch_size){
+            interface->batch(batch, batch_index);
+            batch_index = 0; // reset
+        }
+
+        library::UpdateInterface::SingleUpdate* __restrict update = batch + batch_index;
+        update->m_source = edge.m_source;
+        update->m_destination = edge.m_destination;
+        update->m_weight = edge.m_weight;
+        update->m_op.m_value = 1;// insert
+        batch_index++;
+    }
+
+    // flush
+    interface->batch(batch, batch_index);
+}
+
+// this wasn't well thought, I know
+static void run_sequential(library::UpdateInterface* interface, graph::WeightedEdgeStream* graph, cuckoohash_map<uint64_t, bool>& vertices, uint64_t start, uint64_t end, uint64_t batch_size){
+    if(batch_size <= 0){ // send one update at the time
+        run_one_by_one(interface, graph, vertices, start, end);
+    } else { // send updates in batches
+        run_batched(interface, graph, vertices, start, end, batch_size);
+    }
+}
+
 void InsertOnly::execute_static(void* cb){
     auto graph = m_stream.get();
     auto& vertices = *( reinterpret_cast<cuckoohash_map<uint64_t, bool>*>(cb) );
@@ -66,18 +123,7 @@ void InsertOnly::execute_static(void* cb){
         threads.emplace_back([this, graph, &vertices](int64_t start, int64_t length, int thread_id){
             auto interface = m_interface.get();
             interface->on_thread_init(thread_id);
-
-            for(int64_t pos = start, end = start + length; pos < end; pos++){
-                auto edge = graph->get(pos);
-
-                if(vertices.insert(edge.source(), true)) interface->add_vertex(edge.source());
-                if(vertices.insert(edge.destination(), true)) interface->add_vertex(edge.destination());
-
-                // the function returns true if the edge has been inserted. Repeat the loop if it cannot insert the edge as one of
-                // the vertices is still being inserted by another thread
-                while( ! interface->add_edge(edge) ) { /* nop */ } ;
-            }
-
+            run_sequential(interface, graph, vertices, start, start + length, m_batch_size);
             interface->on_thread_destroy(thread_id);
 
         }, start, length, static_cast<int>(i));
@@ -107,16 +153,8 @@ void InsertOnly::execute_round_robin(void* cb){
             interface->on_thread_init(thread_id);
 
             while( (start = start_chunk_next.fetch_add(m_schedule_chunks)) < size ){
-                for( uint64_t pos = start, end = std::min<uint64_t>(start + m_schedule_chunks, size); pos < end; pos ++ ){
-                    auto edge = graph->get(pos);
-
-                    if(vertices.insert(edge.source(), true)) interface->add_vertex(edge.source());
-                    if(vertices.insert(edge.destination(), true)) interface->add_vertex(edge.destination());
-
-                    // the function returns true if the edge has been inserted. Repeat the loop if it cannot insert the edge as one of
-                    // the vertices is still being inserted by another thread
-                    while( ! interface->add_edge(edge) ) { /* nop */ } ;
-                }
+                uint64_t end = std::min<uint64_t>(start + m_schedule_chunks, size);
+                run_sequential(interface, graph, vertices, start, end, m_batch_size);
             }
 
             interface->on_thread_destroy(thread_id);

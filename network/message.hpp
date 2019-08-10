@@ -41,6 +41,7 @@ enum class RequestType : uint32_t {
     HAS_VERTEX, HAS_EDGE, GET_WEIGHT,
     LOAD, // load the graph from disk
     ADD_VERTEX, REMOVE_VERTEX, ADD_EDGE, REMOVE_EDGE,
+    BATCH_PLAIN,
     DUMP_CLIENT, DUMP_STDOUT, DUMP_FILE, // #dump()
     BFS, PAGERANK, WCC, CDLP, LCC, SSSP // graphalytics interface
 };
@@ -60,7 +61,7 @@ enum class ResponseType: uint32_t {
  */
 template<typename Type>
 class Message {
-    uint32_t m_message_size;
+    uint32_t m_message_size; // size of the message, in bytes, including the header (that is sizeof(Message))
     const Type m_type;
 
 public:

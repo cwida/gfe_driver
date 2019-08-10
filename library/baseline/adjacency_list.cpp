@@ -191,7 +191,7 @@ bool AdjacencyList::add_vertex(uint64_t vertex_id){
 }
 
 bool AdjacencyList::add_vertex0(uint64_t vertex_id){
-//    COUT_DEBUG("vertex_id: " << vertex_id);
+    COUT_DEBUG("vertex_id: " << vertex_id);
     auto pair = m_adjacency_list.emplace( vertex_id, EdgePair{} );
     return pair.second;
 }
@@ -244,7 +244,7 @@ bool AdjacencyList::add_edge(graph::WeightedEdge e){
 }
 
 bool AdjacencyList::add_edge0(graph::WeightedEdge e){
-//    COUT_DEBUG("edge: " << e);
+    COUT_DEBUG("edge: " << e);
 
     auto v_src = m_adjacency_list.find(e.source());
     if(v_src == m_adjacency_list.end()){

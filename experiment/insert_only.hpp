@@ -33,12 +33,15 @@ class InsertOnly {
     const int64_t m_num_threads; // the number of threads to use
     uint64_t m_schedule_chunks = 0; // if >0, schedule the edges to insert in round robin fashion, in chunks of the given size
     uint64_t m_execution_time = 0; // the amount of time to insert all elements in the database
+    uint64_t m_batch_size = 0; // send the updates in batches
 
     // Execute the experiment with the static scheduler
     void execute_static(void* /* opaque */ cb);
 
     // Execute the experiment with the round robin scheduler
     void execute_round_robin(void* /* opaque */ cb);
+
+    // Send the the updates one by one
 
 public:
     InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, int64_t num_threads);
@@ -51,6 +54,9 @@ public:
 
     // Static scheduler, each thread inserts a fixed amount of edges
     void set_static_scheduler();
+
+    // Request to send edge updates in batches of the given size. Vertex insertions will continue to be sent one at the time
+    void set_batch_size(uint64_t size);
 
     // Execute the experiment
     std::chrono::microseconds execute();

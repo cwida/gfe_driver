@@ -163,6 +163,24 @@ public:
      * @return true if the given edge has been removed, false otherwise (e.g. this edge does not exist)
      */
     virtual bool remove_edge(graph::Edge e) = 0;
+
+
+    /**
+     * Perform a batch of edge insertions/deletions
+     * @return true if all updates have been performed, and false if one of them failed
+     */
+    struct SingleUpdate {
+        uint64_t m_source; // the source vertex
+        uint64_t m_destination; // the destination vertex
+        union {
+            struct {
+                uint64_t m_value:1; // 0 = remove, 1 = insert
+                uint64_t m_padding:63; // padding ignore
+            } m_op;
+            double m_weight; // weights can only be positive
+        };
+    };
+    virtual bool batch(SingleUpdate* array, size_t array_sz);
 };
 
 

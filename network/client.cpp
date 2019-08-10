@@ -86,10 +86,13 @@ void Client::connect(){
         ERROR_ERRNO("Cannot connect to the remote server " << m_server_host << ":" << m_server_port);
     }
 
+    constexpr uint32_t buffer_default_sz = 4096; // bytes
+
     m_connections[m_worker_id].m_fd = fd;
-    m_connections[m_worker_id].m_buffer_read_sz = buffer_sz;
-    m_connections[m_worker_id].m_buffer_read = (char*) malloc(sizeof(char) * buffer_sz);
-    m_connections[m_worker_id].m_buffer_write = (char*) malloc(sizeof(char) * buffer_sz);
+    m_connections[m_worker_id].m_buffer_read_sz = buffer_default_sz;
+    m_connections[m_worker_id].m_buffer_write_sz = buffer_default_sz;
+    m_connections[m_worker_id].m_buffer_read = (char*) malloc(sizeof(char) * buffer_default_sz);
+    m_connections[m_worker_id].m_buffer_write = (char*) malloc(sizeof(char) * buffer_default_sz);
 }
 
 void Client::disconnect(){
@@ -125,17 +128,21 @@ void Client::request(RequestType type, Args... args){
 
     // send the request to the server
     ssize_t bytes_sent = send(m_connections[m_worker_id].m_fd, buffer, message_sz, /* flags */ 0);
-    if(bytes_sent == -1) ERROR_ERRNO("send_response, connection error");
+    if(bytes_sent == -1) ERROR_ERRNO("send_request, connection error");
     assert(bytes_sent == message_sz && "Message not fully sent");
 
     // receive the reply from the server
+    wait_response();
+}
+
+void Client::wait_response() {
     int64_t num_bytes_read { 0 }, recv_bytes { 0 };
-    buffer = m_connections[m_worker_id].m_buffer_read;
+    char* buffer = m_connections[m_worker_id].m_buffer_read;
     recv_bytes = recv(m_connections[m_worker_id].m_fd, buffer + num_bytes_read, sizeof(uint32_t), /* flags */ 0);
     if(recv_bytes == -1) ERROR_ERRNO("recv, connection interrupted?");
     assert(recv_bytes == sizeof(uint32_t) && "What the heck have we read?");
     num_bytes_read += recv_bytes;
-    message_sz = *(reinterpret_cast<uint32_t*>(buffer));
+    uint32_t message_sz = *(reinterpret_cast<uint32_t*>(buffer));
     if(message_sz > m_connections[m_worker_id].m_buffer_read_sz){ // realloc the buffer if it's not large enough
         LOG("realloc buffer, from " << m_connections[m_worker_id].m_buffer_read_sz << " to " << message_sz);
         free(buffer);
@@ -276,6 +283,52 @@ bool Client::remove_edge(graph::Edge e){
     if(response()->type() == ResponseType::NOT_SUPPORTED){
         ERROR("delete_edge(" << e.source() << ", " << e.destination() << "): operation not supported by the remote interface");
     }
+    assert(response()->type() == ResponseType::OK);
+    return response()->get<bool>(0);
+}
+
+bool Client::batch(library::UpdateInterface::SingleUpdate* batch, uint64_t batch_sz){
+    if(batch_sz == 0) return true;
+    assert(m_worker_id >= 0 && m_worker_id < max_num_connections && "Invalid worker id");
+
+    constexpr uint32_t header_sz = (uint32_t) sizeof(Request);
+    static_assert(header_sz == 8 && "Expected two int32_t fields: the message size and the message type");
+    uint32_t body_sz = (uint32_t) sizeof(library::UpdateInterface::SingleUpdate) * batch_sz;
+    uint32_t message_sz = header_sz + body_sz;
+
+    if(message_sz > m_connections[m_worker_id].m_buffer_write_sz){
+        uint32_t new_size = pow(2, ceil(log2(message_sz))); // next power of 2
+        LOG("[worker: " << m_worker_id << "] Reallocate the write buffer to " << new_size << " bytes");
+        free(m_connections[m_worker_id].m_buffer_write);
+        m_connections[m_worker_id].m_buffer_write = (char*) malloc(new_size);
+        m_connections[m_worker_id].m_buffer_write_sz = new_size;
+    }
+
+    uint32_t* __restrict buffer_write = reinterpret_cast<uint32_t*>(m_connections[m_worker_id].m_buffer_write);
+    buffer_write[0] = message_sz;
+    buffer_write[1] = (uint32_t) RequestType::BATCH_PLAIN;
+    memcpy(buffer_write + 2, batch, batch_sz * sizeof(library::UpdateInterface::SingleUpdate));
+    ssize_t bytes_sent = send(m_connections[m_worker_id].m_fd, (void*) buffer_write, message_sz, /* flags */ 0);
+    if(bytes_sent == -1) ERROR_ERRNO("send_request, connection error");
+    assert(bytes_sent == message_sz && "Message not fully sent");
+
+    // this is actually more expensive than memcpy into the buffer and doing one send();
+//    // send the header
+//    assert(m_worker_id >= 0 && m_worker_id < max_num_connections && "Invalid worker id");
+//    uint32_t* buffer_write = reinterpret_cast<uint32_t*>(m_connections[m_worker_id].m_buffer_write);
+//    buffer_write[0] = header_sz;
+//    buffer_write[1] = (uint32_t) RequestType::BATCH_PLAIN;
+//    ssize_t bytes_sent = send(m_connections[m_worker_id].m_fd, buffer_write, header_sz, /* flags */ 0);
+//    if(bytes_sent == -1) ERROR_ERRNO("send_request, header, connection error");
+//    assert(bytes_sent == header_sz && "Message not fully sent");
+//
+//    // send the body
+//    bytes_sent = send(m_connections[m_worker_id].m_fd, (void*) batch, body_sz, /* flags */ 0);
+//    if(bytes_sent == -1) ERROR_ERRNO("send_request, body, connection error");
+//    assert(bytes_sent == body_sz && "Message not fully sent");
+
+    // wait for the server to process the request
+    wait_response();
     assert(response()->type() == ResponseType::OK);
     return response()->get<bool>(0);
 }

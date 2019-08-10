@@ -89,4 +89,18 @@ bool Interface::is_undirected() const {
     return !is_directed();
 }
 
+
+bool UpdateInterface::batch(SingleUpdate* array, size_t array_sz){
+    bool result = true;
+    SingleUpdate* __restrict A = array;
+    for(uint64_t i = 0; i < array_sz; i++){
+        if(A[i].m_op.m_value == 1){ // insert
+            result &= add_edge(graph::WeightedEdge{A[i].m_source, A[i].m_destination, A[i].m_weight});
+        } else { // remove
+            result &= remove_edge(graph::Edge{A[i].m_source, A[i].m_destination});
+        }
+    }
+    return result;
+}
+
 } // namespace library

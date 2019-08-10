@@ -30,6 +30,9 @@ public:
     uint64_t m_source;
     uint64_t m_destination;
 
+    Edge(): m_source{0}, m_destination{0} {}
+    Edge(uint64_t source, uint64_t destination) : m_source(source), m_destination(destination) { };
+
     uint64_t source() const { return m_source; }
     uint64_t destination() const { return m_destination; }
 

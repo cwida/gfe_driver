@@ -328,6 +328,7 @@ static void run_experiments(){
         LOG("[client] Number of concurrent threads: " << cfgclient().num_threads(THREADS_WRITE) );
         if(cfgclient().num_updates() == 0){ // insert the elements in the graph one by one
             InsertOnly experiment { impl, move(stream), cfgclient().num_threads(THREADS_WRITE) };
+            experiment.set_batch_size(cfgclient().get_batch_size());
             experiment.execute();
             if(configuration().has_database()) experiment.save();
         } else {

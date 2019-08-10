@@ -37,9 +37,9 @@ class Server {
     class ConnectionHandler {
         Server* m_instance;
         int m_fd;
-        static constexpr size_t buffer_sz = 4096; // capacity of the internal buffers
-        char m_buffer_read[buffer_sz]; // read buffer (for requests)
-        char m_buffer_write[buffer_sz]; // write buffer (for responses)
+        size_t m_buffer_read_sz = 4096, m_buffer_write_sz = 4096; // capacity of the internal buffers, in bytes
+        char* m_buffer_read; // read buffer (for requests)
+        char* m_buffer_write; // write buffer (for responses)
         bool m_terminate { false }; // flag to signal to terminate the handler
 
         /**
@@ -51,7 +51,8 @@ class Server {
         /**
          * Send the given message to the client
          */
-        void send_message(char* raw_message);
+        void send_data(const char* raw_message); // assume that ((uint32_t*)(raw_message))[0] is the message_sz
+        void send_data(const char* data, uint32_t data_sz);
 
         /**
          * Retrieve the request being current processed

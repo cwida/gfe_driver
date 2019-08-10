@@ -167,7 +167,6 @@ void Server::main_loop(){
 
         int ready = select(m_server_fd + 1, &server_ready, &dummy, &dummy, &timeout);
 
-
         if(ready < 0){
             if(m_server_stop){
                 LOG("[server] Call to select() failed, server requested to terminate...");
@@ -203,16 +202,24 @@ void Server::main_loop(){
  * Connection Handler                                                        *
  *                                                                           *
  *****************************************************************************/
-Server::ConnectionHandler::ConnectionHandler(Server* instance, int fd) : m_instance(instance), m_fd(fd) { }
+Server::ConnectionHandler::ConnectionHandler(Server* instance, int fd) : m_instance(instance), m_fd(fd) {
+    m_buffer_read = (char*) malloc(m_buffer_read_sz);
+    m_buffer_write = (char*) malloc(m_buffer_write_sz);
+    assert(m_buffer_read != nullptr && m_buffer_write != nullptr && "malloc error (no memory space left?)");
+}
+
 Server::ConnectionHandler::~ConnectionHandler() {
     close(m_fd);
     m_fd = -1;
+
+    free(m_buffer_read); m_buffer_read = nullptr;
+    free(m_buffer_write); m_buffer_write = nullptr;
 }
 
 void Server::ConnectionHandler::execute(){
     int num_active_connections = ++(m_instance->m_num_active_connections);
     int64_t thread_id = common::concurrency::get_thread_id();
-    struct sockaddr_in address; socklen_t address_len { 0 };
+    struct sockaddr_in address; socklen_t address_len { sizeof(address) };
     /* ignore rc */ getpeername(m_fd, (struct sockaddr *) &address, &address_len);
     string remote_host { inet_ntoa(address.sin_addr) }; // thread-unsafe?
     int remote_port = address.sin_port;
@@ -231,15 +238,20 @@ void Server::ConnectionHandler::execute(){
             break;
         }
 
-        assert(recv_bytes == sizeof(uint32_t) && "What the heck have we read?");
+        assert(recv_bytes == sizeof(uint32_t) && "Expected to read 4 bytes, while we probably read something less");
         num_bytes_read += recv_bytes;
         int64_t message_sz = static_cast<int64_t>(*(reinterpret_cast<uint32_t*>(m_buffer_read)));
-        assert(message_sz + sizeof(uint32_t) < buffer_sz && "Message too long");
-//        cout << "rcv message_sz: " << message_sz << endl;
+
+        if(message_sz > m_buffer_read_sz){ // realloc the buffer if it is too small
+            m_buffer_read_sz = pow(2, ceil(log2(message_sz))); // next power of 2
+            LOG("[server] [thread " << thread_id << "] Reallocate internal read buffer to " << m_buffer_read_sz << " bytes");
+            m_buffer_read = (char*) realloc(m_buffer_read, m_buffer_read_sz);
+            assert(m_buffer_read != nullptr && "realloc error (no memory space left?)");
+        }
         // read the rest of the message
         while(num_bytes_read < message_sz){
             recv_bytes = read(m_fd, m_buffer_read + num_bytes_read, message_sz - num_bytes_read);
-            if(recv_bytes == -1) ERROR_ERRNO("recv, connection interrupted?");
+            if(recv_bytes == -1) ERROR_ERRNO("recv, only able to read " << num_bytes_read << " out of " << num_bytes_read <<" bytes, then the connection was interrupted?");
             num_bytes_read += recv_bytes;
         }
         assert(num_bytes_read == message_sz && "Message read");
@@ -248,7 +260,7 @@ void Server::ConnectionHandler::execute(){
     }
 
     num_active_connections = --(m_instance->m_num_active_connections);
-    LOG("[server] [thread " << thread_id << "] Connection terminated, remaining active connections: " << num_active_connections);
+    LOG("[server] [thread " << thread_id << "] Disconnected with " << remote_host << ":" << remote_port << ", remaining active connections: " << num_active_connections);
 
     delete this; // done!
 }
@@ -377,20 +389,51 @@ void Server::ConnectionHandler::handle_request(){
             response(ResponseType::OK, result);
         }
     } break;
+    case RequestType::BATCH_PLAIN: {
+        library::UpdateInterface* update_interface = dynamic_cast<library::UpdateInterface*>(interface());
+        if(update_interface == nullptr){
+            LOG("Operation not supported by the current interface: " << request()->type());
+            response(ResponseType::NOT_SUPPORTED);
+        } else {
+            assert((request()->message_size() - sizeof(Request)) % (3 * sizeof(uint64_t)) == 0);
+            uint64_t batch_sz = (request()->message_size() - sizeof(Request)) / (3 * sizeof(uint64_t));
+            const library::UpdateInterface::SingleUpdate* __restrict batch = reinterpret_cast<const library::UpdateInterface::SingleUpdate*>(request()->buffer());
+
+            // now a bit of a hack, we want all updates to succeed. An update may fail if a vertex is still being added
+            // by another thread in the meanwhile
+            for(uint64_t i = 0; i < batch_sz; i++){
+                if(batch[i].m_op.m_value == 1){ // insert
+                    while ( ! update_interface->add_edge(graph::WeightedEdge{batch[i].m_source, batch[i].m_destination, batch[i].m_weight}) ) { /* nop */ };
+                } else { // remove
+                    while ( ! update_interface->remove_edge(graph::Edge{batch[i].m_source, batch[i].m_destination}) ) { /* nop */ };
+                }
+            }
+
+            response(ResponseType::OK, /* assume it always succeeds */ true);
+        }
+    } break;
+////     Only to measure the overhead of the network connections for updates
+//    case RequestType::ADD_VERTEX:
+//    case RequestType::REMOVE_VERTEX:
+//    case RequestType::ADD_EDGE:
+//    case RequestType::REMOVE_EDGE:
+//    case RequestType::BATCH_PLAIN:
+//        response(ResponseType::OK, true);
+//        break;
     case RequestType::DUMP_CLIENT: {
         ostringstream ss;
         interface()->dump_ostream(ss);
         string result = ss.str();
 
         uint64_t message_sz = /* header */ sizeof(uint64_t) + /* length */ sizeof(uint64_t) + /* text */ result.size() /* \0 */ +1;
-        unique_ptr<char[]> no_memory_leak{ new char[result.size() + sizeof(uint64_t) * 3] };
-        char* buffer = no_memory_leak.get();
-        reinterpret_cast<uint32_t*>(buffer)[0] = message_sz;
-        reinterpret_cast<uint32_t*>(buffer)[1] = (uint32_t) ResponseType::OK;
-        reinterpret_cast<uint64_t*>(buffer)[1] = result.size();
-        char* text = buffer + sizeof(uint64_t) * 2;
-        strcpy(text, result.c_str());
-        send_message(buffer);
+
+        // send the header
+        reinterpret_cast<uint32_t*>(m_buffer_write)[0] = message_sz;
+        reinterpret_cast<uint32_t*>(m_buffer_write)[1] = (uint32_t) ResponseType::OK;
+        send_data(m_buffer_write, 8); // sizeof(uint32_t) + sizeof(uint32_t);
+
+        // send the body
+        send_data(result.c_str(), result.size() /* \0 */ +1);
     } break;
     case RequestType::BFS: {
         auto graphalytics = dynamic_cast<library::GraphalyticsInterface*>(interface());
@@ -490,16 +533,22 @@ template<typename... Args>
 void Server::ConnectionHandler::response(ResponseType type, Args... args){
     new (m_buffer_write) Response(type, std::forward<Args>(args)...);
 
-    assert(/* message_sz */ (*(reinterpret_cast<uint32_t*>(m_buffer_write))) < buffer_sz && "The message is too long");
-    send_message(m_buffer_write);
+    assert(/* message_sz */ (*(reinterpret_cast<uint32_t*>(m_buffer_write))) < m_buffer_write_sz && "The message is too long");
+    send_data(m_buffer_write);
 }
 
-void Server::ConnectionHandler::send_message(char* buffer){
-    ssize_t message_sz = *(reinterpret_cast<uint32_t*>(buffer));
+void Server::ConnectionHandler::send_data(const char* buffer){
+    ssize_t message_sz = *(reinterpret_cast<const uint32_t*>(buffer));
+    send_data(buffer, message_sz);
+}
+
+void Server::ConnectionHandler::send_data(const char* buffer, uint32_t buffer_sz){
+    ssize_t message_sz = (ssize_t) buffer_sz; // cast
     ssize_t bytes_sent = send(m_fd, buffer, message_sz, /* flags */ 0);
     if(bytes_sent == -1) ERROR_ERRNO("send_response, connection error");
     assert(bytes_sent == message_sz && "Message not fully sent");
 }
+
 
 library::Interface* Server::ConnectionHandler::interface(){
     return m_instance->m_interface.get();

@@ -60,7 +60,6 @@ class Configuration {
     std::string m_database_path { "" }; // the path where to store the results
     double m_max_weight { 1024.0 }; // the maximum weight that can be assigned when reading non weighted graphs
     uint64_t m_seed = 5051789ull; // random seed, used in various places in the experiments
-//    bool m_verbose { false }; // verbose mode?
 
 protected:
     // Set the path to the database
@@ -68,9 +67,6 @@ protected:
 
     // The max weight that can be assigned by graph readers when parsing a non weighted graph
     void set_max_weight(double value);
-
-//    // Set the property verbose
-//    void set_verbose(bool value){ m_verbose = value; }
 
     // Set the property seed
     void set_seed(uint64_t value){ m_seed = value; }
@@ -154,6 +150,7 @@ class ClientConfiguration : public Configuration {
     ClientConfiguration& operator=(const ClientConfiguration& ) = delete;
 
 private:
+    uint64_t m_batch_size = 0; // if > 0, send the updates in batches
     std::string m_experiment; // the experiment to execute
     bool m_is_interactive { false }; // interactive while loop
     uint64_t m_num_aging_updates { 0 }; // number of additional updates to perform
@@ -213,6 +210,9 @@ public:
     bool is_terminate_server_on_exit() const { return m_terminate_server_on_exit; }
 
     uint64_t get_timeout_per_operation() const { return m_timeout_seconds; }
+
+    // Shall we send the updates in batches of the given size?
+    uint64_t get_batch_size() const { return m_batch_size; }
 };
 
 

@@ -119,6 +119,7 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
 
     opts.add_options("Generic")
         ("a, aging", "The number of additional updates for the aging experiment to perform", value<Quantity>()->default_value(to_string(m_num_aging_updates)))
+        ("b, batch", "Send the updates in batches of the given size", value<Quantity>())
         ("c, connect", "The server address, in the form hostname:port. The default is " + get_server_string(), value<string>())
         ("d, database", "Store the current configuration value into the a sqlite3 database at the given location", value<string>())
         ("e, experiment", "The experiment to execute", value<string>())
@@ -219,6 +220,10 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
         if(result["timeout"].count()>0){
             m_timeout_seconds = result["timeout"].as<uint64_t>();
         }
+
+        if(result["batch"].count() > 0){
+            m_batch_size = result["batch"].as<Quantity>();
+        }
     } catch ( argument_incorrect_type& e){
         ERROR(e.what());
     }
@@ -230,6 +235,7 @@ void ClientConfiguration::save_parameters() {
     using P = pair<string, string>;
     vector<P> params;
     params.push_back(P{"aging", to_string(m_num_aging_updates)});
+    params.push_back(P{"batch", to_string(m_batch_size)});
     params.push_back(P{"database", get_database_path()});
     if(!get_experiment_name().empty()) params.push_back(P{"experiment", get_experiment_name()});
     params.push_back(P{"git_commit", common::git_last_commit()});
@@ -246,8 +252,6 @@ void ClientConfiguration::save_parameters() {
     params.push_back(P{"server_port", to_string(get_server_port())});
     params.push_back(P{"terminate_server_on_exit", to_string(is_terminate_server_on_exit())});
     params.push_back(P{"timeout", to_string(get_timeout_per_operation())});
-//    params.push_back(P{"verbose", to_string(verbose())});
-
 
     sort(begin(params), end(params));
     db()->store_parameters(params);
