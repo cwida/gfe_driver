@@ -23,6 +23,7 @@
 #include "common/error.hpp"
 
 #include "baseline/adjacency_list.hpp"
+#include "reader/reader.hpp"
 #if defined(HAVE_STINGER)
 #include "stinger/stinger.hpp"
 #endif
@@ -45,7 +46,7 @@ std::unique_ptr<Interface> generate_baseline_adjlist(bool directed_graph){ // di
 
 #if defined(HAVE_STINGER)
 std::unique_ptr<Interface> generate_stinger(bool directed_graph){
-    return unique_ptr<Interface>{ new Stinger() };
+    return unique_ptr<Interface>{ new Stinger(directed_graph) };
 }
 #endif
 
@@ -90,6 +91,12 @@ bool Interface::is_undirected() const {
 }
 
 
+/*****************************************************************************
+ *                                                                           *
+ *  Update interface                                                         *
+ *                                                                           *
+ *****************************************************************************/
+
 bool UpdateInterface::batch(SingleUpdate* array, size_t array_sz){
     bool result = true;
     SingleUpdate* __restrict A = array;
@@ -101,6 +108,17 @@ bool UpdateInterface::batch(SingleUpdate* array, size_t array_sz){
         }
     }
     return result;
+}
+
+void UpdateInterface::load(const string& path) {
+    auto reader = reader::Reader::open(path);
+    ASSERT(reader->is_directed() == is_directed());
+    graph::WeightedEdge edge;
+    while(reader->read(edge)){
+        add_vertex(edge.m_source);
+        add_vertex(edge.m_destination);
+        add_edge(edge);
+    }
 }
 
 } // namespace library

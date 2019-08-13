@@ -37,16 +37,14 @@
 using namespace common;
 using namespace std;
 
-namespace library {
-
 /*****************************************************************************
  *                                                                           *
  *  Debug                                                                    *
  *                                                                           *
  *****************************************************************************/
 //#define DEBUG
-static mutex _cout_debug_mutex [[maybe_unused]]; // debug only
-#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{_cout_debug_mutex}; std::cout << "[AdjacencyList::" << __FUNCTION__ << "] " << msg << std::endl; }
+extern mutex _log_mutex;
+#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{_log_mutex}; std::cout << "[AdjacencyList::" << __FUNCTION__ << "] " << msg << std::endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
 #else
@@ -66,6 +64,8 @@ static mutex _cout_debug_mutex [[maybe_unused]]; // debug only
  *  Initialisation                                                           *
  *                                                                           *
  *****************************************************************************/
+namespace library {
+
 
 AdjacencyList::AdjacencyList(bool is_directed) : m_is_directed(is_directed) {
 
@@ -505,6 +505,8 @@ void AdjacencyList::cdlp(uint64_t max_iterations, const char* dump2file){
     uint64_t iteration = 1;
     bool change = true;
     while(iteration <= max_iterations && change){
+        COUT_DEBUG("iteration: " << iteration);
+
         CHECK_TIMEOUT
         change = false;
 
@@ -533,6 +535,7 @@ void AdjacencyList::cdlp(uint64_t max_iterations, const char* dump2file){
 //            COUT_DEBUG("label selected: " << label_id << ", count: " << max_count);
 
             labels_next[v.first] = label_id;
+            COUT_DEBUG("label[" << v.first << "]: " << labels[v.first] << " -> " << labels_next[v.first]);
             change |= ( labels[v.first] != labels_next[v.first] ); // did we update the label ?
         }
 
@@ -593,7 +596,7 @@ void AdjacencyList::lcc_undirected(unordered_map<uint64_t, double>& result){
                     hash_probes ++;
                     bool triangle_found = H.find(edge.first) != cend(H);
                     if(triangle_found){
-//                        COUT_DEBUG("triangle found: " << vertex1 << " - " << vertex2 << " - " << edge.first);
+                        COUT_DEBUG("triangle found: " << vertex1 << " - " << vertex2 << " - " << edge.first);
                         num_triangles++;
                         already_visited[vertex2] ++;
                     }
@@ -627,7 +630,7 @@ void AdjacencyList::lcc_directed(unordered_map<uint64_t, double>& result){
                     if(vertex2 != vertex3){
 #if defined(DEBUG)
                         if( check_directed_edge_exists(vertex2, vertex3) ){
-                            COUT_DEBUG("triangle " << vertex1 << " - " << vertex2 << " - " << vertex3);
+                            COUT_DEBUG("triangle found: " << vertex1 << " - " << vertex2 << " - " << vertex3);
                         }
 #endif
                         num_triangles += check_directed_edge_exists(vertex2, vertex3);

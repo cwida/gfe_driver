@@ -80,7 +80,16 @@ public:
             PARSE_COMMAND_ERROR("Cannot convert the value `" << m_argument << "' to an unsigned interger");
         }
     }
-    uint64_t to_u() { return to_unsigned(); } // alias
+    uint64_t to_u() const { return to_unsigned(); } // alias
+
+    double to_double() const {
+        try {
+            return stod(m_argument);
+        } catch(std::invalid_argument& e){
+            PARSE_COMMAND_ERROR("Cannot convert the value `" << m_argument << "' to a double");
+        }
+    }
+    double to_d() const { return to_double(); } // alias
 
     operator string() const { return to_string(); }
 };
@@ -225,7 +234,48 @@ static void run_client_interactive(){
 //        cout << "command parsed: " << command << endl;
 
         try {
-            if(stmt == "bfs"){
+            if(stmt == "add_edge"){
+                string syntax = "add_edge(source, destination, weight)";
+                if(command.num_arguments() != 3){
+                   cerr << "[client] Invalid number of arguments: " << command.num_arguments() << ". Syntax: " << syntax << endl;
+                } else {
+                    try {
+                        uint64_t source = command[0].to_unsigned();
+                        uint64_t destination = command[1].to_unsigned();
+                        double weight = command[2].to_double();
+
+                        Timer timer; timer.start();
+                        bool result = impl.add_edge(graph::WeightedEdge{source, destination, weight});
+                        timer.stop();
+                        cout << "[client] Add edge <" << source << ", " << destination << ", " << weight << ">: " << (result ? "success" : "failure") << ". " <<
+                                "Operation completed in " << timer << endl;
+                    } catch(ParseCommandError& e){
+                        cerr << "[client] Invalid argument: " << e.what() << ". Syntax: " << syntax << endl;
+                    }
+                }
+            } else if(stmt == "add_vertex"){
+                string syntax = "add_vertex(vertex_id)";
+                if(command.num_arguments() != 1){
+                   cerr << "[client] Invalid number of arguments: " << command.num_arguments() << ". Syntax: " << syntax << endl;
+                } else {
+                    try {
+                        uint64_t vertex_id = command[0].to_unsigned();
+
+                        Timer timer; timer.start();
+                        bool result = impl.add_vertex(vertex_id);
+                        timer.stop();
+                        cout << "[client] Add vertex `" << vertex_id << "': ";
+                        if(result){
+                            cout << "success";
+                        } else {
+                            cout << "rejected (already present?)";
+                        }
+                        cout << ". Operation completed in " << timer << "\n";
+                    } catch(ParseCommandError& e){
+                        cerr << "[client] Invalid argument vertex_id: " << e.what() << ". Syntax: " << syntax << endl;
+                    }
+                }
+            } else if(stmt == "bfs"){
                 bool error = false;
                 if(command.num_arguments() == 0 || command.num_arguments() > 2) {
                     cerr<< "[client] Invalid number of arguments: " << command.num_arguments() << ". Syntax: bfs( source_vertex [, path_dump] );" << endl;
@@ -266,6 +316,23 @@ static void run_client_interactive(){
                 } else {
                     cerr << "[client] ERROR: invalid number of arguments: " << command.num_arguments() << ". Expected 0\n";
                 }
+            } else if (stmt == "has_vertex"){
+                string syntax = "has_vertex(vertex_id)";
+                if(command.num_arguments() != 1){
+                   cerr << "[client] Invalid number of arguments: " << command.num_arguments() << ". Syntax: " << syntax << endl;
+                } else {
+                    try {
+                        uint64_t vertex_id = command[0].to_unsigned();
+
+                        Timer timer; timer.start();
+                        bool result = impl.has_vertex(vertex_id);
+                        timer.stop();
+                        cout << "[client] Has vertex `" << vertex_id << "': " << (result ? "true" : "false") << "."
+                                << "Operation completed in " << timer << endl;
+                    } catch(ParseCommandError& e){
+                        cerr << "[client] Invalid argument vertex_id: " << e.what() << ". Syntax: " << syntax << endl;
+                    }
+                }
             } else if(stmt == "load"){
                 if(command.num_arguments() != 1){
                     cerr << "[client] [load] invalid number of arguments, expected 1: load (path);" << endl;
@@ -273,8 +340,43 @@ static void run_client_interactive(){
                     impl.load(command[0]);
                     cout << "[client] Load done\n";
                 }
+            } else if (stmt == "num_edges"){
+                if(command.num_arguments() > 0){
+                    cerr << "[client] ERROR: no arguments expected, got: " << command.num_arguments() << endl;
+                } else {
+                    Timer timer; timer.start();
+                    uint64_t result = impl.num_edges();
+                    timer.stop();
+                    cout << "[client] Number of edges: " << result << ". Operation performed in " << timer << endl;
+                }
+            } else if (stmt == "num_vertices"){
+                if(command.num_arguments() > 0){
+                    cerr << "[client] ERROR: no arguments expected, got: " << command.num_arguments() << endl;
+                } else {
+                    Timer timer; timer.start();
+                    uint64_t result = impl.num_vertices();
+                    timer.stop();
+                    cout << "[client] Number of vertices: " << result << ". Operation performed in " << timer << endl;
+                }
             } else if(stmt == "q" || stmt == "quit" || stmt == "\\q"){
                 break;
+            } else if(stmt == "remove_vertex"){
+                string syntax = "remove_vertex(vertex_id)";
+                if(command.num_arguments() != 1){
+                   cerr << "[client] Invalid number of arguments: " << command.num_arguments() << ". Syntax: " << syntax << endl;
+                } else {
+                    try {
+                        uint64_t vertex_id = command[0].to_unsigned();
+
+                        Timer timer; timer.start();
+                        bool result = impl.remove_vertex(vertex_id);
+                        timer.stop();
+                        cout << "[client] Remove vertex `" << vertex_id << "': " << (result ? "success" : "failed") << "."
+                                << "Operation completed in " << timer << endl;
+                    } catch(ParseCommandError& e){
+                        cerr << "[client] Invalid argument vertex_id: " << e.what() << ". Syntax: " << syntax << endl;
+                    }
+                }
             } else if(stmt == "terminate"){
                 impl.terminate_server_on_exit();
                 break;

@@ -230,16 +230,12 @@ TEST(AdjacencyList, Updates){
 }
 
 #if defined(HAVE_STINGER)
-TEST(Stinger, UpdatesSequential) {
-    auto stinger = make_shared<Stinger>();
+TEST(Stinger, Updates) {
+    auto stinger = make_shared<Stinger>(/* directed */ true);
     sequential(stinger);
-
-}
-TEST(Stinger, UpdatesParallel) {
-    auto stinger = make_shared<Stinger>();
     parallel(stinger, 128);
     parallel(stinger, 1024);
-    parallel(stinger, 4096);
+
 }
 #endif
 

@@ -425,15 +425,18 @@ void Server::ConnectionHandler::handle_request(){
         interface()->dump_ostream(ss);
         string result = ss.str();
 
-        uint64_t message_sz = /* header */ sizeof(uint64_t) + /* length */ sizeof(uint64_t) + /* text */ result.size() /* \0 */ +1;
+        uint64_t header_sz = sizeof(Response) + /* string length */ sizeof(uint64_t);
+        uint64_t body_sz = strlen(result.c_str()) +1;
+        uint64_t message_sz = header_sz + body_sz;
 
         // send the header
-        reinterpret_cast<uint32_t*>(m_buffer_write)[0] = message_sz;
+        reinterpret_cast<uint32_t*>(m_buffer_write)[0] = (uint32_t) message_sz;
         reinterpret_cast<uint32_t*>(m_buffer_write)[1] = (uint32_t) ResponseType::OK;
-        send_data(m_buffer_write, 8); // sizeof(uint32_t) + sizeof(uint32_t);
+        reinterpret_cast<uint64_t*>(m_buffer_write)[1] = body_sz -1;
+        send_data(m_buffer_write, header_sz);
 
         // send the body
-        send_data(result.c_str(), result.size() /* \0 */ +1);
+        send_data(result.c_str(), body_sz);
     } break;
     case RequestType::BFS: {
         auto graphalytics = dynamic_cast<library::GraphalyticsInterface*>(interface());

@@ -68,7 +68,7 @@ sources := \
 	main_server.cpp 
 	
 ifneq (,$(findstring -DHAVE_STINGER,${ALL_CPPFLAGS}))
-	sources += $(addprefix library/stinger/,shortest_paths.cpp stinger.cpp)
+	sources += $(addprefix library/stinger/, community_detection.cpp connected_components.cpp local_clustering_coefficient.cpp pagerank.cpp shortest_paths.cpp stinger_unsafe.cpp)
 endif
 
 #############################################################################

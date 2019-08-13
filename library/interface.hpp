@@ -126,16 +126,26 @@ public:
     virtual bool is_undirected() const;
 
     /**
-     * Imposes a timeout on each graph computation. If the computation
+     * Impose a timeout on each graph computation. A computation that does not terminate by the given seconds will raise a TimeoutError.
      */
     virtual void set_timeout(uint64_t seconds) = 0;
 };
 
+/**
+ * Load the graph from a file in the disk
+ */
+class LoaderInterface : public virtual Interface {
+public:
+    /**
+     * Load the whole graph representation from the given path
+     */
+    virtual void load(const std::string& path) = 0;
+};
 
 /**
  * Update interface
  */
-class UpdateInterface : public virtual Interface {
+class UpdateInterface : public virtual Interface, public virtual LoaderInterface {
 public:
     /**
      * Add the given vertex to the graph
@@ -181,20 +191,12 @@ public:
         };
     };
     virtual bool batch(SingleUpdate* array, size_t array_sz);
-};
 
-
-/**
- * Load the graph from a file in the disk
- */
-class LoaderInterface : public virtual Interface {
-public:
     /**
      * Load the whole graph representation from the given path
      */
-    virtual void load(const std::string& path) = 0;
+    virtual void load(const std::string& path) override;
 };
-
 
 /**
  * The six algorithms required by the Graphalytics benchmark suite

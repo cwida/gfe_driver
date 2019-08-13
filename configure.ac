@@ -193,9 +193,9 @@ MY_CHECK_STDLIB_LIBCXX([CXX="$CXX -stdlib=libc++"])
 #############################################################################
 # Support for the library Stinger
 # Usage:
-# default (auto) => attempts to link with stinger, but it does not fail in case it cannot 
+# default (auto) => attempts to link with stinger, but it does not abort in case it cannot 
 # --without-stinger => disable support for stinger
-# --with-stinger => attempt to link with stinger and fails in case it cannot
+# --with-stinger => attempt to link with stinger and aborts in case of error
 # --with-stinger=/path/to/stinger/build => add the given path into the list of libs and include paths for the $CC, it fails in case it cannot link with stinger 
 #
 AC_ARG_WITH([stinger], [AS_HELP_STRING([--with-stinger@<:@=ARG@:>@], [

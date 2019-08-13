@@ -25,6 +25,7 @@
 #include "experiment/aging.hpp"
 #include "graph/edge_stream.hpp"
 #include "library/baseline/adjacency_list.hpp"
+#include "library/stinger/stinger.hpp"
 #include "library/interface.hpp"
 #include "reader/graphalytics_reader.hpp"
 #include "utility/graphalytics_validate.hpp"
@@ -76,7 +77,7 @@ static void validate(library::GraphalyticsInterface* interface, const std::strin
 
     reader::GraphalyticsReader reader { path_graphalytics_graph + ".properties" }; // to parse the properties in the file
 
-    if(algorithms | GA_BFS){
+    if(algorithms & GA_BFS){
         string path_reference = path_graphalytics_graph + "-BFS";
         if(!common::filesystem::file_exists(path_reference)) ERROR("The reference output file `" << path_reference << "' does not exist!");
         string path_result = temp_file_path();
@@ -87,7 +88,7 @@ static void validate(library::GraphalyticsInterface* interface, const std::strin
         LOG("BFS, validation succeeded");
     }
 
-    if(algorithms | GA_PAGERANK){
+    if(algorithms & GA_PAGERANK){
         string path_reference = path_graphalytics_graph + "-PR";
         if(!common::filesystem::file_exists(path_reference)) ERROR("The reference output file `" << path_reference << "' does not exist!");
         string path_result = temp_file_path();
@@ -100,7 +101,7 @@ static void validate(library::GraphalyticsInterface* interface, const std::strin
         LOG("PAGERANK, validation succeeded");
     }
 
-    if(algorithms | GA_WCC){ /* Weakly connected components */
+    if(algorithms & GA_WCC){ /* Weakly connected components */
         string path_reference = path_graphalytics_graph + "-WCC";
         if(!common::filesystem::file_exists(path_reference)) ERROR("The reference output file `" << path_reference << "' does not exist!");
         string path_result = temp_file_path();
@@ -110,7 +111,7 @@ static void validate(library::GraphalyticsInterface* interface, const std::strin
         LOG("WCC, validation succeeded");
     }
 
-    if(algorithms | GA_LCC){ /* Local clustering coefficient */
+    if(algorithms & GA_LCC){ /* Local clustering coefficient */
         string path_reference = path_graphalytics_graph + "-LCC";
         if(!common::filesystem::file_exists(path_reference)) ERROR("The reference output file `" << path_reference << "' does not exist!");
         string path_result = temp_file_path();
@@ -120,7 +121,7 @@ static void validate(library::GraphalyticsInterface* interface, const std::strin
         LOG("LCC, validation succeeded");
     }
 
-    if(algorithms | GA_CDLP){ /* Community detection via label propagation */
+    if(algorithms & GA_CDLP){ /* Community detection via label propagation */
         string path_reference = path_graphalytics_graph + "-CDLP";
         if(!common::filesystem::file_exists(path_reference)) ERROR("The reference output file `" << path_reference << "' does not exist!");
         string path_result = temp_file_path();
@@ -132,7 +133,7 @@ static void validate(library::GraphalyticsInterface* interface, const std::strin
         LOG("CDLP, validation succeeded");
     }
 
-    if(algorithms | GA_SSSP){ /* Dijkstra */
+    if(algorithms & GA_SSSP){ /* Dijkstra */
         string path_reference = path_graphalytics_graph + "-SSSP";
         if(!common::filesystem::file_exists(path_reference)) ERROR("The reference output file `" << path_reference << "' does not exist!");
         string path_result = temp_file_path();
@@ -157,7 +158,6 @@ TEST(AdjacencyList, GraphalyticsDirected){
 TEST(AdjacencyList, GraphalyticsUndirected){
     auto adjlist = make_unique<AdjacencyList>(/* directed */ false);
     load_graph(adjlist.get(), path_example_undirected);
-    adjlist->dump();
     validate(adjlist.get(), path_example_undirected);
 }
 
@@ -166,6 +166,19 @@ TEST(AdjacencyList, Aging){
     auto edge_stream = make_shared<graph::WeightedEdgeStream>(path_example_undirected + ".properties" );
     experiment::Aging aging(adjlist, move(edge_stream), 1024 * 32, 8);
     aging.execute();
-    adjlist->dump();
-//    validate(adjlist.get(), path_example_undirected);
+    validate(adjlist.get(), path_example_undirected);
 }
+
+#if defined(HAVE_STINGER)
+TEST(Stinger, GraphalyticsDirected){
+    auto graph = make_unique<Stinger>(/* directed */ true);
+    load_graph(graph.get(), path_example_directed);
+    validate(graph.get(), path_example_directed);
+}
+
+TEST(Stinger, GraphalyticsUndirected){
+    auto graph = make_unique<Stinger>(/* directed */ false);
+    load_graph(graph.get(), path_example_undirected);
+    validate(graph.get(), path_example_undirected);
+}
+#endif

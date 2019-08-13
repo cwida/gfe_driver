@@ -18,7 +18,9 @@
 #include "stinger.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cinttypes>
+#include <fstream>
 #include <limits>
 #include <mutex>
 #include <queue>
@@ -29,21 +31,26 @@
 
 using namespace std;
 
-namespace library {
-
 // Macros
 #define STINGER reinterpret_cast<struct stinger*>(m_stinger_graph)
+// Stinger stores the weights as int64_t, these macros handle the conversion to double
+#define INT2DBL(v) ( *(reinterpret_cast<double*>(&(v))) )
+#define DBL2INT(v) ( *(reinterpret_cast<int64_t*>(&(v))) )
+#define TIMER_INIT auto time_start = chrono::steady_clock::now();
+#define CHECK_TIMEOUT if(timeout.count() > 0 && (chrono::steady_clock::now() - time_start) > timeout) { \
+        RAISE_EXCEPTION(TimeoutError, "Timeout occurred after: " << chrono::duration_cast<chrono::seconds>(chrono::steady_clock::now() - time_start).count() << " seconds") };
 #undef CURRENT_ERROR_TYPE
 #define CURRENT_ERROR_TYPE ::library::StingerError
+
 
 /******************************************************************************
  *                                                                            *
  *  Debug                                                                     *
  *                                                                            *
  *****************************************************************************/
-extern mutex _stinger_debug_mutex;
 //#define DEBUG
-#define COUT_DEBUG_FORCE(msg) { scoped_lock<mutex> lock(_stinger_debug_mutex); std::cout << "[Stinger::" << __FUNCTION__ << "] [" << common::concurrency::get_thread_id() << "] " << msg << std::endl; }
+extern mutex _log_mutex [[maybe_unused]];
+#define COUT_DEBUG_FORCE(msg) { scoped_lock<mutex> lock(::_log_mutex); std::cout << "[Stinger::" << __FUNCTION__ << "] [" << common::concurrency::get_thread_id() << "] " << msg << std::endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
 #else
@@ -56,27 +63,33 @@ extern mutex _stinger_debug_mutex;
  *  Library impl~                                                             *
  *                                                                            *
  *****************************************************************************/
+namespace library {
+
 // copy & paste from stinger_alg/src/shortest_paths.cpp
 namespace {
-typedef struct{
+typedef struct {
     int64_t vertex;
-    int64_t cost;
-}weighted_vertex_t;
+    double  cost;
+} weighted_vertex_t;
 
 //this is a simple comparison function for the queue that sorts based on the cost to reach a vertex
 bool
-comp(weighted_vertex_t a, weighted_vertex_t b)
+static comp(weighted_vertex_t a, weighted_vertex_t b)
 {
     return a.cost > b.cost;
 }
+
 typedef bool(*CompareType)(weighted_vertex_t a, weighted_vertex_t b);
 
-static int64_t a_star(stinger_t * S, int64_t NV, int64_t source_vertex, int64_t dest_vertex, bool ignore_weights){
-    std::vector<int64_t> cost_so_far(NV);
+static std::vector<double> a_star(stinger_t * S, int64_t NV, int64_t source_vertex, int64_t dest_vertex, bool ignore_weights, chrono::seconds timeout){
+    TIMER_INIT
+    std::vector<double> cost_so_far(NV);
+
     for (int64_t v = 0; v < NV; v++){
-        cost_so_far[v] = std::numeric_limits<int64_t>::max(); // initialize all the values to infinity
+        cost_so_far[v] = std::numeric_limits<double>::max(); // initialize all the values to + infinity
     }
-    //represents the verties to look at in the graph
+
+    //represents the vertices to look at in the graph
     std::priority_queue<weighted_vertex_t, std::vector<weighted_vertex_t>, CompareType> frontier (comp);
     //add the initial vertex to the priority queue
     weighted_vertex_t source;
@@ -86,26 +99,25 @@ static int64_t a_star(stinger_t * S, int64_t NV, int64_t source_vertex, int64_t 
     frontier.push(source);
 
     while (!frontier.empty()) {
+        CHECK_TIMEOUT
+
         weighted_vertex_t current = frontier.top();
         frontier.pop();
 
-        if (current.vertex == dest_vertex) {
-            //we found our goal!
-            return cost_so_far[current.vertex];
-        }
+        //we found our goal!
+        if (current.vertex == dest_vertex) break;
 
         STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(S, current.vertex)
                                 {
                                     //for all the neighbors of the current vertex
-                                    int64_t new_cost;
+                                    double new_cost;
                                     if (ignore_weights){
-                                        new_cost= cost_so_far[current.vertex] + 1; // disregard the weights, instead count paths
-                                    }
-                                    else{
-                                        new_cost = cost_so_far[current.vertex] + STINGER_EDGE_WEIGHT;
+                                        new_cost = cost_so_far[current.vertex] + 1; // disregard the weights, instead count paths
+                                    } else{
+                                        new_cost = cost_so_far[current.vertex] + INT2DBL(STINGER_EDGE_WEIGHT);
                                     }
 
-                                    if (new_cost < cost_so_far[STINGER_EDGE_DEST] || cost_so_far[STINGER_EDGE_DEST] == std::numeric_limits<int64_t>::max()) {
+                                    if (new_cost < cost_so_far[STINGER_EDGE_DEST] || cost_so_far[STINGER_EDGE_DEST] == std::numeric_limits<double>::max()) {
                                         cost_so_far[STINGER_EDGE_DEST] = new_cost;
                                         weighted_vertex_t next;
                                         next.vertex = STINGER_EDGE_DEST;
@@ -114,93 +126,37 @@ static int64_t a_star(stinger_t * S, int64_t NV, int64_t source_vertex, int64_t 
                                     }
                                 }
         STINGER_FORALL_OUT_EDGES_OF_VTX_END();
-
     }
 
-    //we failed to reach this vertex - meaning that there is no path between these two verticies
-    if(dest_vertex >= 0)
-        return cost_so_far[dest_vertex]; //should return max integer value as a placeholder for infinity
-    else
-        return 0; // shortest path towards all vertices
+    return cost_so_far;
 }
 
-static int64_t a_star_debug(stinger_t * S, int64_t NV, int64_t source_vertex, int64_t dest_vertex, bool ignore_weights, std::vector<library::ShortestPathInterface::Distance>& result){
-    COUT_DEBUG("NV: " << NV << ", source_vertex: " << source_vertex << ", dest_vertex: " << dest_vertex << ", ignore weights: " << ignore_weights);
 
-    std::vector<int64_t> cost_so_far(NV);
-    std::vector<int64_t> predecessor(NV);
-    for (int64_t v = 0; v < NV; v++){
-        cost_so_far[v] = std::numeric_limits<int64_t>::max(); // initialize all the values to infinity
-        predecessor[v] = -1;
-    }
-    //represents the verties to look at in the graph
-    std::priority_queue<weighted_vertex_t, std::vector<weighted_vertex_t>, CompareType> frontier (comp);
-    //add the initial vertex to the priority queue
-    weighted_vertex_t source;
-    source.vertex = source_vertex;
-    source.cost = 0;
-    cost_so_far[source_vertex] = 0;
-    predecessor[source_vertex] = source_vertex;
-    frontier.push(source);
 
-    while (!frontier.empty()) {
-        weighted_vertex_t current = frontier.top();
-        frontier.pop();
+// dump the content to the given file
+static void save(cuckoohash_map<uint64_t, double>& result, bool weighted, const char* dump2file){
+    if(dump2file == nullptr) return; // nop
+    COUT_DEBUG("save the results to: " << dump2file)
+    string label_infinity = weighted ? string("infinity") : to_string(numeric_limits<uint64_t>::max());
 
-        COUT_DEBUG("current: " << current.vertex);
 
-        if (current.vertex == dest_vertex) {
-            COUT_DEBUG("break");
-            break; //we found our goal!
+    fstream handle(dump2file, ios_base::out);
+    if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
+
+    auto list_entries = result.lock_table();
+
+    for(const auto& p : list_entries){
+        handle << p.first << " ";
+        if(p.second == numeric_limits<double>::max()){
+            handle << label_infinity;
         } else {
-            STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(S, current.vertex)
-                                    {
-                                        //for all the neighbors of the current vertex
-                                        int64_t new_cost;
-                                        if (ignore_weights){
-                                            new_cost= cost_so_far[current.vertex] + 1; // disregard the weights, instead count paths
-                                        }
-                                        else{
-                                            new_cost = cost_so_far[current.vertex] + STINGER_EDGE_WEIGHT;
-                                        }
-
-                                        if (new_cost < cost_so_far[STINGER_EDGE_DEST] || cost_so_far[STINGER_EDGE_DEST] == std::numeric_limits<int64_t>::max()) {
-                                            cost_so_far[STINGER_EDGE_DEST] = new_cost;
-                                            predecessor[STINGER_EDGE_DEST] = STINGER_EDGE_SOURCE;
-
-                                            weighted_vertex_t next;
-                                            next.vertex = STINGER_EDGE_DEST;
-                                            next.cost = new_cost;
-                                            frontier.push(next);
-                                        }
-                                    }
-            STINGER_FORALL_OUT_EDGES_OF_VTX_END();
+            handle << p.second;
         }
+        handle << "\n";
     }
 
-    result.clear();
-
-    if(dest_vertex >= 0) {
-        if(cost_so_far[dest_vertex] < std::numeric_limits<int64_t>::max()){
-            int64_t v = predecessor[dest_vertex];
-            while(v != source_vertex){
-                result.emplace_back(v, cost_so_far[v]);
-                v = predecessor[v];
-            }
-            std::reverse(begin(result), end(result));
-        }
-
-        return cost_so_far[dest_vertex]; //should return max integer value as a placeholder for infinity
-    } else {
-        for (int64_t v = 0; v < NV; v++){
-            COUT_DEBUG("cost_so_far[" << v << "]: " << cost_so_far[v]);
-            if(cost_so_far[v] < std::numeric_limits<int64_t>::max()){
-                result.emplace_back(v, cost_so_far[v]);
-            }
-        }
-        return 0; // shortest path towards all vertices
-    }
-
+    list_entries.unlock();
+    handle.close();
 }
 
 } // anonymous namespace
@@ -212,52 +168,23 @@ static int64_t a_star_debug(stinger_t * S, int64_t NV, int64_t source_vertex, in
  *                                                                            *
  *****************************************************************************/
 
-int64_t Stinger::compute_shortest_paths(uint64_t ext_source, uint64_t ext_destination, bool weighted, std::vector<library::ShortestPathInterface::Distance>* result){
-    // internal ids in the adjacency list
-    int64_t id_source = get_internal_id(ext_source);
-    if(id_source < 0){
-        COUT_DEBUG("The source vertex does not exist: " << ext_source);
-        return -1;
-    }
-    int64_t id_destination = -1;
-    if(ext_destination != std::numeric_limits<uint64_t>::max()){
-        id_destination = get_internal_id(ext_destination);
-        if(id_destination < 0){
-            COUT_DEBUG("The destination vertex does not exist: " << ext_destination);
-            return -1;
-        }
-    }
+void Stinger::compute_shortest_paths(uint64_t source_external_id, bool weighted, const char* dump2file){
+    int64_t source_internal_id = get_internal_id(source_external_id);
+    if(source_internal_id < 0) ERROR("The vertex `" << source_external_id << "' does not exist");
+    auto result = a_star(STINGER, stinger_max_active_vertex(STINGER) +1, source_internal_id, /* all vertices */ -1, /* ignore weights */ !weighted, chrono::seconds( m_timeout ));
 
-    // trampoline
-    int64_t distance {0};
-    if(result == nullptr){
-        distance = a_star(STINGER, stinger_max_active_vertex(STINGER) +1, id_source, id_destination, !weighted);
-    } else {
-        distance = a_star_debug(STINGER, stinger_max_active_vertex(STINGER) +1, id_source, id_destination, !weighted, *result);
-
-        // transform the internal IDs back to the external vertex IDs
-        for(uint64_t i =0, sz = result->size(); i < sz; i++){
-            (*result)[i].m_vertex = get_external_id( (*result)[i].m_vertex );
-        }
-    }
-
-    return (distance != numeric_limits<int64_t>::max()) ? distance : -1;
+    // covert the internal vertex IDs back to external IDs
+    cuckoohash_map<uint64_t, double> external_ids;
+    to_external_ids(result, &external_ids);
+    save(external_ids, weighted, dump2file);
 }
 
-void Stinger::bfs_all(uint64_t source, std::vector<library::ShortestPathInterface::Distance>* result){
-    compute_shortest_paths(source, std::numeric_limits<uint64_t>::max(), false, result);
+void Stinger::bfs(uint64_t source_vertex_id, const char* dump2file){
+    compute_shortest_paths(source_vertex_id, false, dump2file);
 }
 
-int64_t Stinger::bfs_one(uint64_t source, uint64_t dest, std::vector<library::ShortestPathInterface::Distance>* path){
-    return compute_shortest_paths(source, dest, false, path);
-}
-
-void Stinger::spw_all(uint64_t source, std::vector<library::ShortestPathInterface::Distance>* result){
-    compute_shortest_paths(source, std::numeric_limits<uint64_t>::max(), true, result);
-}
-
-int64_t Stinger::spw_one(uint64_t source, uint64_t dest, std::vector<library::ShortestPathInterface::Distance>* path){
-    return compute_shortest_paths(source, dest, true, path);
+void Stinger::sssp(uint64_t source_vertex_id, const char* dump2file){
+    compute_shortest_paths(source_vertex_id, true, dump2file);
 }
 
 } // namespace

@@ -18,18 +18,25 @@
 #pragma once
 
 #include "common/error.hpp"
+#include "common/spinlock.hpp"
 #include "library/interface.hpp"
+#include "third-party/libcuckoo/cuckoohash_map.hh"
 
 namespace library {
 
 // Generic exception thrown by the Stinger wrapper
 DEFINE_EXCEPTION(StingerError);
     
-class Stinger : public virtual UpdateInterface, public virtual LoaderInterface, public virtual AnalyticsInterface {
+class Stinger : public virtual UpdateInterface, public virtual GraphalyticsInterface {
+protected:
     void* m_stinger_graph {nullptr}; // opaque object, container of the handle to the stinger graph
+    const bool m_directed; // is the graph directed
+    mutable common::SpinLock m_spin_lock; // sync vertex creations and removals
+    uint64_t m_num_vertices = 0; // number of vertices
+    uint64_t m_timeout = 0; // available time, in seconds, to complete the computation
 
     /**
-     * Get the internal edge id for the given external vertex id
+     * Get the internal vertex id for the given external vertex id
      * @return the internal vertex id (index in the adjacency list) if the vertex exists, or -1 otherwise
      */
     int64_t get_internal_id(uint64_t vertex_id) const;
@@ -42,16 +49,37 @@ class Stinger : public virtual UpdateInterface, public virtual LoaderInterface, 
     uint64_t get_external_id(int64_t vertex_id) const;
 
     /**
-     * Base function to compute the shortest paths
+     * Convert the array internal_ids[value] into
+     * @param internal_ids [input] an array, where each entry is logical_id -> value
+     * @param out_external_ids [output] a hash table, where each entry is external_id -> value
      */
-    int64_t compute_shortest_paths(uint64_t ext_source, uint64_t ext_destination, bool weighted, std::vector<library::ShortestPathInterface::Distance>* result);
+    template<typename T>
+    void to_external_ids(const std::vector<T>& internal_ids, cuckoohash_map<uint64_t, T>* out_external_ids);
+    template<typename T>
+    void to_external_ids(const T* __restrict internal_ids, size_t internal_ids_sz, cuckoohash_map<uint64_t, T>* out_external_ids);
+
+    /**
+     * Compute the shortest paths from source to any vertex
+     * @param source_vertex the source vertex id (external domain)
+     * @param weighted if true, then run Dijkstra on the edge weights, otherwise execute a BFS
+     * @param dump2file if not null, store the result in the given file in the same format expected by the Graphalytics suite
+     */
+    void compute_shortest_paths(uint64_t source_vertex, bool weighted, const char* dump2file = nullptr);
+
+    // Compute the number of triangles for the given logical vertex id
+    uint64_t lcc_count_triangles(int64_t internal_vertex_id);
+    uint64_t lcc_count_intersections (int64_t vertex1, int64_t vertex2, int64_t* vertex1_neighbours, int64_t vertex1_neighbours_sz);
+
+    // Single pass of the CDLP algorithm
+    int64_t cdlp_propagate(int64_t vertex_id, int64_t* __restrict labels);
 
 public:
 
     /**
      * Initialise the graph instance
+     * @param is the graph directed?
      */
-    Stinger();
+    Stinger(bool directed);
 
     /**
      * Destructor
@@ -74,14 +102,24 @@ public:
     virtual bool has_vertex(uint64_t vertex_id) const;
 
     /**
-     * Retrieve the weight associated to the given edge, or -1 if the given edge does not exist
+     * Returns the weight of the given edge is the edge is present, or NaN otherwise
      */
-    virtual int64_t get_weight(uint64_t source, uint64_t destination) const;
+    virtual double get_weight(uint64_t source, uint64_t destination) const;
+
+    /**
+     * Check whether the graph is directed
+     */
+    virtual bool is_directed() const;
 
     /**
      * Dump the content of the graph to stdout
      */
-    virtual void dump() const;
+    virtual void dump_ostream(std::ostream& out) const;
+
+    /**
+     * Impose a timeout on each graph computation. A computation that does not terminate by the given seconds will raise a TimeoutError.
+     */
+    virtual void set_timeout(uint64_t seconds);
 
     /**
      * Add the given vertex to the graph
@@ -108,17 +146,47 @@ public:
     virtual bool remove_edge(graph::Edge e);
 
     /**
-     * Load the whole graph representation from the given path
+     * Perform a BFS from source_vertex_id to all the other vertices in the graph.
+     * @param source_vertex_id the vertex where to start the search
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
      */
-    virtual void load(const std::string& path);
+    virtual void bfs(uint64_t source_vertex_id, const char* dump2file = nullptr);
 
     /**
-     * Methods to compute the shortest path
+     * Execute the PageRank algorithm for the specified number of iterations.
+     *
+     * @param num_iterations the number of iterations to execute the algorithm
+     * @param damping_factor weight for the PageRank algorithm, it affects the score associated to the sink nodes in the graphs
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
      */
-    virtual void bfs_all(uint64_t source, std::vector<Distance>* result = nullptr);
-    virtual int64_t bfs_one(uint64_t source, uint64_t dest, std::vector<Distance>* path = nullptr);
-    virtual void spw_all(uint64_t source, std::vector<Distance>* result = nullptr);
-    virtual int64_t spw_one(uint64_t source, uint64_t dest, std::vector<Distance>* path = nullptr);
+    virtual void pagerank(uint64_t num_iterations, double damping_factor = 0.85, const char* dump2file = nullptr);
+
+    /**
+     * Weakly connected components (WCC), associate each node to a connected component of the graph
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
+     */
+    virtual void wcc(const char* dump2file = nullptr);
+
+    /**
+     * Community Detection using Label-Propagation. Associate a label to each vertex of the graph, according to its neighbours.
+     * @param max_iterations max number of iterations to perform
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
+     */
+    virtual void cdlp(uint64_t max_iterations, const char* dump2file = nullptr);
+
+    /**
+     * Local clustering coefficient. Associate to each vertex the ratio between the number of its outgoing edges and the number of
+     * possible remaining edges.
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
+     */
+    virtual void lcc(const char* dump2file = nullptr);
+
+    /**
+     * Single-source shortest paths. Compute the weight related to the shortest path from the source to any other vertex in the graph.
+     * @param source_vertex_id the vertex where to start the search
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
+     */
+    virtual void sssp(uint64_t source_vertex_id, const char* dump2file = nullptr);
 };
 
 }
