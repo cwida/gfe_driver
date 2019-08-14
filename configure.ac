@@ -105,30 +105,6 @@ fi
 m4_undefine([_my_set_debug_flags])
 
 #############################################################################
-# Assertions. Possible values:
-# yes => nop
-# no => CPPFLAGS += -DNDEBUG
-# auto => yes if the debug flags are also enabled, no otherwise
-MY_ARG_ENABLE([assert], 
-    [Whether to enable assertions. The option 'auto' implies the assertions are enabled when --debug is specified], 
-    [yes no auto], [auto])
-    
-if (test x"${enable_assert}" = x"auto"); then
-    if (test x"${enable_debug}" = x"yes"); then
-        enable_assert=yes
-    else
-        enable_assert=no
-    fi
-fi
-if (test x"${enable_assert}" = x"yes"); then
-    : ; # nop
-elif (test x"${enable_assert}" = x"no"); then
-    CPPFLAGS="${CPPFLAGS} -DNDEBUG"
-else
-    AC_MSG_ERROR([Invalid value for --enable-assert: ${enable_assert}])
-fi
-
-#############################################################################
 # Warning flags (-Wall)
 MY_ARG_ENABLE([warnings], 
     [Whether to enable all warnings (-Wall)], 
@@ -173,6 +149,30 @@ m4_defun([_my_set_optimization_flags], [
 _my_set_optimization_flags([C])
 _my_set_optimization_flags([C++])
 m4_undefine([_my_set_optimization_flags])
+
+#############################################################################
+# Assertions. Possible values:
+# yes => nop
+# no => CPPFLAGS += -DNDEBUG
+# auto => yes if the optimize mode is not enabled, no otherwise
+MY_ARG_ENABLE([assert], 
+    [Whether to enable assertions. The option 'auto' implies the assertions are enabled when --enable-optimize is not specified], 
+    [yes no auto], [auto])
+    
+if (test x"${enable_assert}" = x"auto"); then
+    if (test x"${enable_optimize}" != x"yes"); then
+        enable_assert=yes
+    else
+        enable_assert=no
+    fi
+fi
+if (test x"${enable_assert}" = x"yes"); then
+    : ; # nop
+elif (test x"${enable_assert}" = x"no"); then
+    CPPFLAGS="${CPPFLAGS} -DNDEBUG"
+else
+    AC_MSG_ERROR([Invalid value for --enable-assert: ${enable_assert}])
+fi
 
 #############################################################################
 # CMake build type (for libcommon)

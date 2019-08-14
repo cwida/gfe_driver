@@ -425,17 +425,17 @@ static void run_experiments(){
         auto stream = make_shared<graph::WeightedEdgeStream> ( cfgclient().get_path_graph() );
         stream->permute();
         uint64_t random_vertex = stream->num_edges() > 0 ? stream->get(0).m_source : 0;
-        double max_weight = stream->max_weight();
 
         LOG("[client] Number of concurrent threads: " << cfgclient().num_threads(THREADS_WRITE) );
-        if(cfgclient().num_updates() == 0){ // insert the elements in the graph one by one
+        if(cfgclient().coefficient_aging() == 0.0){ // insert the elements in the graph one by one
             InsertOnly experiment { impl, move(stream), cfgclient().num_threads(THREADS_WRITE) };
             experiment.set_batch_size(cfgclient().get_batch_size());
             experiment.execute();
             if(configuration().has_database()) experiment.save();
         } else {
-            LOG("[client] Number of updates to perform: " << cfgclient().num_updates());
-            Aging experiment(impl, move(stream), cfgclient().num_updates(), cfgclient().num_threads(THREADS_WRITE), remote_graph_is_directed, max_weight);
+            LOG("[client] Number of updates to perform: " << stream->num_edges() * cfgclient().coefficient_aging());
+            Aging experiment(impl, move(stream), cfgclient().coefficient_aging(), cfgclient().num_threads(THREADS_WRITE));
+            experiment.set_batch_size(cfgclient().get_batch_size());
             experiment.execute();
             if(configuration().has_database()) experiment.save();
         }

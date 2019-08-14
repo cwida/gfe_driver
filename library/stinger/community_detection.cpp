@@ -40,8 +40,8 @@
 #include <fstream>
 #include <limits>
 #include <mutex>
-#include <queue>
 #include <thread>
+#include <unordered_map>
 
 #include "common/system.hpp"
 #include "stinger_core/stinger.h"
@@ -107,7 +107,7 @@ void Stinger::cdlp(uint64_t max_iterations, const char* dump2file){
     TIMER_INIT
 
     bool change = true;
-    int64_t num_mappings = stinger_mapping_nv(STINGER);
+    int64_t num_mappings = get_max_num_mappings();
     auto ptr_labels0 = make_unique<int64_t[]>(num_mappings); int64_t* labels0 = ptr_labels0.get();
     auto ptr_labels1 = make_unique<int64_t[]>(num_mappings); int64_t* labels1 = ptr_labels1.get();
 

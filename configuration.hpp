@@ -151,9 +151,9 @@ class ClientConfiguration : public Configuration {
 
 private:
     uint64_t m_batch_size = 0; // if > 0, send the updates in batches
+    double m_coeff_aging { 0.0 }; // coefficient for the additional updates to perform
     std::string m_experiment; // the experiment to execute
     bool m_is_interactive { false }; // interactive while loop
-    uint64_t m_num_aging_updates { 0 }; // number of additional updates to perform
     uint64_t m_num_repetitions { 5 }; // when applicable, how many times the same experiment should be repeated
     int m_num_threads_read { 1 }; // number of threads to use for the read operations
     int m_num_threads_write { 1 }; // number of threads to use for the write (insert/update/delete) operations
@@ -195,8 +195,8 @@ public:
     // Get the number of threads to use
     int num_threads(ThreadsType type) const;
 
-    // Number of updates to perform
-    uint64_t num_updates() const{ return m_num_aging_updates; }
+    // Coefficient for the surplus of updates to perform (noise) w.r.t. the final graph  to load
+    double coefficient_aging() const{ return m_coeff_aging; }
 
     // Number of repetitions of the same experiment (when applicable)
     uint64_t num_repetitions() const { return m_num_repetitions; }

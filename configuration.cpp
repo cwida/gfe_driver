@@ -118,7 +118,7 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
     Options opts(argv[0], "Client program for the GFE");
 
     opts.add_options("Generic")
-        ("a, aging", "The number of additional updates for the aging experiment to perform", value<Quantity>()->default_value(to_string(m_num_aging_updates)))
+        ("a, aging", "The number of additional updates for the aging experiment to perform", value<double>()->default_value("0"))
         ("b, batch", "Send the updates in batches of the given size", value<Quantity>())
         ("c, connect", "The server address, in the form hostname:port. The default is " + get_server_string(), value<string>())
         ("d, database", "Store the current configuration value into the a sqlite3 database at the given location", value<string>())
@@ -185,7 +185,12 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
         }
 
         m_is_interactive = (result["interactive"].count() > 0);
-        m_num_aging_updates = result["aging"].as<Quantity>();
+
+        double coeff_aging = result["aging"].as<double>();
+        if(coeff_aging < 0 || (coeff_aging > 0 && coeff_aging < 1)){
+            ERROR("The parameter aging is invalid. It must be >= 1.0: " << coeff_aging);
+        }
+        m_coeff_aging = coeff_aging;
 
         // number of threads
         if( result["threads"].count() > 0) {
@@ -234,7 +239,7 @@ void ClientConfiguration::save_parameters() {
 
     using P = pair<string, string>;
     vector<P> params;
-    params.push_back(P{"aging", to_string(m_num_aging_updates)});
+    params.push_back(P{"aging", to_string(coefficient_aging())});
     params.push_back(P{"batch", to_string(m_batch_size)});
     params.push_back(P{"database", get_database_path()});
     if(!get_experiment_name().empty()) params.push_back(P{"experiment", get_experiment_name()});
@@ -242,7 +247,6 @@ void ClientConfiguration::save_parameters() {
     if(!get_path_graph().empty()){ params.push_back(P{"graph", get_path_graph()}); }
     params.push_back(P{"interactive", to_string( is_interactive() )});
     params.push_back(P{"hostname", common::hostname()});
-    params.push_back(P{"num_aging_updates", to_string(m_num_aging_updates)});
     params.push_back(P{"num_repetitions", to_string(m_num_repetitions)});
     params.push_back(P{"num_threads_read", to_string(m_num_threads_read)});
     params.push_back(P{"num_threads_write", to_string(m_num_threads_write)});

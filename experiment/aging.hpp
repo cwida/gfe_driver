@@ -23,19 +23,20 @@
 #include <cinttypes>
 #include <future>
 #include <memory>
+#include <mutex>
 #include <random>
 #include <unordered_map>
 #include <vector>
 
 #include "common/circular_array.hpp"
 #include "graph/edge.hpp"
+#include "library/interface.hpp"
 #include "third-party/libcuckoo/cuckoohash_map.hh"
 
 // forward declarations
 namespace graph { class Edge; }
 namespace graph { class WeightedEdge; }
 namespace graph { class WeightedEdgeStream; }
-namespace library { class UpdateInterface; }
 
 namespace experiment {
 
@@ -58,7 +59,8 @@ class Aging {
     const double m_max_weight; // the max weight for an edge in graph, incl.
 
     double m_expansion_factor = 1.3; // set the maximum size, in terms of number of edges, that the underlying interface should contain
-    int64_t m_granularity = 64; // the granularity of each burst of insertions/deletions, as execute by a worker thread
+    int64_t m_granularity = 1024; // the granularity of each burst of insertions/deletions, as execute by a worker thread
+    uint64_t m_batch_size = 0; // send the updates in batches
 
     // A single partition handled by a worker thread
     struct Partition { const uint64_t m_start; const int64_t m_length; Partition(uint64_t s, uint64_t l) : m_start(s), m_length(l) { } };
@@ -84,8 +86,16 @@ class Aging {
         std::unordered_map<graph::Edge, bool> m_edges_already_inserted; // keep track of which edges has already been inserted
         common::CircularArray<graph::Edge> m_edges2remove; // edges that have been inserted but do not belong to the final graph
 
+        // keep track of the current batch
+        library::UpdateInterface::SingleUpdate* m_batch;
+        uint64_t m_batch_pos;
+        const uint64_t m_batch_sz;
+
+        // synchronisation with the master thread
         AgingOperation m_current_operation { AgingOperation::NONE }; // the current operation the thread is performing
         std::promise<void> m_callback;
+        std::mutex m_mutex_op;
+        std::condition_variable m_condvar_op;
 
         std::mt19937_64 m_random { std::random_device{}() };
         std::uniform_real_distribution<double> m_uniform{ 0., 1. };
@@ -122,6 +132,9 @@ class Aging {
         // Is the graph undirected?
         bool is_undirected() const { return m_is_undirected; }
 
+        // Flush the current batch of updates & reset the variable batch_pos to 0
+        void batch_flush();
+
         // Logic to run the experiment
         void main_experiment();
 
@@ -141,7 +154,10 @@ class Aging {
     friend class AgingThread;
 
     // Insert a single vertex in the graph system/library. Invoked concurrently by the worker threads
-    void insert_edge(graph::WeightedEdge edge);
+//    void insert_edge(graph::WeightedEdge edge);
+
+    // Insert a single vertex in the graph system/library, if it's not already present. Invoked concurrently by the worker threads
+    void insert_vertex(uint64_t vertex_id);
 
     // Execute the given action on all workers
     void all_workers_execute(const std::vector<std::unique_ptr<AgingThread>>& workers, AgingOperation operation);
@@ -150,7 +166,17 @@ class Aging {
     std::vector<std::vector<Partition>> compute_partitions_directed() const;
 
 public:
-    Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads);
+
+    /**
+     * Constructor
+     * @param interface the library to evaluate
+     * @param stream reader for the final graph to load
+     * @param mult_num_operations coefficient for the total number of operations to perform, the final amount is given by mult_num_operations * stream->num_edges()
+     * @param num_threads number of threads to use
+     */
+    Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, double mult_num_operations, int64_t num_threads);
+
+
     Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads, bool is_directed, double max_weight);
 
     // run the experiment
@@ -165,6 +191,9 @@ public:
 
     // Set the granularity of a single round of operation inside a thread
     void set_operation_granularity(uint64_t granularity);
+
+    // Request to send edge updates in batches of the given size. Vertex insertions will continue to be sent one at the time
+    void set_batch_size(uint64_t size);
 
     // Store the results into the database
     void save();

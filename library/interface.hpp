@@ -177,20 +177,17 @@ public:
 
     /**
      * Perform a batch of edge insertions/deletions
+     * @param array the list of edge updates, insertions/deletions
+     * @param array_sz the size of the list of edge updates
+     * @param force if true, expect to perform all updates successfully and wait indefinitely until each operation is performed (due to async threads)
      * @return true if all updates have been performed, and false if one of them failed
      */
     struct SingleUpdate {
         uint64_t m_source; // the source vertex
         uint64_t m_destination; // the destination vertex
-        union {
-            struct {
-                uint64_t m_value:1; // 0 = remove, 1 = insert
-                uint64_t m_padding:63; // padding ignore
-            } m_op;
-            double m_weight; // weights can only be positive
-        };
+        double m_weight; // if < 0, this is an edge removal, otherwise it's an edge insertion with the given weight
     };
-    virtual bool batch(SingleUpdate* array, size_t array_sz);
+    virtual bool batch(const SingleUpdate* array, size_t array_sz, bool force = true);
 
     /**
      * Load the whole graph representation from the given path

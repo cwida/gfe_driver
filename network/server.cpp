@@ -389,7 +389,8 @@ void Server::ConnectionHandler::handle_request(){
             response(ResponseType::OK, result);
         }
     } break;
-    case RequestType::BATCH_PLAIN: {
+    case RequestType::BATCH_PLAIN_FORCE_NO:
+    case RequestType::BATCH_PLAIN_FORCE_YES: {
         library::UpdateInterface* update_interface = dynamic_cast<library::UpdateInterface*>(interface());
         if(update_interface == nullptr){
             LOG("Operation not supported by the current interface: " << request()->type());
@@ -397,19 +398,10 @@ void Server::ConnectionHandler::handle_request(){
         } else {
             assert((request()->message_size() - sizeof(Request)) % (3 * sizeof(uint64_t)) == 0);
             uint64_t batch_sz = (request()->message_size() - sizeof(Request)) / (3 * sizeof(uint64_t));
-            const library::UpdateInterface::SingleUpdate* __restrict batch = reinterpret_cast<const library::UpdateInterface::SingleUpdate*>(request()->buffer());
-
-            // now a bit of a hack, we want all updates to succeed. An update may fail if a vertex is still being added
-            // by another thread in the meanwhile
-            for(uint64_t i = 0; i < batch_sz; i++){
-                if(batch[i].m_op.m_value == 1){ // insert
-                    while ( ! update_interface->add_edge(graph::WeightedEdge{batch[i].m_source, batch[i].m_destination, batch[i].m_weight}) ) { /* nop */ };
-                } else { // remove
-                    while ( ! update_interface->remove_edge(graph::Edge{batch[i].m_source, batch[i].m_destination}) ) { /* nop */ };
-                }
-            }
-
-            response(ResponseType::OK, /* assume it always succeeds */ true);
+            const library::UpdateInterface::SingleUpdate* batch = reinterpret_cast<const library::UpdateInterface::SingleUpdate*>(request()->buffer());
+            bool force = request()->type() == RequestType::BATCH_PLAIN_FORCE_YES;
+            bool result = update_interface->batch(batch, batch_sz, force);
+            response(ResponseType::OK, result);
         }
     } break;
 ////     Only to measure the overhead of the network connections for updates

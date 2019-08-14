@@ -89,8 +89,8 @@ static void run_batched(library::UpdateInterface* interface, graph::WeightedEdge
         library::UpdateInterface::SingleUpdate* __restrict update = batch + batch_index;
         update->m_source = edge.m_source;
         update->m_destination = edge.m_destination;
+        assert(edge.m_weight >= 0 && "Weights can only be non-negative");
         update->m_weight = edge.m_weight;
-        update->m_op.m_value = 1;// insert
         batch_index++;
     }
 

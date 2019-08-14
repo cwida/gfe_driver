@@ -95,7 +95,7 @@ void Stinger::lcc(const char* dump2file){
 
     cuckoohash_map<uint64_t, double> result;
 //    uint64_t nv = stinger_max_active_vertex(STINGER); // it doesn't register the coefficient if the last vertices are isolated
-    uint64_t nv = stinger_mapping_nv(STINGER); // number of mappings
+    uint64_t nv = get_max_num_mappings(); // number of mappings
 
     #pragma omp parallel for shared(timeout_hit)
     for(uint64_t v = 0; v < nv; v++){
@@ -188,7 +188,6 @@ uint64_t Stinger::lcc_count_intersections (int64_t vertex1, int64_t vertex2, int
           out += ( binsearch(STINGER_EDGE_DEST) == true );
       }
     } STINGER_FORALL_OUT_EDGES_OF_VTX_END();
-
 
     return out;
 }

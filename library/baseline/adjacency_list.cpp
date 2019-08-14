@@ -29,6 +29,7 @@
 #include <unordered_set>
 
 #include "common/circular_array.hpp"
+#include "common/system.hpp"
 #include "common/timer.hpp"
 #include "configuration.hpp" // LOG
 #include "reader/reader.hpp"
@@ -44,7 +45,7 @@ using namespace std;
  *****************************************************************************/
 //#define DEBUG
 extern mutex _log_mutex;
-#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{_log_mutex}; std::cout << "[AdjacencyList::" << __FUNCTION__ << "] " << msg << std::endl; }
+#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{_log_mutex}; std::cout << "[AdjacencyList::" << __FUNCTION__ << "] [" << concurrency::get_thread_id() << "] " << msg << std::endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
 #else
@@ -245,6 +246,7 @@ bool AdjacencyList::add_edge(graph::WeightedEdge e){
 
 bool AdjacencyList::add_edge0(graph::WeightedEdge e){
     COUT_DEBUG("edge: " << e);
+    assert(e.m_weight >= 0 && "Negative weight");
 
     auto v_src = m_adjacency_list.find(e.source());
     if(v_src == m_adjacency_list.end()){
@@ -358,7 +360,6 @@ void AdjacencyList::bfs(uint64_t source_vertex_id, const char* dump2file){
             if(result.second){ queue.append(edge.first); }
         }
     }
-
 
     if(dump2file != nullptr){
         COUT_DEBUG("save the results to: " << dump2file)

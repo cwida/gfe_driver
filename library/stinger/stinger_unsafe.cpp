@@ -59,7 +59,20 @@ extern mutex _log_mutex [[maybe_unused]];
 namespace library {
 
 Stinger::Stinger(bool directed) : m_directed(directed){
-    m_stinger_graph = stinger_new();
+    struct stinger_config_t config;
+    memset(&config, 0, sizeof(config)); // init
+    config.nv = 1ll<<32; // max number of vertices, 4G
+    config.nebs = 0; // max number of edge blocks, 0=auto
+    config.netypes = 1; // number of edge types, we are not going to use this feature, 1
+#if defined(STINGER_USE_INTERNAL_MAPPING)
+    config.nvtypes = 2; // number of vertex types, 0=vertex active, 1=vertex removed, 2
+#else
+    config.nvtypes = 1; // number of vertex types, we are not going to use this feature, 1
+#endif
+    config.no_map_none_etype = config.no_map_none_vtype = 1; // I think this is whether we want to attach names (as strings) to the vertex/edge types, 1 = we don't use this feature
+    config.no_resize = 0; // when building stinger for the first time, allow to resize the internal structs if they do not fit into memory, 0 = allow resize
+
+    m_stinger_graph = stinger_new_full(&config);
     assert(m_stinger_graph != nullptr && "Stinger allocation");
     if(m_stinger_graph == nullptr) ERROR("Cannot allocate stinger graph");
 }
@@ -73,6 +86,7 @@ Stinger::~Stinger(){
  *  Conversion functions                                                      *
  *                                                                            *
  *****************************************************************************/
+#if defined(STINGER_USE_INTERNAL_MAPPING)
 // Covert a vertex id from the external domain to the stinger internal id
 // @return a value >= 0 than if it's the index in the stinger adjacency list, or -1 in case of error
 static int64_t convert_external2stinger(struct stinger* graph, uint64_t external_vertex_id){
@@ -99,9 +113,8 @@ uint64_t Stinger::get_external_id(int64_t internal_vertex_id) const{
     return result;
 }
 
-template<typename T>
-void Stinger::to_external_ids(const vector<T>& internal_ids, cuckoohash_map<uint64_t, T>* external_ids){
-    to_external_ids(internal_ids.data(), internal_ids.size(), external_ids);
+uint64_t Stinger::get_max_num_mappings() const {
+    return stinger_mapping_nv(STINGER);
 }
 
 template<typename T>
@@ -122,12 +135,52 @@ void Stinger::to_external_ids(const T* __restrict internal_ids, size_t internal_
         }
     }
 }
+#else
+int64_t Stinger::get_internal_id(uint64_t external_vertex_id) const {
+    try {
+        return m_vertex_mappings_e2i.find(external_vertex_id);
+    } catch(std::out_of_range& e){ // not found
+        return -1;
+    }
+}
+
+uint64_t Stinger::get_external_id(int64_t internal_vertex_id) const{
+    try {
+        return m_vertex_mappings_i2e.find(internal_vertex_id);
+    } catch(std::out_of_range& e){ // not found
+        return numeric_limits<uint64_t>::max();
+    }
+}
+
+uint64_t Stinger::get_max_num_mappings() const {
+    scoped_lock<SpinLock> lock(m_spin_lock);
+    return m_next_vertex_id;
+}
+
+template<typename T>
+void Stinger::to_external_ids(const T* __restrict internal_ids, size_t internal_ids_sz, cuckoohash_map<uint64_t, T>* external_ids){
+    ASSERT(external_ids != nullptr);
+
+    #pragma omp parallel for
+    for(uint64_t internal_id = 0; internal_id < internal_ids_sz; internal_id++){
+        uint64_t external_id = get_external_id(internal_id);
+//        COUT_DEBUG("internal_id: " << internal_id << " -> " << external_id);
+        if(external_id != numeric_limits<uint64_t>::max()){
+            external_ids->insert(external_id, internal_ids[internal_id]);
+        }
+    }
+}
+#endif
+
+template<typename T>
+void Stinger::to_external_ids(const vector<T>& internal_ids, cuckoohash_map<uint64_t, T>* external_ids){
+    to_external_ids(internal_ids.data(), internal_ids.size(), external_ids);
+}
 
 template void Stinger::to_external_ids<double>(const vector<double>& internal_ids, cuckoohash_map<uint64_t, double>* external_ids);
 template void Stinger::to_external_ids<double>(const double* __restrict internal_ids, size_t internal_ids_sz, cuckoohash_map<uint64_t, double>* external_ids);
 template void Stinger::to_external_ids<int64_t>(const vector<int64_t>& internal_ids, cuckoohash_map<uint64_t, int64_t>* external_ids);
 template void Stinger::to_external_ids<int64_t>(const int64_t* __restrict internal_ids, size_t internal_ids_sz, cuckoohash_map<uint64_t, int64_t>* external_ids);
-
 
 /******************************************************************************
  *                                                                            *
@@ -146,33 +199,27 @@ uint64_t Stinger::num_vertices() const {
     return m_num_vertices;
 }
 
-bool Stinger::has_vertex(uint64_t vertex_id) const {
-    char buffer[64];
-    sprintf(buffer, "%" PRIu64, vertex_id);
-    int64_t stinger_vertex_id = stinger_mapping_lookup(STINGER, buffer, sizeof(buffer)); // stinger_names is reported to be thread_safe
-    return stinger_vertex_id >= 0; // -1 => the vertex_id has not been set in the dictionary
+bool Stinger::has_vertex(uint64_t external_vertex_id) const {
+    int64_t internal_vertex_id = get_internal_id(external_vertex_id);
+    if(internal_vertex_id < 0) return false; // the mapping does not exist
+
+#if defined(STINGER_USE_INTERNAL_MAPPING)
+    return stinger_vtype_get(STINGER, internal_vertex_id) == 0;
+#else
+    return true;
+#endif
 }
 
 double Stinger::get_weight(uint64_t ext_source_id, uint64_t ext_destination_id) const {
     COUT_DEBUG("external: " << ext_source_id << " -> " << ext_destination_id);
     constexpr double NaN { numeric_limits<double>::signaling_NaN() };
+    int64_t int_source_id = get_internal_id(ext_source_id);
+    if(int_source_id < 0) return NaN; // the mapping does not exist
+    int64_t int_destination_id = get_internal_id(ext_destination_id);
+    if(int_destination_id < 0) return NaN; // the mapping does not exist
 
-    char buffer[64];
-    sprintf(buffer, "%" PRIu64, ext_source_id);
-    int64_t stg_source_id = stinger_mapping_lookup(STINGER, buffer, sizeof(buffer)); // stinger_names is reported to be thread_safe
-    if(stg_source_id < 0) {
-        COUT_DEBUG("the vertex "  << ext_source_id << " does not exist");
-        return NaN; // the source node does not exist
-    }
-    sprintf(buffer, "%" PRIu64, ext_destination_id);
-    int64_t stg_destination_id = stinger_mapping_lookup(STINGER, buffer, sizeof(buffer)); // stinger_names is reported to be thread_safe
-    if(stg_destination_id < 0) {
-        COUT_DEBUG("the vertex "  << ext_destination_id << " does not exist");
-        return NaN; // the destination node does not exist
-    }
-
-    STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(STINGER, stg_source_id) {
-        if(STINGER_EDGE_DEST == stg_destination_id && STINGER_EDGE_TYPE == 0 /* for directed graphs */){
+    STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(STINGER, int_source_id) {
+        if(STINGER_EDGE_DEST == int_destination_id){
             return INT2DBL(STINGER_EDGE_WEIGHT);
         }
     } STINGER_FORALL_OUT_EDGES_OF_VTX_END();
@@ -194,6 +241,7 @@ void Stinger::set_timeout(uint64_t seconds) {
  *  Updates                                                                   *
  *                                                                            *
  *****************************************************************************/
+#if defined(STINGER_USE_INTERNAL_MAPPING)
 bool Stinger::add_vertex(uint64_t vertex_id){
     COUT_DEBUG("vertex_id: " << vertex_id);
 
@@ -259,6 +307,45 @@ bool Stinger::remove_vertex(uint64_t external_vertex_id){
 
     return true;
 }
+#else
+bool Stinger::add_vertex(uint64_t vertex_id){
+    COUT_DEBUG("vertex_id: " << vertex_id);
+
+    scoped_lock<SpinLock> lock(m_spin_lock);
+    if(m_vertex_mappings_e2i.contains(vertex_id)){
+        return false;
+    } else {
+        int64_t mapping;
+        if(!m_reuse_vertices.empty()){
+            mapping = m_reuse_vertices.back(); m_reuse_vertices.pop_back();
+        } else {
+            mapping = m_next_vertex_id++;
+        }
+
+        m_vertex_mappings_i2e.insert(mapping, vertex_id);
+        m_vertex_mappings_e2i.insert(vertex_id, mapping);
+        m_num_vertices++;
+
+        return true;
+    }
+}
+
+bool Stinger::remove_vertex(uint64_t external_vertex_id){
+    int64_t internal_vertex_id = get_internal_id(external_vertex_id);
+    if(internal_vertex_id < 0) return false; // the vertex does not even have a mapping
+
+    scoped_lock<SpinLock> lock(m_spin_lock);
+
+    m_vertex_mappings_e2i.erase(external_vertex_id);
+    m_vertex_mappings_i2e.erase(internal_vertex_id);
+
+    assert(m_num_vertices > 0);
+    m_num_vertices--;
+    m_reuse_vertices.push_back(internal_vertex_id);
+
+    return true;
+}
+#endif
 
 bool Stinger::add_edge(graph::WeightedEdge e){
     COUT_DEBUG("edge: " << e);
@@ -301,8 +388,6 @@ bool Stinger::remove_edge(graph::Edge e){
     return rc > 0;
 }
 
-
-
 /******************************************************************************
  *                                                                            *
  *  Dump                                                                      *
@@ -338,14 +423,12 @@ void Stinger::dump_ostream(ostream& out) const {
     for(int64_t internal_vertex_id = 0, vertex_max = stinger_max_active_vertex(graph); internal_vertex_id <= vertex_max; internal_vertex_id++){
         if(stinger_vtype_get(graph, internal_vertex_id) == 1) continue; // vertex flagged as inactive
 
-        char* external_vertex_id = nullptr; uint64_t external_vertex_id_length = 0;
-        int rc = stinger_mapping_physid_get(graph, internal_vertex_id, &external_vertex_id, &external_vertex_id_length);
-        if(rc == 0){
+        uint64_t external_vertex_id = get_external_id(internal_vertex_id);
+        if(external_vertex_id != numeric_limits<uint64_t>::max()){
             out << "[" << external_vertex_id << " (internal ID: " << internal_vertex_id << ")] ";
         } else {
             out << "[" << internal_vertex_id << "] ";
         }
-        free(external_vertex_id); external_vertex_id = nullptr;
 
         out << "type: " << dump_vertex_type(graph, internal_vertex_id) << ", weight: " << stinger_vweight_get(graph, internal_vertex_id) << ", " <<
                 "degree in/out/total: " << stinger_indegree_get(graph, internal_vertex_id) << "/" << stinger_outdegree_get(graph, internal_vertex_id) << "/" << stinger_degree_get(graph, internal_vertex_id);
@@ -355,14 +438,13 @@ void Stinger::dump_ostream(ostream& out) const {
             out << ", outgoing edges: \n";
             STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(graph, internal_vertex_id) {
                 out << "  ";
-                char* vertex_id_name = nullptr; uint64_t vertex_id_name_length = 0;
-                int rc = stinger_mapping_physid_get(graph, STINGER_EDGE_DEST, &vertex_id_name, &vertex_id_name_length);
-                if(rc == 0){
+
+                uint64_t vertex_id_name = get_external_id(STINGER_EDGE_DEST);
+                if(vertex_id_name != numeric_limits<uint64_t>::max()){
                     out << vertex_id_name << ", internal ID: " << STINGER_EDGE_DEST;
                 } else {
                     out << STINGER_EDGE_DEST;
                 }
-                free(vertex_id_name); vertex_id_name = nullptr;
                 out << ", ";
 
                 out << "type: " << dump_edge_type(graph, STINGER_EDGE_TYPE) << ", " <<

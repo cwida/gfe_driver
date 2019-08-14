@@ -17,6 +17,7 @@
 
 #include "edge.hpp"
 
+#include <cassert>
 
 using namespace std;
 
@@ -32,7 +33,7 @@ bool Edge::operator!=(const Edge& e) const noexcept{
 
 WeightedEdge::WeightedEdge() : WeightedEdge(0,0,0){ }
 WeightedEdge::WeightedEdge(uint64_t source, uint64_t destination, double weight) : Edge{source, destination}, m_weight(weight){
-
+    assert(m_weight >= 0 && "Expected a non-negative value");
 }
 
 bool WeightedEdge::operator==(const WeightedEdge& e) const noexcept {
@@ -50,7 +51,7 @@ ostream& operator<<(std::ostream& out, const Edge& e) {
 
 
 std::ostream& operator<<(std::ostream& out, const WeightedEdge& e){
-    out << "[" << e.source() << ", dst: " << e.destination() << ", weight: " << e.weight() << "]";
+    out << "[src: " << e.source() << ", dst: " << e.destination() << ", weight: " << e.weight() << "]";
     return out;
 }
 

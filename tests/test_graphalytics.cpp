@@ -17,8 +17,11 @@
 #include "gtest/gtest.h"
 
 #include <cstdio>
+#include <cstdlib> // mkstemp
 #include <iostream>
+#include <random>
 #include <string>
+
 #include "common/error.hpp"
 #include "common/filesystem.hpp"
 #include "configuration.hpp"
@@ -66,9 +69,11 @@ static void load_graph(library::UpdateInterface* interface, const std::string& p
 
 // Get the path to non existing temporary file
 static string temp_file_path(){
-    char buffer[L_tmpnam];
-    tmpnam(buffer);
-    return string{buffer};
+    char pattern[] = "/tmp/gfe_XXXXXX";
+    int fd = mkstemp(pattern);
+    if(fd < 0){ ERROR("Cannot obtain a temporary file"); }
+    close(fd); // we're going to overwrite this file anyway
+    return string(pattern);
 }
 
 static void validate(library::GraphalyticsInterface* interface, const std::string& path_graphalytics_graph, int algorithms = /* all */ GA_BFS | GA_PAGERANK | GA_WCC | GA_CDLP | GA_LCC | GA_SSSP){
@@ -164,7 +169,7 @@ TEST(AdjacencyList, GraphalyticsUndirected){
 TEST(AdjacencyList, Aging){
     auto adjlist = make_shared<AdjacencyList>(/* directed */ false);
     auto edge_stream = make_shared<graph::WeightedEdgeStream>(path_example_undirected + ".properties" );
-    experiment::Aging aging(adjlist, move(edge_stream), 1024 * 32, 8);
+    experiment::Aging aging(adjlist, move(edge_stream), /* coeff. operations */ 32.0, /* threads to use */ 8);
     aging.execute();
     validate(adjlist.get(), path_example_undirected);
 }

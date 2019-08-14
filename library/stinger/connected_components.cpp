@@ -44,7 +44,7 @@ using namespace std;
  *  Debug                                                                     *
  *                                                                            *
  *****************************************************************************/
-//#define DEBUG
+#define DEBUG
 extern mutex _log_mutex [[maybe_unused]];
 #define COUT_DEBUG_FORCE(msg) { scoped_lock<mutex> lock(::_log_mutex); std::cout << "[Stinger::" << __FUNCTION__ << "] [" << common::concurrency::get_thread_id() << "] " << msg << std::endl; }
 #if defined(DEBUG)
@@ -88,12 +88,13 @@ void Stinger::wcc(const char* dump2file) {
     // ignore the timeout as we use the impl~ from stinger
 
     int64_t nv = stinger_max_nv(STINGER);
+    COUT_DEBUG("nv: " << nv);
     auto ptr_component_map = make_unique<int64_t[]>(nv); int64_t* component_map = ptr_component_map.get();
     parallel_shiloach_vishkin_components_of_type(STINGER, component_map, /* type, ignore */ 0); // already implemented in Stinger
 
     // store the final results (if required)
     cuckoohash_map<uint64_t, int64_t> result;
-    to_external_ids(component_map, stinger_mapping_nv(STINGER), &result); // convert the internal logical IDs into the external IDs
+    to_external_ids(component_map, get_max_num_mappings(), &result); // convert the internal logical IDs into the external IDs
     save(result, dump2file);
 }
 

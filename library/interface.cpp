@@ -19,7 +19,10 @@
 
 #include <cmath>
 #include <fstream>
+#include <iostream>
 #include <memory>
+
+
 #include "common/error.hpp"
 
 #include "baseline/adjacency_list.hpp"
@@ -30,8 +33,22 @@
 
 using namespace std;
 
-namespace library {
+/*****************************************************************************
+ *                                                                           *
+ *  Debug                                                                    *
+ *                                                                           *
+ *****************************************************************************/
+//#define DEBUG
+extern mutex _log_mutex [[maybe_unused]];
+#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{_log_mutex}; std::cout << "[Interface::" << __FUNCTION__ << "] " << msg << std::endl; }
+#if defined(DEBUG)
+    #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
+#else
+    #define COUT_DEBUG(msg)
+#endif
 
+
+namespace library {
 /*****************************************************************************
  *                                                                           *
  *  Factory                                                                  *
@@ -96,17 +113,31 @@ bool Interface::is_undirected() const {
  *  Update interface                                                         *
  *                                                                           *
  *****************************************************************************/
-
-bool UpdateInterface::batch(SingleUpdate* array, size_t array_sz){
+bool UpdateInterface::batch(const SingleUpdate* array, size_t array_sz, bool force){
     bool result = true;
-    SingleUpdate* __restrict A = array;
-    for(uint64_t i = 0; i < array_sz; i++){
-        if(A[i].m_op.m_value == 1){ // insert
-            result &= add_edge(graph::WeightedEdge{A[i].m_source, A[i].m_destination, A[i].m_weight});
-        } else { // remove
-            result &= remove_edge(graph::Edge{A[i].m_source, A[i].m_destination});
+    const SingleUpdate* __restrict A = array;
+    COUT_DEBUG("batch: " << array_sz << ", force: " << force);
+
+    if(force){
+        // now a bit of a hack, we want all updates to succeed. An update may fail if a vertex is still being added
+        // by another thread in the meanwhile
+        for(uint64_t i = 0; i < array_sz; i++){
+            if(A[i].m_weight >= 0){ // insert
+                while ( ! add_edge(graph::WeightedEdge{A[i].m_source, A[i].m_destination, A[i].m_weight}) ) { /* nop */ };
+            } else { // remove
+                while ( ! remove_edge(graph::Edge{A[i].m_source, A[i].m_destination}) ) { /* nop */ };
+            }
+        }
+    } else {
+        for(uint64_t i = 0; i < array_sz; i++){
+            if(A[i].m_weight >= 0){ // insert
+                result &= add_edge(graph::WeightedEdge{A[i].m_source, A[i].m_destination, A[i].m_weight});
+            } else { // remove
+                result &= remove_edge(graph::Edge{A[i].m_source, A[i].m_destination});
+            }
         }
     }
+
     return result;
 }
 

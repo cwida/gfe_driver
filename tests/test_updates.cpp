@@ -235,7 +235,6 @@ TEST(Stinger, Updates) {
     sequential(stinger);
     parallel(stinger, 128);
     parallel(stinger, 1024);
-
 }
 #endif
 

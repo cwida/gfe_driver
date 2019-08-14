@@ -287,7 +287,7 @@ bool Client::remove_edge(graph::Edge e){
     return response()->get<bool>(0);
 }
 
-bool Client::batch(library::UpdateInterface::SingleUpdate* batch, uint64_t batch_sz){
+bool Client::batch(const library::UpdateInterface::SingleUpdate* batch, uint64_t batch_sz, bool force){
     if(batch_sz == 0) return true;
     assert(m_worker_id >= 0 && m_worker_id < max_num_connections && "Invalid worker id");
 
@@ -306,7 +306,7 @@ bool Client::batch(library::UpdateInterface::SingleUpdate* batch, uint64_t batch
 
     uint32_t* __restrict buffer_write = reinterpret_cast<uint32_t*>(m_connections[m_worker_id].m_buffer_write);
     buffer_write[0] = message_sz;
-    buffer_write[1] = (uint32_t) RequestType::BATCH_PLAIN;
+    buffer_write[1] = (uint32_t) (force ? RequestType::BATCH_PLAIN_FORCE_YES : RequestType::BATCH_PLAIN_FORCE_NO );
     memcpy(buffer_write + 2, batch, batch_sz * sizeof(library::UpdateInterface::SingleUpdate));
     ssize_t bytes_sent = send(m_connections[m_worker_id].m_fd, (void*) buffer_write, message_sz, /* flags */ 0);
     if(bytes_sent == -1) ERROR_ERRNO("send_request, connection error");

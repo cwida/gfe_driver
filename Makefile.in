@@ -96,7 +96,6 @@ ${builddir}/gfe_server: ${objectdir}/main_server.o ${dependencies} | ${builddir}
 #############################################################################
 # Compiling the objects
 ${archive}: ${objects}
-	echo "$(objects)"
 	$(AR) $(AR_FLAGS) $@ $?
 
 # Objects from C files
