@@ -22,10 +22,13 @@
 #include <thread>
 #include <vector>
 
+#include <gmpxx.h> // libgmp
+
 #include "common/database.hpp"
 #include "common/optimisation.hpp"
 #include "common/system.hpp"
 #include "common/timer.hpp"
+#include "details/async_batch.hpp"
 #include "graph/edge.hpp"
 #include "graph/edge_stream.hpp"
 #include "library/interface.hpp"
@@ -96,33 +99,46 @@ vector<vector<Aging::Partition>> Aging::compute_partitions_directed() const{
 vector<vector<Aging::Partition>> Aging::compute_partitions_undirected() const{
     vector<vector<Partition>> partitions ( m_num_threads );
     int64_t num_partitions = m_num_threads * 8;
-    int64_t max_num_edges = m_max_vertex_id * (m_max_vertex_id -1) / 2; // (n-1)*(n-2) /2;
-    int64_t e = max_num_edges / num_partitions; // edges per partition
+    mpz_class max_num_edges = mpz_class{m_max_vertex_id} * mpz_class{m_max_vertex_id} / 2; // (n-1)*(n-2) /2;
+    mpz_class e = max_num_edges / num_partitions; // edges per partition
 
     LOG("Computing the list of partitions...");
     COUT_DEBUG("num_partitions: " << num_partitions << ", max_vertex_id: " << m_max_vertex_id << ", max_num_edges: " << max_num_edges << ", edges_per_partition: " << e);
 
-    int64_t vertex_from = 0;
+    uint64_t vertex_from = 0;
     int64_t part_id = 0;
+    mpz_t tmp_x; mpz_init(tmp_x); // temporary
+    constexpr size_t buffer_sz = 1024; char buffer[buffer_sz];
+
     while(part_id < num_partitions -1 && vertex_from < (m_max_vertex_id -1)){
         // how many edges can we create from vertex_from ?
-        int64_t S = (m_max_vertex_id +1 -vertex_from) * (m_max_vertex_id -vertex_from) /2;
+        mpz_class S = mpz_class{m_max_vertex_id +1 -vertex_from} * mpz_class{m_max_vertex_id -vertex_from} /2;
 
         // solve the inequation S - [(x^2 +x) /2] < e
         // that is x^2 +x +2(e -s) > 0 => [ -1 + sqrt( 1 - 8(e-s) ) ] / 2
 //        uint64_t x = ceil( (-1.0 + sqrt(1ll - 8ll*(e-S)) ) / 2.0 );
-        int64_t x = ceil( (-1.0 + sqrt(1ll - 8ll*(e-S)) ) / 2.0 );
+        mpz_class sqrt_arg = ( S - e ) * 8 +1;
+        mpz_sqrt(tmp_x, sqrt_arg.get_mpz_t());
+        mpz_sub_ui(tmp_x, tmp_x, 1u);
+        mpz_cdiv_q_ui(tmp_x, tmp_x, 2u); // compute the quotient & round up (the `c' in cdiv)
 
-        int64_t vertex_upto = m_max_vertex_id - x;
+        // convert the result back to uint64_t
+        assert(mpz_sizeinbase(tmp_x, 10) <= buffer_sz && "Conversion overflow");
+        mpz_get_str(buffer, 10, tmp_x);
+        uint64_t x = strtoull(buffer, nullptr, 10);
+
+        assert(x <= m_max_vertex_id);
+        uint64_t vertex_upto = m_max_vertex_id - x;
         if(vertex_from == vertex_upto) vertex_upto++; // corner case
         else if(vertex_upto >= m_max_vertex_id) vertex_upto = (m_max_vertex_id -1); // corner case
 
-        COUT_DEBUG("partition[" << part_id << "] S: " << S << ", max_vertex_id: " << m_max_vertex_id << ", interval: [" << vertex_from << ", " << vertex_upto << ")");
+        COUT_DEBUG("partition[" << part_id << "] interval: [" << vertex_from << ", " << vertex_upto << ")");
         partitions[part_id % m_num_threads].emplace_back(vertex_from, vertex_upto - vertex_from);
 
         vertex_from = vertex_upto; // next iteration
         part_id++;
     }
+    mpz_clear(tmp_x);
 
     COUT_DEBUG("partition[" << part_id << "] interval: [" << vertex_from << ", " << m_max_vertex_id << "]" );
     partitions[part_id % m_num_threads].emplace_back(vertex_from, m_max_vertex_id - vertex_from +1);
@@ -151,7 +167,8 @@ void Aging::all_workers_execute(const vector<unique_ptr<AgingThread>>& workers, 
 // run the experiment
 std::chrono::microseconds Aging::execute(){
     auto interface = m_interface.get();
-    interface->on_main_init(m_num_threads + /* main */ 1);
+    int num_workers =  m_num_threads * 2 + /* main */ 1; // * 2 due to batch async
+    interface->on_main_init(num_workers);
     interface->on_thread_init(0);
 
     // compute the set of partitions for each worker
@@ -163,7 +180,8 @@ std::chrono::microseconds Aging::execute(){
     vector<thread> threads; threads.reserve(m_num_threads);
     vector<unique_ptr<AgingThread>> workers; workers.reserve(m_num_threads);
     for(int i = 0; i < m_num_threads; i++){
-        workers.push_back(make_unique<AgingThread>( this, partitions[i], /* worker_id */ i +1 ));
+        int worker_id = i * 2 +1; // worker_id is for the AgingThread, and worker_id +1 is for the AsyncBatch
+        workers.push_back(make_unique<AgingThread>( this, partitions[i], worker_id ));
         threads.emplace_back(&AgingThread::main_thread, workers[i].get());
     }
 
@@ -178,6 +196,7 @@ std::chrono::microseconds Aging::execute(){
     all_workers_execute(workers, AgingOperation::EXECUTE_EXPERIMENT);
     timer.stop();
     LOG("[Aging] Experiment done!");
+    LOG("[Aging] Updates performed with " << m_num_threads << " threads in " << timer);
     m_completion_time = timer.microseconds();
 
     // stop all threads
@@ -187,7 +206,7 @@ std::chrono::microseconds Aging::execute(){
     LOG("[Aging] Worker threads terminated");
 
     // remove all vertices that are not present in the final graph
-    LOG("[Aging] Removing the vertices in surplus, that should not appear in the final graph ...");
+    LOG("[Aging] Removing the vertices in excess, that should not appear in the final graph ...");
     auto lst_vertices = m_vertices_present.lock_table();
     for(auto vertex : lst_vertices){
         if(!m_vertices_final.contains(vertex.first)){ // FIXME to check
@@ -195,7 +214,8 @@ std::chrono::microseconds Aging::execute(){
         }
     }
     lst_vertices.unlock();
-    LOG("[Aging] Surplus vertices removed");
+    LOG("[Aging] Artificial vertices removed");
+
 
     interface->on_thread_destroy(0); // main
 
@@ -213,7 +233,6 @@ void Aging::save() {
     db.add("completion_time", m_completion_time); // microseconds
 }
 
-
 /*****************************************************************************
  *                                                                           *
  *  Aging thread                                                             *
@@ -221,20 +240,34 @@ void Aging::save() {
  *****************************************************************************/
 Aging::AgingThread::AgingThread(Aging* instance, const std::vector<Partition>& partitions, int worker_id) : m_instance(instance),
         m_interface(instance->m_interface.get()), m_worker_id(worker_id), m_is_undirected(!m_instance->is_directed()),
-        m_partitions(partitions), m_batch(nullptr), m_batch_pos(0), m_batch_sz(m_instance->m_batch_size) {
+        m_partitions(partitions), m_batch(nullptr) {
 
-    if(m_batch_sz > 0){ // execute updates in batches
-        m_batch = (library::UpdateInterface::SingleUpdate*) malloc (m_batch_sz * sizeof(library::UpdateInterface::SingleUpdate));
-        assert(m_batch != nullptr);
+    if(m_instance->m_batch_size > 0){ // execute updates in batches
+        m_batch = new details::AsyncBatch(m_interface, worker_id +1, 4, m_instance->m_batch_size);
     }
 
     // compute the number of vertices we are responsible to handle
-    for(auto& p : m_partitions) { m_num_src_vertices_in_partitions += p.m_length; }
+    for(uint64_t part_id = 0, sz = partitions.size(); part_id < sz; part_id++){
+        m_num_src_vertices_in_partitions += partitions[part_id].m_length;
+    }
+
+    if(is_undirected()){ // compute the max number of edges in each partition
+        m_num_edges_in_partition = new mpz_class[m_partitions.size()];
+        mpz_class M { m_instance->m_max_vertex_id };
+        for(uint64_t part_id = 0, sz = m_partitions.size(); part_id < sz; part_id++){
+            mpz_class start { m_partitions[part_id].m_start }; // incl.
+            mpz_class end = start + m_partitions[part_id].m_length; // excl.
+            mpz_class sum1 = (M - start) * (M - start +1) / 2;
+            mpz_class sum2 = (M - end) * (M - end +1) / 2;
+            assert(sum1 > sum2);
+            m_num_edges_in_partition[part_id] = sum1 - sum2;
+        }
+    }
 }
 
 Aging::AgingThread::~AgingThread(){
-    assert(m_batch_pos == 0 && "There are pending updates in the batch");
-    free(m_batch); m_batch = nullptr;
+    delete m_batch; m_batch = nullptr;
+    delete[](m_num_edges_in_partition); m_num_edges_in_partition = nullptr;
 }
 
 std::future<void> Aging::AgingThread::execute(AgingOperation operation){
@@ -303,9 +336,11 @@ void Aging::AgingThread::main_experiment(){
     // heuristics to bump up the probability of inserting a final edge due to multiple threads and deletions
     const double prob_bump = 1.0 * m_instance->m_num_threads;
 
+    mpz_class max_num_edges = !is_undirected() ? /* ignore */ mpz_class{ 0 } : get_num_edges_in_my_partitions();
     uniform_int_distribution<uint64_t> genrndsrc {0, m_num_src_vertices_in_partitions -1 }; // incl.
     uniform_int_distribution<uint64_t> genrnddst {0, m_instance->m_max_vertex_id }; // incl
-    uniform_int_distribution<uint64_t> genrndarc {0, m_instance->is_directed() ? /* ignore */ 0 :  get_num_edges_in_my_partitions() -1 }; // incl
+//    uniform_int_distribution<uint64_t> genrndarc {0, max_edge_id > numeric_limits<uint64_t>::max() ?  numeric_limits<uint64_t>::max() : static_cast<uint64_t>(max_edge_id) }; // incl
+    gmp_randclass genrndarc(gmp_randinit_default); genrndarc.seed(std::random_device{}());
     uniform_real_distribution<double> genrndweight{0, m_instance->m_max_weight }; // incl.
 
     int64_t num_ops_done = 0;
@@ -350,7 +385,7 @@ void Aging::AgingThread::main_experiment(){
                     double weight = genrndweight(m_random);
 
                     if(is_undirected()) {
-                        uint64_t edge_id = genrndarc(m_random);
+                        mpz_class edge_id = genrndarc.get_z_range(max_num_edges); // generate a random value in [0, max_num_edges)
                         edge_id_2_vertices_id(edge_id, &src_id, &dst_id);
                         assert(src_id < dst_id && "for undirected graphs, any edge should be generated with src < dst");
                     } else {
@@ -419,10 +454,12 @@ void Aging::AgingThread::main_experiment(){
     }
 
     // done!
-    batch_flush();
+    if(m_batch) m_batch->flush(true); // process all pending updates
 }
 
 void Aging::AgingThread::insert_edge(graph::WeightedEdge edge){
+//    COUT_DEBUG("edge: " << edge);
+
     // be sure that the vertices source & destination are already present
     m_instance->insert_vertex(edge.source());
     m_instance->insert_vertex(edge.destination());
@@ -434,38 +471,20 @@ void Aging::AgingThread::insert_edge(graph::WeightedEdge edge){
         // the vertices is still being inserted by another thread
         while ( ! m_interface->add_edge(edge) ) { /* nop */ };
     } else {
-        if(m_batch_pos == m_batch_sz) batch_flush(); // send all pending updates in the batch, reset m_batch_pos to 0
-        assert(m_batch_pos < m_batch_sz && "Overflow");
-
-        library::UpdateInterface::SingleUpdate* __restrict update = m_batch + m_batch_pos;
-        update->m_source = edge.m_source;
-        update->m_destination = edge.m_destination;
-        update->m_weight = edge.m_weight;
-        m_batch_pos++;
+        m_batch->add_edge(edge);
     }
 }
 
 void Aging::AgingThread::remove_edge(graph::Edge edge){
+//    COUT_DEBUG("edge: " << edge);
+
     if(is_undirected() && random01() < 0.5) edge.swap_src_dst(); // noise
 
     if(m_batch == nullptr){
         m_interface->remove_edge(edge);
     } else { // batch updates
-        if(m_batch_pos == m_batch_sz) batch_flush(); // send all pending updates in the batch, reset m_batch_pos to 0
-        assert(m_batch_pos < m_batch_sz && "Overflow");
-
-        library::UpdateInterface::SingleUpdate* __restrict update = m_batch + m_batch_pos;
-        update->m_source = edge.m_source;
-        update->m_destination = edge.m_destination;
-        update->m_weight = -1.0; // deletion
-        m_batch_pos++;
+        m_batch->remove_edge(edge);
     }
-}
-
-void Aging::AgingThread::batch_flush(){
-    if(m_batch_pos == 0) return; // nothing to flush
-    m_interface->batch(m_batch, m_batch_pos);
-    m_batch_pos = 0;
 }
 
 double Aging::AgingThread::random01() noexcept {
@@ -494,41 +513,30 @@ int64_t Aging::AgingThread::missing_edges_final() const {
     return static_cast<int64_t>(m_edges.size() - m_final_edges_current_position);
 }
 
-uint64_t Aging::AgingThread::get_num_edges_in_my_partitions() const {
+mpz_class Aging::AgingThread::get_num_edges_in_my_partitions() const {
     assert(is_undirected() && "Only for undirected graphs");
 
-    uint64_t total = 0;
+    mpz_class total;
+
     for(uint64_t part_id = 0; part_id < m_partitions.size(); part_id++){
-        total += get_num_edges_in_partition(part_id);
+        total += m_num_edges_in_partition[part_id];
     }
 
     return total;
 }
 
-uint64_t Aging::AgingThread::get_num_edges_in_partition(uint64_t part_id) const {
-    assert(is_undirected() && "Only for undirected graphs");
-    assert(part_id < m_partitions.size() && "Invalid index");
-    const uint64_t M = m_instance->m_max_vertex_id;
-
-    uint64_t start = m_partitions[part_id].m_start; // incl.
-    uint64_t end = start + m_partitions[part_id].m_length; // excl.
-    uint64_t sum1 = (M - start) * (M - start +1) / 2;
-    uint64_t sum2 = (M - end) * (M - end +1) / 2;
-    assert(sum1 > sum2);
-    return sum1 - sum2;
-}
-
-void Aging::AgingThread::edge_id_2_vertices_id(uint64_t edge_id, uint64_t* out_src_id, uint64_t* out_dst_id){
+void Aging::AgingThread::edge_id_2_vertices_id(const mpz_class& edge_id, uint64_t* out_src_id, uint64_t* out_dst_id){
     assert(is_undirected() && "Only for undirected graphs");
     assert(out_src_id != nullptr && out_dst_id != nullptr && "Output argument missing");
     *out_src_id = *out_dst_id = 0; // reset the initial values
+    mpz_t tmp_x; mpz_init(tmp_x); // temporary
 
     bool stop = false;
-    uint64_t e = edge_id, part_id = 0;
+    mpz_class e = edge_id;
+    uint64_t part_id = 0;
     while(!stop && part_id < m_partitions.size()){
-        uint64_t num_edges = get_num_edges_in_partition(part_id);
-        if(num_edges <= e){
-            e -= num_edges;
+        if(e >= m_num_edges_in_partition[part_id]){
+            e -= m_num_edges_in_partition[part_id];
             part_id ++;
         } else {
             stop = true;
@@ -536,21 +544,54 @@ void Aging::AgingThread::edge_id_2_vertices_id(uint64_t edge_id, uint64_t* out_s
     }
     assert(stop == true && "The given edge ID is outside the partitions of this worker");
 
-    const uint64_t M = m_instance->m_max_vertex_id;
-    uint64_t v0 = m_partitions[part_id].m_start;
-    uint64_t S = (M +1 -v0) * (M -v0) /2;
+    const mpz_class M = m_instance->m_max_vertex_id;
+    mpz_class v0 = m_partitions[part_id].m_start;
+    mpz_class S = (M +1 -v0) * (M -v0) /2;
     // Again we need to solve the inequality S - [(x^2 +x) /2] <= e
     // that is x^2 +x +2(e -s) >= 0 --> [ -1 + sqrt( 1 - 8(e-s) ) ] / 2
-    double x = ceil( (-1.0 + sqrt(1ll - 8ll*(e-S)) ) / 2.0 );
-    uint64_t src_id = M -x;
-    uint64_t S1 = (M+1 - src_id) * (M - src_id) /2;
-    assert(S1 <= S);
-    uint64_t dst_id = src_id + 1 + ( e - (S - S1) );
+//    uint64_t x = ceil( (-1.0 + sqrt(1ll - 8ll*(e-S)) ) / 2.0 );
+    mpz_class sqrt_arg = ( S - e ) * 8 +1;
+    mpz_sqrt(tmp_x, sqrt_arg.get_mpz_t());
+    mpz_sub_ui(tmp_x, tmp_x, 1u);
+    mpz_cdiv_q_ui(tmp_x, tmp_x, 2u); // compute the quotient & round up (the `c' in cdiv)
+    assert(mpz_class(tmp_x) <= numeric_limits<uint64_t>::max() && "Overflow");
 
+    // convert the result back to uint64_t
+    constexpr uint64_t buffer_sz = 256; char buffer[buffer_sz];
+    assert(mpz_sizeinbase(tmp_x, 10) <= buffer_sz && "Conversion overflow");
+    mpz_get_str(buffer, 10, tmp_x);
+    uint64_t x = strtoull(buffer, nullptr, 10);
+
+    // compute the offset from src_id to dst_id
+    uint64_t src_id = m_instance->m_max_vertex_id -x;
+    /*bool*/ stop = false;
+    do { // we repeat the computation if we obtain a negative offset, it means we went too far when selecting `src_id'
+        mpz_class S1 = (M+1 - src_id) * (M - src_id) /2;
+        assert(S1 <= S);
+
+        mpz_set(tmp_x, S.get_mpz_t()); // S
+        mpz_sub(tmp_x, tmp_x, S1.get_mpz_t()); // S - S1
+        mpz_sub(tmp_x, e.get_mpz_t(), tmp_x); // e - [ S - S1 ]
+
+        if(mpz_cmp_si(tmp_x, 0) < 0){ // underflow => negative offset
+            src_id --;
+        } else {
+            stop = true; // done
+        }
+    } while (!stop);
+    assert(mpz_sizeinbase(tmp_x, 10) <= buffer_sz && "Conversion overflow");
+    mpz_get_str(buffer, 10, tmp_x);
+    uint64_t offset = strtoull(buffer, nullptr, 10);
+
+    uint64_t dst_id = src_id + 1 + offset;
+
+    assert(src_id < dst_id);
 //    COUT_DEBUG("edge_id: " << edge_id << ", M: " << M << ", v0: " << v0 << ", S: " << S << ", x: " << x << ", src_id: " << src_id << ", S1:"  << S1 << ", dst_id: " << dst_id);
 //    COUT_DEBUG("edge_id: " << edge_id << ", src_id: " << src_id << ", dst_id: " << dst_id);
     *out_src_id = src_id;
     *out_dst_id = dst_id;
+
+    mpz_clear(tmp_x);
 }
 
 uint64_t Aging::AgingThread::src_rel2abs(uint64_t relative_vertex_id) const {
@@ -558,10 +599,11 @@ uint64_t Aging::AgingThread::src_rel2abs(uint64_t relative_vertex_id) const {
     int64_t count = static_cast<int64_t>(relative_vertex_id);
     int64_t i = 0, sz = m_partitions.size();
     while(i < sz){
-        if(count - m_partitions[i].m_length < 0){
+        int64_t length = m_partitions[i].m_length; // cast to int64_t
+        if(count - length < 0){
             return m_partitions[i].m_start + count;
         } else {
-            count -= m_partitions[i].m_length;
+            count -= length;
             i++;
         }
     }

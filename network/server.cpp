@@ -409,7 +409,8 @@ void Server::ConnectionHandler::handle_request(){
 //    case RequestType::REMOVE_VERTEX:
 //    case RequestType::ADD_EDGE:
 //    case RequestType::REMOVE_EDGE:
-//    case RequestType::BATCH_PLAIN:
+//    case RequestType::BATCH_PLAIN_FORCE_NO:
+//    case RequestType::BATCH_PLAIN_FORCE_YES:
 //        response(ResponseType::OK, true);
 //        break;
     case RequestType::DUMP_CLIENT: {

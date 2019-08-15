@@ -71,6 +71,54 @@ else
 fi
 
 #############################################################################
+# GMP GNU Multiple Precision Arithmetic Library
+# check if GMP is already available in the system
+gmp_system_avail="yes"
+AC_CHECK_HEADERS([gmpxx.h], [], [gmp_system_avail="no"; break;], [ [/* avoid default includes */] ])
+AS_IF([test x"${gmp_system_avail}" == x"yes"], [ AC_CHECK_LIB([gmp], [__gmpz_init], [ nop="nop" ], [gmp_system_avail="no";]) ])
+AS_IF([test x"${gmp_system_avail}" == x"yes"], [ AC_CHECK_LIB([gmpxx], [_ZlsRSoPK12__mpz_struct], [ nop="nop" ], [gmp_system_avail="no";]) ])
+
+dnl Use the bundled package of GMP inside third-party/gmp-*
+AS_IF([test x"${gmp_system_avail}" == x"no"], [
+    m4_define([GMP_BUNDLED_VERSION], [6.1.2])
+    AC_MSG_NOTICE([Configuring the bundled package GNU GMP v]GMP_BUNDLED_VERSION)
+    abs_top_builddir=$(realpath .)
+    AX_SUBDIRS_CONFIGURE([third-party/gmp-]GMP_BUNDLED_VERSION, [[--enable-cxx], [--prefix=${abs_top_builddir}/third-party/gmp-]GMP_BUNDLED_VERSION[/build], [CC=${CC}], [CXX=${CXX}]], [], [], [])
+    EXTRA_CPPFLAGS="${EXTRA_CPPFLAGS} -isystem ${abs_top_builddir}/third-party/gmp-GMP_BUNDLED_VERSION/include"
+    EXTRA_LDFLAGS="${EXTRA_LDFLAGS} -L${abs_top_builddir}/third-party/gmp-GMP_BUNDLED_VERSION/lib -lgmpxx -lgmp"
+], dnl else 
+[ LIBS="-lgmpxx -lgmp ${LIBS}" ]
+) dnl end if
+
+
+#AC_ARG_WITH([gmp], AS_HELP_STRING([--with-gmp], [Link with]))
+#AS_IF(
+#    [test "x${with_tcmalloc}" = "xyes"], [tcmalloc_system=yes; tcmalloc_bundle=yes;],
+#    [test "x${with_tcmalloc}" = "xsystem"], [tcmalloc_system=yes;],
+#    [test "x${with_tcmalloc}" = "xbundled" -o "x${with_tcmalloc}" = "xbundle"], [tcmalloc_bundle=yes;],
+#    [test "x${with_tcmalloc}" = "x"], [], dnl nop
+#    [AC_MSG_FAILURE([Invalid argument for the argument --with-tcmalloc="${with_tcmalloc}". Recognised arguments are: yes, system, bundled.])]
+#)
+
+# Check whether tcmalloc is already available in the system
+#if( test "x${tcmalloc_system}" = "xyes" ); then
+#    AC_SEARCH_LIBS([tc_malloc], [tcmalloc_minimal tcmalloc], [tcmalloc_avail=yes])
+#fi
+#if( test "x${tcmalloc_bundle}" = "xyes" -a "x${tcmalloc_built}" != "xyes" ); then
+#    abs_top_builddir=$(realpath .)
+#    AX_SUBDIRS_CONFIGURE([third-party/gperftools-2.7], [[--enable-minimal], [--prefix=${abs_top_builddir}/third-party/gperftools-2.7]], [], [], [])
+#    EXTRA_LDFLAGS="${EXTRA_LDFLAGS} -L${abs_top_builddir}/third-party/gperftools-2.7/lib -Wl,-rpath=${abs_top_builddir}/third-party/gperftools-2.7/lib  -ltcmalloc_minimal"
+#    tcmalloc_avail=yes;
+#fi
+#
+#if( test "x${tcmalloc_avail}" != "xyes" ); then
+#    if( test "x${tcmalloc_system}" = "xyes" -o "x${tcmalloc_bundle}" = "xyes" ); then
+#        AC_MSG_FAILURE([Unable to link the library tcmalloc])
+#    fi
+#fi
+
+
+#############################################################################
 # sqlite3, run-time support for libcommon. If not present, libcommon uses its own version bundled.
 AX_LIB_SQLITE3()
 LIBS="${SQLITE3_LDFLAGS} ${LIBS}"

@@ -17,11 +17,12 @@
 
 #include "interface.hpp"
 
+#include <cassert>
 #include <cmath>
 #include <fstream>
 #include <iostream>
 #include <memory>
-
+#include <mutex>
 
 #include "common/error.hpp"
 
@@ -125,6 +126,8 @@ bool UpdateInterface::batch(const SingleUpdate* array, size_t array_sz, bool for
             if(A[i].m_weight >= 0){ // insert
                 while ( ! add_edge(graph::WeightedEdge{A[i].m_source, A[i].m_destination, A[i].m_weight}) ) { /* nop */ };
             } else { // remove
+//                bool res = remove_edge(graph::Edge{A[i].m_source, A[i].m_destination});
+//                assert(res == true);
                 while ( ! remove_edge(graph::Edge{A[i].m_source, A[i].m_destination}) ) { /* nop */ };
             }
         }

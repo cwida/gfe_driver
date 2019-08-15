@@ -29,11 +29,18 @@ EXTRA_CXXFLAGS := @EXTRA_CXXFLAGS@ # extra flags defined by autoconf, similar to
 ALL_CXXFLAGS := ${ALL_CPPFLAGS} ${EXTRA_CXXFLAGS} ${CXXFLAGS}
 
 # Dependencies
+subdirs := @subdirs_extra@
 libcommon := third-party/libcommon/obj/libcommon.a
 libbacktrace := third-party/libcommon/lib/backtrace/lib/libbacktrace.a
 archive := libgrapheval.a
 dependencies := ${archive} ${libcommon} ${libbacktrace}
 dependencies_cmake_flags := -DCMAKE_CXX_COMPILER="$(firstword ${CXX})" $(if $(filter -stdlib=libc++, ${CXX}),-DCMAKE_CXX_FLAGS="-stdlib=libc++")
+libgmp_makedir := $(filter third-party/gmp-%, ${subdirs})
+ifdef libgmp_makedir
+	libgmp := ${libgmp_makedir}/build/lib/libgmpxx.a
+	dependencies += ${libgmp}
+endif
+
 
 # Linker
 LIBS := @LIBS@ 
@@ -42,6 +49,7 @@ LDFLAGS := @LIBS@
 #############################################################################
 # List of the sources to compile
 sources := \
+	experiment/details/async_batch.cpp \
 	experiment/aging.cpp \
 	experiment/graphalytics.cpp \
 	experiment/insert_only.cpp \
@@ -107,6 +115,8 @@ ${objects_c} : ${objectdir}/%.o : %.c | ${objectdirs}
 ${objects_cxx}: ${objectdir}/%.o : %.cpp | ${objectdirs}
 	${makedepend_cxx}
 	$(CXX) -c $(ALL_CXXFLAGS) $< -o $@
+	
+${objects}: ${libgmp}
 
 #############################################################################
 # Tests
@@ -175,12 +185,17 @@ libcommon_build_path := $(abspath ${builddir})/${libcommon_path}
 ${libcommon}: ${libcommon_build_path}
 	make -C $< common
 
-${libcommon_build_path}:	
+${libcommon_build_path}: ${libgmp}	
 	mkdir -pv $@
 	cd ${builddir}/third-party/libcommon && \
 		cmake -DBUILD_TEST=OFF -DCMAKE_BUILD_TYPE=@CMAKE_BUILD_TYPE@ ${dependencies_cmake_flags} $(abspath ${srcdir})/third-party/libcommon
 
 ${libbacktrace}: ${libcommon}
+
+#############################################################################
+# libgmp (GNU Multiple Precision Arithmetic Library)
+${libgmp}:
+	$(MAKE) -C ${libgmp_makedir} install
 
 #############################################################################
 # Remove everything from the current build
@@ -191,6 +206,7 @@ clean:
 	rm -rf ${builddir}/${archive}
 	rm -rf ${builddir}/${objectdir}
 	rm -rf ${builddir}/third-party/libcommon
+	rm -rf ${builddir}/third-party/libgmp-*
 	rm -rf ${gtestdir}
 	rm -rf ${testbindir}
 	
