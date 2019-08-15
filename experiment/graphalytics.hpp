@@ -72,7 +72,7 @@ std::ostream& operator<<(std::ostream& out, const GraphalyticsAlgorithms& props)
 class GraphalyticsSequential{
     std::shared_ptr<library::GraphalyticsInterface> m_interface; // the library to evaluate
     const uint64_t m_num_repetitions; // number of times to repeat the execution of each algorithm
-    const GraphalyticsAlgorithms m_properties; // the properties of the graphalytics algorithms
+    GraphalyticsAlgorithms m_properties; // the properties of the graphalytics algorithms
 
     // the completion times for each execution
     std::vector<int64_t> m_exec_bfs;

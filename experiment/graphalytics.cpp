@@ -133,6 +133,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
             } catch (library::TimeoutError& e){
                 LOG(">> BFS TIMEOUT");
                 m_exec_bfs.push_back(-1);
+                m_properties.bfs.m_enabled = false;
             }
         }
         if(m_properties.cdlp.m_enabled){
@@ -146,6 +147,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
             } catch(library::TimeoutError& e){
                 LOG(">> CDLP TIMEOUT");
                 m_exec_cdlp.push_back(-1);
+                m_properties.cdlp.m_enabled = false;
             }
         }
         if(m_properties.lcc.m_enabled){
@@ -159,6 +161,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
             } catch(library::TimeoutError& e){
                 LOG(">> LCC TIMEOUT");
                 m_exec_lcc.push_back(-1);
+                m_properties.lcc.m_enabled = false;
             }
         }
         if(m_properties.pagerank.m_enabled){
@@ -172,6 +175,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
             } catch(library::TimeoutError& e){
                 LOG(">> PageRank TIMEOUT");
                 m_exec_pagerank.push_back(-1);
+                m_properties.pagerank.m_enabled = false;
             }
         }
         if(m_properties.sssp.m_enabled){
@@ -185,6 +189,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
             } catch(library::TimeoutError& e){
                 LOG(">> SSSP TIMEOUT");
                 m_exec_sssp.push_back(-1);
+                m_properties.sssp.m_enabled = false;
             }
         }
         if(m_properties.wcc.m_enabled){
@@ -198,6 +203,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
             } catch(library::TimeoutError& e){
                 LOG(">> WCC TIMEOUT");
                 m_exec_wcc.push_back(-1);
+                m_properties.wcc.m_enabled = false;
             }
         }
     }
