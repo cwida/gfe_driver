@@ -44,7 +44,7 @@ using namespace std;
  *  Debug                                                                     *
  *                                                                            *
  *****************************************************************************/
-#define DEBUG
+//#define DEBUG
 extern mutex _log_mutex [[maybe_unused]];
 #define COUT_DEBUG_FORCE(msg) { scoped_lock<mutex> lock(::_log_mutex); std::cout << "[Stinger::" << __FUNCTION__ << "] [" << common::concurrency::get_thread_id() << "] " << msg << std::endl; }
 #if defined(DEBUG)

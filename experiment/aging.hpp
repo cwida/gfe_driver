@@ -76,6 +76,10 @@ class Aging {
 
     uint64_t* m_vertices2remove = nullptr; // at the end of the experiment, it's an array with the whole amount of vertices in excess that need to be removed from the final graph
 
+    // whether to report the current progress
+    bool m_report_progress = false;
+    std::atomic<int> m_last_progress_reported = 0;
+
     // A single worker thread in the aging experiment
     class AgingThread {
         Aging* m_instance; // aging instance
@@ -205,6 +209,9 @@ public:
 
     // Request to send edge updates in batches of the given size. Vertex insertions will continue to be sent one at the time
     void set_batch_size(uint64_t size);
+
+    // Whether to print to stdout the current progress
+    void set_report_progress(bool value);
 
     // Store the results into the database
     void save();

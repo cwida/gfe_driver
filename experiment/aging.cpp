@@ -63,6 +63,10 @@ Aging::Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_pt
         m_max_vertex_id(std::max<uint64_t>(/* avoid overflows */ stream->max_vertex_id(), stream->max_vertex_id() * /* noise */ 2)),
         m_is_directed(graph_is_directed), m_max_weight(max_weight){
     LOG("Aging experiment initialised. Number of threads: " << m_num_threads << ", number of operations: " << m_num_operations_total);
+
+#if defined(DEBUG)
+    set_report_progress(true);
+#endif
 }
 
 void Aging::set_expansion_factor(double factor){
@@ -79,6 +83,10 @@ void Aging::set_operation_granularity(uint64_t granularity){
 
 void Aging::set_batch_size(uint64_t size){
     m_batch_size = size;
+}
+
+void Aging::set_report_progress(bool value){
+    m_report_progress = value;
 }
 
 vector<vector<Aging::Partition>> Aging::compute_partitions_directed() const{
@@ -192,6 +200,7 @@ std::chrono::microseconds Aging::execute(){
 
     // execute the experiment
     LOG("[Aging] Experiment started!");
+    m_last_progress_reported = 0;
     Timer timer; timer.start();
     all_workers_execute(workers, AgingOperation::EXECUTE_EXPERIMENT);
     timer.stop();
@@ -355,16 +364,13 @@ void Aging::AgingThread::main_thread(){
     m_callback.set_value_at_thread_exit();
 }
 
-#if defined(DEBUG)
-volatile static atomic<uint64_t> g_last_reported = 0;
-#endif
-
 void Aging::AgingThread::main_experiment(){
     // constants
     const uint64_t max_number_edges = static_cast<uint64_t>(m_instance->m_expansion_factor * m_instance->m_num_edges);
     const int64_t num_total_ops = static_cast<int64_t>(m_instance->m_num_operations_total);
     // heuristics to bump up the probability of inserting a final edge due to multiple threads and deletions
     const double prob_bump = 1.0 * m_instance->m_num_threads;
+    const bool report_progress = m_instance->m_report_progress;
 
     mpz_class max_num_edges = !is_undirected() ? /* ignore */ mpz_class{ 0 } : get_num_edges_in_my_partitions();
     uniform_int_distribution<uint64_t> genrndsrc {0, m_num_src_vertices_in_partitions -1 }; // incl.
@@ -380,14 +386,13 @@ void Aging::AgingThread::main_experiment(){
         if(m_edges2remove.empty() /* There are no edges to remove */ ||
                 m_interface->num_edges() < max_number_edges /* the size of the current graph is no more than (exp_factor)x of the final graph */){
 
-#if defined(DEBUG)
-            if(static_cast<uint64_t>(100.0 * num_ops_done/num_total_ops) != g_last_reported){
-                g_last_reported = 100.0 * num_ops_done/num_total_ops;
-                COUT_DEBUG("LOOP: " << num_ops_done << "/" << num_total_ops << " (" << 100.0 * num_ops_done/num_total_ops << "%) " <<
+            if(report_progress && static_cast<int>(100.0 * num_ops_done/num_total_ops) != m_instance->m_last_progress_reported){
+                m_instance->m_last_progress_reported = 100.0 * num_ops_done/num_total_ops;
+                LOG("[thread: " << common::concurrency::get_thread_id() << "] "
+                       "Progress: " << num_ops_done << "/" << num_total_ops << " (" << 100.0 * num_ops_done/num_total_ops << "%), "
                        "edges processed: " <<  m_final_edges_current_position << " / " << m_edges.size() << " (" << (100.0 * m_final_edges_current_position/m_edges.size()) << " %)"
                 );
             }
-#endif
 
             // insert `m_granularity' edges then
             for(int64_t i = 0, end = m_instance->m_granularity; i < end; i++){

@@ -436,6 +436,7 @@ static void run_experiments(){
             LOG("[client] Number of updates to perform: " << stream->num_edges() * cfgclient().coefficient_aging());
             Aging experiment(impl, move(stream), cfgclient().coefficient_aging(), cfgclient().num_threads(THREADS_WRITE));
             experiment.set_batch_size(cfgclient().get_batch_size());
+            experiment.set_report_progress(true);
             experiment.execute();
             if(configuration().has_database()) experiment.save();
         }
