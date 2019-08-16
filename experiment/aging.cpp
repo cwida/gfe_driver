@@ -198,6 +198,38 @@ std::chrono::microseconds Aging::execute(){
     LOG("[Aging] Experiment done!");
     LOG("[Aging] Updates performed with " << m_num_threads << " threads in " << timer);
     m_completion_time = timer.microseconds();
+    auto completion_time_microsecs = timer.duration<chrono::microseconds>();
+
+    {
+        LOG("[Aging] Removing the vertices in excess, that should not appear in the final graph ...");
+        timer.start();
+        all_workers_execute(workers, AgingOperation::INTERNAL_CLEANUP); // free up some memory
+        // remove all vertices that are not present in the final graph
+        auto lst_vertices = m_vertices_present.lock_table();
+        m_vertices2remove = new uint64_t[lst_vertices.size()];
+        uint64_t vertices2remove_sz = 0;
+        for(auto vertex : lst_vertices){
+            if(!m_vertices_final.contains(vertex.first)){
+                m_vertices2remove[vertices2remove_sz] = vertex.first;
+                vertices2remove_sz++;
+    //            m_interface->remove_vertex(vertex.first);
+            }
+        }
+        lst_vertices.unlock();
+        uint64_t items_per_part = vertices2remove_sz / workers.size();
+        uint64_t odd_items = vertices2remove_sz % workers.size();
+        uint64_t start = 0;
+        for(uint64_t i = 0; i < workers.size(); i++){
+            uint64_t length = items_per_part + (i < odd_items);
+            workers[i]->set_partition_vertices_to_remove(start, length);
+            start += length; // next iteration
+        }
+        all_workers_execute(workers, AgingOperation::REMOVE_VERTICES);
+        delete[] m_vertices2remove; m_vertices2remove = nullptr;
+        timer.stop();
+        LOG("[Aging] Artificial vertices removed in " << timer);
+    }
+
 
     // stop all threads
     LOG("[Aging] Waiting for all worker threads to stop...");
@@ -205,21 +237,10 @@ std::chrono::microseconds Aging::execute(){
     for(auto& t : threads) t.join();
     LOG("[Aging] Worker threads terminated");
 
-    // remove all vertices that are not present in the final graph
-    LOG("[Aging] Removing the vertices in excess, that should not appear in the final graph ...");
-    auto lst_vertices = m_vertices_present.lock_table();
-    for(auto vertex : lst_vertices){
-        if(!m_vertices_final.contains(vertex.first)){ // FIXME to check
-            m_interface->remove_vertex(vertex.first);
-        }
-    }
-    lst_vertices.unlock();
-    LOG("[Aging] Artificial vertices removed");
-
 
     interface->on_thread_destroy(0); // main
 
-    return timer.duration<chrono::microseconds>();
+    return completion_time_microsecs;
 }
 
 
@@ -310,6 +331,15 @@ void Aging::AgingThread::main_thread(){
         } break;
         case AgingOperation::EXECUTE_EXPERIMENT: {
             main_experiment();
+        } break;
+        case AgingOperation::INTERNAL_CLEANUP: {
+            m_edges_already_inserted.clear();
+        } break;
+        case AgingOperation::REMOVE_VERTICES : {
+            uint64_t* __restrict vertices = m_instance->m_vertices2remove + m_interval_vertices2remove.m_start;
+            for(uint64_t i = 0, sz = m_interval_vertices2remove.m_length; i < sz; i++){
+                m_interface->remove_vertex(vertices[i]);
+            }
         } break;
         default:
             assert(false && "Invalid operation");
@@ -622,6 +652,11 @@ bool Aging::AgingThread::vertex_belongs(uint64_t vertex_id) const {
     }
 
     return false;
+}
+
+void Aging::AgingThread::set_partition_vertices_to_remove(uint64_t start, uint64_t length){
+    COUT_DEBUG("start: " << start << ", length: " << length);
+    m_interval_vertices2remove = { start, length };
 }
 
 

@@ -67,12 +67,14 @@ class Aging {
 
     // A single partition handled by a worker thread
     // Because these are vertex_ids, these can be stored in 64 bits
-    struct Partition { const uint64_t m_start; const uint64_t m_length; Partition(uint64_t s, uint64_t l) : m_start(s), m_length(l) { } };
+    struct Partition { uint64_t m_start, m_length; Partition(uint64_t s, uint64_t l) : m_start(s), m_length(l) { }; };
 
     // The single operations that can be performed by the worker threads
-    enum class AgingOperation { NONE, START, STOP, COMPUTE_FINAL_EDGES, EXECUTE_EXPERIMENT };
+    enum class AgingOperation { NONE, START, STOP, COMPUTE_FINAL_EDGES, EXECUTE_EXPERIMENT, INTERNAL_CLEANUP, REMOVE_VERTICES };
 
     uint64_t m_completion_time = 0; // the amount of time to complete all updates, in microsecs
+
+    uint64_t* m_vertices2remove = nullptr; // at the end of the experiment, it's an array with the whole amount of vertices in excess that need to be removed from the final graph
 
     // A single worker thread in the aging experiment
     class AgingThread {
@@ -103,6 +105,8 @@ class Aging {
 
         // arbitrary precision arithmetic
         mpz_class* m_num_edges_in_partition { nullptr } ; // array of size m_partitions.size(), containing the max number of edges per partition
+
+        Partition m_interval_vertices2remove { 0, 0 };
 
         // Transform a relative source id (randomly generated) into an absolute edge id, according to the handled partitions
         uint64_t src_rel2abs(uint64_t relative_vertex_id) const;
@@ -152,6 +156,11 @@ class Aging {
 
         // Controller thread, sync with the caller
         void main_thread();
+
+        // The last pass for this class is REMOVE_VERTICES, which requires to remove all vertices from the interface/library as set in the
+        // array m_instance->m_vertices2remove in the given interval [start, start +length).
+        void set_partition_vertices_to_remove(uint64_t start, uint64_t length);
+
     };
     friend class AgingThread;
 
