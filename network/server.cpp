@@ -244,7 +244,7 @@ void Server::ConnectionHandler::execute(){
 
         if(message_sz > m_buffer_read_sz){ // realloc the buffer if it is too small
             m_buffer_read_sz = pow(2, ceil(log2(message_sz))); // next power of 2
-            LOG("[server] [thread " << thread_id << "] Reallocate internal read buffer to " << m_buffer_read_sz << " bytes");
+            LOG("[server] [thread " << thread_id << "] Reallocate the internal read buffer to " << m_buffer_read_sz << " bytes");
             m_buffer_read = (char*) realloc(m_buffer_read, m_buffer_read_sz);
             assert(m_buffer_read != nullptr && "realloc error (no memory space left?)");
         }

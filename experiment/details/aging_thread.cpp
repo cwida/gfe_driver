@@ -178,10 +178,17 @@ void AgingThread::main_experiment(){
 
             if(report_progress && static_cast<int>(100.0 * num_ops_done/num_total_ops) != m_instance->m_last_progress_reported){
                 m_instance->m_last_progress_reported = 100.0 * num_ops_done/num_total_ops;
+#if defined(DEBUG)
                 LOG("[thread: " << common::concurrency::get_thread_id() << "] "
                        "Progress: " << num_ops_done << "/" << num_total_ops << " (" << 100.0 * num_ops_done/num_total_ops << "%), "
-                       "edges processed: " <<  m_final_edges_current_position << " / " << m_edges.size() << " (" << (100.0 * m_final_edges_current_position/m_edges.size()) << " %)"
+                       "edges final graph: " <<  m_final_edges_current_position << "/" << m_edges.size() << " (" << (100.0 * m_final_edges_current_position/m_edges.size()) << " %)"
                 );
+#else // just report the percentages
+                LOG("[thread: " << common::concurrency::get_thread_id() << "] "
+                       "Progress: " << 100.0 * num_ops_done/num_total_ops << "%, "
+                       "edges final graph: " <<  (100.0 * m_final_edges_current_position/m_edges.size()) << " %"
+                );
+#endif
             }
 
             // insert `m_granularity' edges then
