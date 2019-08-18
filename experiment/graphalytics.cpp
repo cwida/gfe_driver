@@ -214,32 +214,32 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
 }
 
 void GraphalyticsSequential::report(bool save_in_db){
-    if(m_properties.bfs.m_enabled){
+    if(!m_exec_bfs.empty()){
         ExecStatistics stats { m_exec_bfs };
         cout << ">> BFS " << stats << "\n";
         if(save_in_db) stats.save("bfs");
     }
-    if(m_properties.cdlp.m_enabled){
+    if(!m_exec_cdlp.empty()){
         ExecStatistics stats { m_exec_cdlp };
         cout << ">> CDLP " << stats << "\n";
         if(save_in_db) stats.save("cdlp");
     }
-    if(m_properties.lcc.m_enabled){
+    if(!m_exec_lcc.empty()){
         ExecStatistics stats { m_exec_lcc };
         cout << ">> LCC " << stats << "\n";
         if(save_in_db) stats.save("lcc");
     }
-    if(m_properties.pagerank.m_enabled){
+    if(!m_exec_pagerank.empty()){
         ExecStatistics stats { m_exec_pagerank };
         cout << ">> PageRank " << stats << "\n";
         if(save_in_db) stats.save("pagerank");
     }
-    if(m_properties.sssp.m_enabled){
+    if(!m_exec_sssp.empty()){
         ExecStatistics stats { m_exec_sssp };
         cout << ">> SSSP " << stats << "\n";
         if(save_in_db) stats.save("sssp");
     }
-    if(m_properties.wcc.m_enabled){
+    if(!m_exec_wcc.empty()){
         ExecStatistics stats { m_exec_wcc };
         cout << ">> WCC " << stats << "\n";
         if(save_in_db) stats.save("wcc");
