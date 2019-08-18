@@ -23,6 +23,10 @@
 
 namespace experiment {
 
+/**
+ * Compute a set of basic statistics (mean, median, and so on) from a sequence of results.
+ * The class is not thread safe
+ */
 class ExecStatistics {
     friend std::ostream& operator<<(std::ostream& out, const ExecStatistics& stats);
 
@@ -42,6 +46,10 @@ private:
     static uint64_t get_percentile(const std::vector<uint64_t>& values_sorted, uint64_t position);
 
 public:
+    /**
+     * Compute the statistics for the given sequence of results. Each entry represents either
+     * the completion time (in microsecs), or the special value -1 to indicate a timeout.
+     */
     ExecStatistics(const std::vector<int64_t>& trials);
 
     /**

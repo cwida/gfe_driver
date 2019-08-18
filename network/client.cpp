@@ -329,6 +329,12 @@ bool Client::batch(const library::UpdateInterface::SingleUpdate* batch, uint64_t
 
     // wait for the server to process the request
     wait_response();
+
+    if(response()->type() == ResponseType::TIMEOUT){
+        assert(force == true && "Only with the flag force == true, the interface is allowed to timeout");
+        RAISE_EXCEPTION(library::TimeoutError, "Batch timeout");
+    }
+
     assert(response()->type() == ResponseType::OK);
     return response()->get<bool>(0);
 }

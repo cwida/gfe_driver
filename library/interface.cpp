@@ -20,11 +20,13 @@
 #include <cassert>
 #include <cmath>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <mutex>
 
 #include "common/error.hpp"
+#include "common/timer.hpp"
 
 #include "baseline/adjacency_list.hpp"
 #include "reader/reader.hpp"
@@ -120,15 +122,23 @@ bool UpdateInterface::batch(const SingleUpdate* array, size_t array_sz, bool for
     COUT_DEBUG("batch: " << array_sz << ", force: " << force);
 
     if(force){
+
         // now a bit of a hack, we want all updates to succeed. An update may fail if a vertex is still being added
         // by another thread in the meanwhile
         for(uint64_t i = 0; i < array_sz; i++){
             if(A[i].m_weight >= 0){ // insert
-                while ( ! add_edge(graph::WeightedEdge{A[i].m_source, A[i].m_destination, A[i].m_weight}) ) { /* nop */ };
+                graph::WeightedEdge edge{A[i].m_source, A[i].m_destination, A[i].m_weight};
+                if( ! add_edge(edge) ){ // avoid infinite loops/waits
+                    auto op = [this](graph::WeightedEdge edge){ return add_edge(edge); };
+                    batch_try_again(op, edge);
+                }
             } else { // remove
-//                bool res = remove_edge(graph::Edge{A[i].m_source, A[i].m_destination});
-//                assert(res == true);
-                while ( ! remove_edge(graph::Edge{A[i].m_source, A[i].m_destination}) ) { /* nop */ };
+                graph::Edge edge{A[i].m_source, A[i].m_destination};
+
+                if ( ! remove_edge(edge) ){ // avoid infinite loops/waits
+                    auto op = [this](graph::Edge edge){ return remove_edge(edge); };
+                    batch_try_again(op, edge);
+                }
             }
         }
     } else {
@@ -142,6 +152,21 @@ bool UpdateInterface::batch(const SingleUpdate* array, size_t array_sz, bool for
     }
 
     return result;
+}
+
+template<typename Action, typename Edge>
+void UpdateInterface::batch_try_again(Action action, Edge edge){
+    constexpr chrono::seconds timeout = 10min;
+    bool result = false;
+
+    auto t_start = chrono::steady_clock::now();
+    do {
+        result = std::invoke(action, edge);
+    } while(!result && chrono::steady_clock::now() - t_start <= timeout);
+
+    if(!result){
+        RAISE_EXCEPTION(TimeoutError, "Cannot process the edge " << edge << " after " << timeout.count() << " seconds");
+    }
 }
 
 void UpdateInterface::load(const string& path) {

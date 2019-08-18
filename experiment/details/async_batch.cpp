@@ -50,8 +50,7 @@ AsyncBatch::AsyncBatch(library::UpdateInterface* interface, int thread_id, int n
     if(batch_sz < 1){ throw std::invalid_argument("batch_sz < 1"); }
 
     m_batches = new library::UpdateInterface::SingleUpdate*[m_batches_sz];
-    m_batches_num_entries = new size_t[m_batch_sz]();
-//    m_send_futures = new std::future<void>*[m_batch_sz](); // init the entries to nullptr
+    m_batches_num_entries = new size_t[m_batches_sz]();
     for(int batch_index = 0; batch_index < m_batches_sz; batch_index++){
         m_batches[batch_index] = new library::UpdateInterface::SingleUpdate[m_batch_sz];
     }
@@ -80,7 +79,6 @@ AsyncBatch::~AsyncBatch() {
 
     delete[] m_batches; m_batches = nullptr;
     delete[] m_batches_num_entries; m_batches_num_entries = nullptr;
-//    delete[] m_send_futures; m_send_futures = nullptr;
 }
 
 
@@ -171,7 +169,6 @@ void AsyncBatch::flush(bool synchronise){
 void AsyncBatch::add_edge(graph::WeightedEdge edge) {
     if(m_batch_pos == m_batch_sz) flush(false); // send all pending updates in the batch, reset m_batch_pos to 0
     assert(m_batch_pos < m_batch_sz && "Overflow");
-    COUT_DEBUG("add_edge: " << edge << ", batch_index: " << m_batch_index << ", batch_pos: " << m_batch_pos);
 
     library::UpdateInterface::SingleUpdate* __restrict update = m_batches[m_batch_index] + m_batch_pos;
     update->m_source = edge.m_source;

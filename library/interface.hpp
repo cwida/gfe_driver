@@ -146,6 +146,15 @@ public:
  * Update interface
  */
 class UpdateInterface : public virtual Interface, public virtual LoaderInterface {
+private:
+    /**
+     * Helper function for the implementation of bool batch(...);
+     * Constantly invoke action(edge) until either it returns true or a timeout has expired. If timeout
+     * expired, the function throws a TimeoutError.
+     */
+    template<typename Action, typename Edge>
+    void batch_try_again(Action action, Edge edge);
+
 public:
     /**
      * Add the given vertex to the graph

@@ -172,7 +172,7 @@ unique_ptr<VertexList> WeightedEdgeStream::vertex_list() const {
     LOG("Computing the list of vertices ...");
 
     unordered_map<uint64_t, bool> unique_vertices;
-    for(uint64_t i = 0, end = m_sources->capacity(); i < end; i++){
+    for(uint64_t i = 0, end = num_edges(); i < end; i++){
         unique_vertices[m_sources->get_value_at(i)] = true;
         unique_vertices[m_destinations->get_value_at(i)] = true;
     }

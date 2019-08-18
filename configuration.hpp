@@ -34,7 +34,7 @@ namespace library { class Interface; } // forward declaration
 Configuration& configuration();
 ClientConfiguration& cfgclient();
 ServerConfiguration& cfgserver();
-void cfgfree(); // invoked by the end to release the configuration
+void cfgfree(); // invoked at the end to release the configuration
 
 // Generic configuration error
 DEFINE_EXCEPTION(ConfigurationError);
@@ -152,6 +152,8 @@ class ClientConfiguration : public Configuration {
 private:
     uint64_t m_batch_size = 0; // if > 0, send the updates in batches
     double m_coeff_aging { 0.0 }; // coefficient for the additional updates to perform
+    double m_ef_vertices = 1; // expansion factor for the vertices in the graph
+    double m_ef_edges = 1;  // expansion factor for the edges in the graph
     std::string m_experiment; // the experiment to execute
     bool m_is_interactive { false }; // interactive while loop
     uint64_t m_num_repetitions { 5 }; // when applicable, how many times the same experiment should be repeated
@@ -213,6 +215,12 @@ public:
 
     // Shall we send the updates in batches of the given size?
     uint64_t get_batch_size() const { return m_batch_size; }
+
+    // Get the expansion factor in the aging experiment for the edges in the graph
+    double get_ef_edges() const { return m_ef_edges; }
+
+    // Get the expansion factor in the aging experiment for the vertices in the graph
+    double get_ef_vertices() const { return m_ef_vertices; }
 };
 
 

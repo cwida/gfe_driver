@@ -436,6 +436,8 @@ static void run_experiments(){
             LOG("[client] Number of updates to perform: " << stream->num_edges() * cfgclient().coefficient_aging());
             Aging experiment(impl, move(stream), cfgclient().coefficient_aging(), cfgclient().num_threads(THREADS_WRITE));
             experiment.set_batch_size(cfgclient().get_batch_size());
+            experiment.set_expansion_factor_vertices(cfgclient().get_ef_vertices());
+            experiment.set_expansion_factor_edges(cfgclient().get_ef_edges());
             experiment.set_report_progress(true);
             experiment.execute();
             if(configuration().has_database()) experiment.save();
@@ -479,17 +481,6 @@ static void run_client(int argc, char* argv[]){
         run_client_interactive();
     } else {
         run_experiments();
-
-//        // test
-//        vector<uint64_t> values;
-//        values.emplace_back(15);
-//        values.emplace_back(75);
-//        values.emplace_back(40);
-//        values.emplace_back(60);
-//        experiment::ExecStatistics stats{values};
-//        cout << stats << endl;
-//        stats.save("this_is_a_test");
-
     }
 
     LOG( "[client] Done" );

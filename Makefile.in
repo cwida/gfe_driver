@@ -49,6 +49,7 @@ LDFLAGS := @LIBS@
 #############################################################################
 # List of the sources to compile
 sources := \
+	experiment/details/aging_thread.cpp \
 	experiment/details/async_batch.cpp \
 	experiment/aging.cpp \
 	experiment/graphalytics.cpp \

@@ -88,6 +88,8 @@ ExecStatistics::ExecStatistics(const std::vector<int64_t>& trials) : m_num_trial
 
         if(num_values % 2 == 0){
             m_median = (values[num_values /2] + values[(num_values /2)-1]) /2;
+        } else {
+            m_median = values[num_values /2];
         }
     }
 

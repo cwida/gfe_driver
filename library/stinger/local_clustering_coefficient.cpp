@@ -149,8 +149,6 @@ uint64_t Stinger::lcc_count_triangles(int64_t vertex_id){
     return out;
 }
 
-
-
 uint64_t Stinger::lcc_count_intersections (int64_t vertex1, int64_t vertex2, int64_t* vertex1_neighbours, int64_t vertex1_neighbours_sz){
     assert(vertex1_neighbours_sz > 0 && "If this vertex1 doesn't have any neighbours, then vertex2 cannot be a neighbour itself");
 

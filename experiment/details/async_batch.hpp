@@ -41,7 +41,6 @@ class AsyncBatch {
     std::thread m_thread_handle; // the handle to the thread invoking the interface
     std::mutex m_thread_mutex; // sync between the producer and the consumer
     std::condition_variable m_thread_condvar;
-//    std::future<void>** m_send_futures {nullptr}; // an array of futures, of size m_batches_sz
     int m_send_index = 0; // the current batch being processed asynchronously
     int m_send_upto = 0; // the number of batches to process asynchronously, only read & update while holding `m_thread_mutex'
 

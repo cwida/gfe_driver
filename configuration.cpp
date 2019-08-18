@@ -123,6 +123,8 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
         ("c, connect", "The server address, in the form hostname:port. The default is " + get_server_string(), value<string>())
         ("d, database", "Store the current configuration value into the a sqlite3 database at the given location", value<string>())
         ("e, experiment", "The experiment to execute", value<string>())
+        ("efe", "Expansion factor for the edges in the graph", value<double>()->default_value(to_string(m_ef_edges)))
+        ("efv", "Expansion factor for the vertices in the graph", value<double>()->default_value(to_string(m_ef_vertices)))
         ("h, help", "Show this help menu")
         ("G, graph", "The path to the graph to load", value<string>())
         ("i, interactive", "Show the command loop to interact with the server")
@@ -217,9 +219,7 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
             transform(begin(m_experiment), end(m_experiment), begin(m_experiment), ::tolower);
         }
 
-        uint64_t num_repetitions = result["repetitions"].as<uint64_t>();
-        if(num_repetitions <= 0) ERROR("Invalid value for the parameter --repetitions: " << num_repetitions << ". Expected a positive value");
-        m_num_repetitions = num_repetitions;
+        m_num_repetitions = result["repetitions"].as<uint64_t>(); // accept 0 as value
         m_terminate_server_on_exit = result["terminate_server_on_exit"].count() > 0;
 
         if(result["timeout"].count()>0){
@@ -229,6 +229,9 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
         if(result["batch"].count() > 0){
             m_batch_size = result["batch"].as<Quantity>();
         }
+
+        m_ef_edges = result["efe"].as<double>();
+        m_ef_vertices = result["efv"].as<double>();
     } catch ( argument_incorrect_type& e){
         ERROR(e.what());
     }
@@ -242,6 +245,8 @@ void ClientConfiguration::save_parameters() {
     params.push_back(P{"aging", to_string(coefficient_aging())});
     params.push_back(P{"batch", to_string(m_batch_size)});
     params.push_back(P{"database", get_database_path()});
+    params.push_back(P{"ef_edges", to_string(m_ef_edges)});
+    params.push_back(P{"ef_vertices", to_string(m_ef_vertices)});
     if(!get_experiment_name().empty()) params.push_back(P{"experiment", get_experiment_name()});
     params.push_back(P{"git_commit", common::git_last_commit()});
     if(!get_path_graph().empty()){ params.push_back(P{"graph", get_path_graph()}); }

@@ -396,12 +396,18 @@ void Server::ConnectionHandler::handle_request(){
             LOG("Operation not supported by the current interface: " << request()->type());
             response(ResponseType::NOT_SUPPORTED);
         } else {
-            assert((request()->message_size() - sizeof(Request)) % (3 * sizeof(uint64_t)) == 0);
-            uint64_t batch_sz = (request()->message_size() - sizeof(Request)) / (3 * sizeof(uint64_t));
-            const library::UpdateInterface::SingleUpdate* batch = reinterpret_cast<const library::UpdateInterface::SingleUpdate*>(request()->buffer());
-            bool force = request()->type() == RequestType::BATCH_PLAIN_FORCE_YES;
-            bool result = update_interface->batch(batch, batch_sz, force);
-            response(ResponseType::OK, result);
+            try {
+                assert((request()->message_size() - sizeof(Request)) % (3 * sizeof(uint64_t)) == 0);
+                uint64_t batch_sz = (request()->message_size() - sizeof(Request)) / (3 * sizeof(uint64_t));
+                const library::UpdateInterface::SingleUpdate* batch = reinterpret_cast<const library::UpdateInterface::SingleUpdate*>(request()->buffer());
+                bool force = request()->type() == RequestType::BATCH_PLAIN_FORCE_YES;
+                bool result = update_interface->batch(batch, batch_sz, force);
+                response(ResponseType::OK, result);
+            } catch (library::TimeoutError& e){
+                assert(request()->type() == RequestType::BATCH_PLAIN_FORCE_YES);
+                LOG("Batch timeout: " << e);
+                response(ResponseType::TIMEOUT);
+            }
         }
     } break;
 ////     Only to measure the overhead of the network connections for updates
