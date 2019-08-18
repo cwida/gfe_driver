@@ -27,8 +27,11 @@
 #include <thread>
 
 #include "common/system.hpp"
+#include "common/timer.hpp"
 #include "stinger_core/stinger.h"
 #include "stinger_core/xmalloc.h"
+
+#include "utility/timeout_service.hpp"
 
 using namespace std;
 
@@ -90,21 +93,17 @@ namespace library {
 // Implementation based on stinger_alg/src/clustering.c
 
 void Stinger::lcc(const char* dump2file){
-    auto time_start = chrono::steady_clock::now();
-    volatile bool timeout_hit = false;
-
+    auto tcheck = make_unique<utility::TimeoutService>( chrono::seconds{ m_timeout } );
+    common::Timer timer; timer.start();
     cuckoohash_map<uint64_t, double> result;
 //    uint64_t nv = stinger_max_active_vertex(STINGER); // it doesn't register the coefficient if the last vertices are isolated
     uint64_t nv = get_max_num_mappings(); // number of mappings
 
-    #pragma omp parallel for shared(timeout_hit)
+    #pragma omp parallel for
     for(uint64_t v = 0; v < nv; v++){
         // timeout check
-        if(timeout_hit) continue; // do not do any additional processing
-        // check from time to time whether we exhausted our budget to perform the computation
-        else if(m_timeout > 0 && v % 128 == 0 && (chrono::steady_clock::now() - time_start) > chrono::seconds(m_timeout)){
-            timeout_hit = true; continue;
-        } else if(stinger_vtype_get(STINGER, v) == 1) continue; // node marked for deletion
+        if(tcheck->is_timeout()) continue; // do not do any additional processing
+        if(stinger_vtype_get(STINGER, v) == 1) continue; // node marked for deletion
 
         double coeff = 0.0; // by definition, if the vertex has less than two neighbours, its clustering coefficient is zero
         uint64_t degree = stinger_degree_get(STINGER, v);
@@ -117,8 +116,9 @@ void Stinger::lcc(const char* dump2file){
         result.insert(get_external_id(v), coeff);
     }
 
-    if(timeout_hit){
-        RAISE_EXCEPTION(TimeoutError, "Timeout occurred after: " << chrono::duration_cast<chrono::seconds>(chrono::steady_clock::now() - time_start).count() << " seconds")
+    timer.stop();
+    if(tcheck->is_timeout()){
+        RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
     }
 
     save(result, dump2file);

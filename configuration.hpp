@@ -159,7 +159,7 @@ private:
     uint64_t m_num_repetitions { 5 }; // when applicable, how many times the same experiment should be repeated
     int m_num_threads_read { 1 }; // number of threads to use for the read operations
     int m_num_threads_write { 1 }; // number of threads to use for the write (insert/update/delete) operations
-    uint64_t m_timeout_seconds { 0 }; // max time to complete an operation, in seconds (0 => indefinite)
+    uint64_t m_timeout_seconds { 3600 }; // max time to complete an operation, in seconds (0 => indefinite)
     std::string m_path_graph_to_load; // the file must be accessible to the server
     std::string m_server_host = "localhost";
     uint32_t m_server_port = ServerConfiguration::DEFAULT_PORT;

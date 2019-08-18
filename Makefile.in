@@ -72,6 +72,7 @@ sources := \
 	reader/reader.cpp \
 	reader/utility.cpp \
 	utility/graphalytics_validate.cpp \
+	utility/timeout_service.cpp \
 	configuration.cpp \
 	main_client.cpp \
 	main_server.cpp 

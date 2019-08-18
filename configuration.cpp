@@ -133,8 +133,8 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
         ("R, repetitions", "The number of repetitions of the same experiment (where applicable)", value<uint64_t>()->default_value(to_string(m_num_repetitions)))
         ("r, readers", "The number of client threads to use for the read operations", value<int>()->default_value(to_string(m_num_threads_read)))
         ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(seed())))
-        ("terminate_server_on_exit", "Terminate the server after the client has completed")
-        ("timeout", "Set the maximum time for an operation to complete", value<uint64_t>())
+        ("terminate_server_on_exit", "Terminate the server after the client finished")
+        ("timeout", "Set the maximum time for an operation to complete, in seconds", value<uint64_t>()->default_value(to_string(m_timeout_seconds)))
         ("t, threads", "The number of threads to use for both the read and write operations", value<int>()->default_value(to_string(m_num_threads_read + m_num_threads_write)))
 //        ("v, verbose", "Print additional messages to the output")
         ("w, writers", "The number of client threads to use for the write operations", value<int>()->default_value(to_string(m_num_threads_write)))
@@ -221,10 +221,7 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
 
         m_num_repetitions = result["repetitions"].as<uint64_t>(); // accept 0 as value
         m_terminate_server_on_exit = result["terminate_server_on_exit"].count() > 0;
-
-        if(result["timeout"].count()>0){
-            m_timeout_seconds = result["timeout"].as<uint64_t>();
-        }
+        m_timeout_seconds = result["timeout"].as<uint64_t>();
 
         if(result["batch"].count() > 0){
             m_batch_size = result["batch"].as<Quantity>();
