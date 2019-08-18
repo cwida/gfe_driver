@@ -236,7 +236,7 @@ AC_SUBST([CMAKE_BUILD_TYPE])
 
 #############################################################################
 # Switch to LLVM libc++ (-stdlib=libc++)
-MY_CHECK_STDLIB_LIBCXX([CXX="$CXX -stdlib=libc++"])
+#MY_CHECK_STDLIB_LIBCXX([CXX="$CXX -stdlib=libc++"])
 
 #############################################################################
 # Support for the library Stinger
