@@ -18,6 +18,7 @@
 #include "aging.hpp"
 
 #include <cassert>
+#include <cmath>
 #include <condition_variable>
 #include <future>
 #include <mutex>
@@ -80,6 +81,12 @@ Aging::Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_pt
 #if defined(DEBUG)
     set_report_progress(true);
 #endif
+
+    m_reported_times = new uint64_t[ ::ceil (static_cast<double>(num_operations) / m_num_edges ) + 1]();
+}
+
+Aging::~Aging(){
+    delete[] m_reported_times; m_reported_times = nullptr;
 }
 
 void Aging::set_expansion_factor_edges(double factor){
@@ -257,6 +264,7 @@ std::chrono::microseconds Aging::execute(){
     // execute the experiment
     LOG("[Aging] Experiment started!");
     m_last_progress_reported = 0;
+    m_last_time_reported = 0; m_time_start = chrono::steady_clock::now();
     Timer timer; timer.start();
     all_workers_execute(workers, AgingOperation::EXECUTE_EXPERIMENT);
     timer.stop();
@@ -331,6 +339,14 @@ void Aging::save() {
     db.add("num_edges_load", m_num_edges);
     db.add("num_edges_final", m_num_edges_final_graph);
     db.add("completion_time", m_completion_time); // microseconds
+
+    LOG("m_last_time_reported: " << m_last_time_reported);
+    for(int i = 0, sz = m_last_time_reported; i < sz; i++){
+        if(m_reported_times[i] == 0) continue; // missing??
+        auto db = configuration().db()->add("aging_intermediate_throughput");
+        db.add("aging_coeff", (int64_t) i +1); // 1, 2, 3...
+        db.add("completion_time", m_reported_times[i]); // microseconds
+    }
 }
 
 

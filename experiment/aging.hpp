@@ -77,6 +77,11 @@ class Aging {
     bool m_report_progress = false;
     std::atomic<int> m_last_progress_reported = 0;
 
+    // report how long it took to perform 1x, 2x, 3x, ... updates w.r.t. to the loaded graph.
+    std::chrono::steady_clock::time_point m_time_start; // when the computation started
+    uint64_t* m_reported_times = nullptr; // microsecs
+    std::atomic<int> m_last_time_reported = 0;
+
     // Insert a single vertex in the graph system/library, if it's not already present. Invoked concurrently by the worker threads
     void insert_vertex(uint64_t vertex_id);
 
@@ -103,6 +108,9 @@ public:
 
 
     Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads, bool is_directed, double max_weight);
+
+    // destructor
+    ~Aging();
 
     // run the experiment
     std::chrono::microseconds execute();

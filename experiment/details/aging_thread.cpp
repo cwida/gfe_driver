@@ -41,7 +41,7 @@ using namespace std;
  *                                                                           *
  *****************************************************************************/
 //#define DEBUG
-#define COUT_DEBUG_FORCE(msg) { LOG("[Aging::" << __FUNCTION__ << "] [" << concurrency::get_thread_id() << "] " << msg); }
+#define COUT_DEBUG_FORCE(msg) { LOG("[AgingThread::" << __FUNCTION__ << "] [" << concurrency::get_thread_id() << "] " << msg); }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
 #else
@@ -170,6 +170,7 @@ void AgingThread::main_experiment(){
     uniform_real_distribution<double> genrndweight{0, m_instance->m_max_weight }; // incl.
 
     int64_t num_ops_done = 0;
+    int lastset_coeff = 0;
     while( (num_ops_done = m_instance->m_num_operations_performed.fetch_add(m_instance->m_granularity) ) < num_total_ops ){
 
         // shall we perform a burst of insertions or deletions ?
@@ -189,6 +190,15 @@ void AgingThread::main_experiment(){
                        "edges final graph: " <<  (100.0 * m_final_edges_current_position/m_edges.size()) << " %"
                 );
 #endif
+            }
+
+            // report how long it took to perform 1x, 2x, ... updates w.r.t. to the size of the final graph
+            int aging_coeff = num_ops_done / m_instance->m_num_edges;
+            if(aging_coeff > lastset_coeff){
+                if( m_instance->m_last_time_reported.compare_exchange_strong(/* updates lastset_coeff */ lastset_coeff, aging_coeff) ){
+                    uint64_t duration = chrono::duration_cast<chrono::microseconds>(chrono::steady_clock::now() - m_instance->m_time_start ).count();
+                    m_instance->m_reported_times[aging_coeff -1] = duration;
+                }
             }
 
             // insert `m_granularity' edges then
