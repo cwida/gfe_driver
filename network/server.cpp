@@ -222,8 +222,8 @@ void Server::ConnectionHandler::execute(){
     struct sockaddr_in address; socklen_t address_len { sizeof(address) };
     /* ignore rc */ getpeername(m_fd, (struct sockaddr *) &address, &address_len);
     string remote_host { inet_ntoa(address.sin_addr) }; // thread-unsafe?
-    int remote_port = address.sin_port;
-    LOG("[server] [thread " << thread_id << "] Connected with " << remote_host << ":" << remote_port << ", num active connections: " << num_active_connections);
+    int remote_port [[maybe_unused]] = address.sin_port;
+    COUT_DEBUG("[server] [thread " << thread_id << "] Connected with " << remote_host << ":" << remote_port << ", num active connections: " << num_active_connections);
 
     while(!m_terminate){
         int64_t num_bytes_read { 0 }, recv_bytes { 0 };
@@ -260,7 +260,7 @@ void Server::ConnectionHandler::execute(){
     }
 
     num_active_connections = --(m_instance->m_num_active_connections);
-    LOG("[server] [thread " << thread_id << "] Disconnected with " << remote_host << ":" << remote_port << ", remaining active connections: " << num_active_connections);
+    COUT_DEBUG("[server] [thread " << thread_id << "] Disconnected with " << remote_host << ":" << remote_port << ", remaining active connections: " << num_active_connections);
 
     delete this; // done!
 }
