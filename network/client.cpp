@@ -21,9 +21,7 @@
 #include <cassert>
 #include <cstring>
 #include <netdb.h> // gethostbyname
-#include <random>
 #include <sys/socket.h>
-#include <thread>
 #include <type_traits>
 #include <unistd.h>
 
@@ -83,22 +81,7 @@ void Client::connect(){
     memcpy(&address.sin_addr, remote_address->h_addr, remote_address->h_length);
     address.sin_port = htons(m_server_port);
 
-    // sometimes we get spurious errors with a connection rejected due as most connections towards the server
-    // are opened simultaneously at the same time. In this case, simply retry again after a bit.
-    // case retry after a bit.
-    int num_attempts = m_worker_id > 0? 3 : 1;
-    int rc; // return code from ::connect
-
-    do{
-        rc = ::connect(fd, (struct sockaddr*) &address, sizeof(address));
-        if(rc != 0 && num_attempts > 1){
-            mt19937 gen { random_device()() };
-            chrono::milliseconds delay { uniform_int_distribution{1000, 3000}(gen) };
-            LOG("[client] [worker: " << m_worker_id << "] Attempt: " << (num_attempts) << ": Connection rejected. Retrying after " << delay.count() << " milliseconds...");
-            this_thread::sleep_for(delay);
-        }
-        num_attempts--;
-    } while (rc != 0 && num_attempts > 0);
+    int rc = ::connect(fd, (struct sockaddr*) &address, sizeof(address));
     if(rc != 0){
         ERROR_ERRNO("Cannot connect to the remote server " << m_server_host << ":" << m_server_port);
     }
