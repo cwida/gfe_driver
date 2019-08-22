@@ -69,17 +69,23 @@ void Client::connect(){
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if(fd < 0) ERROR_ERRNO("Cannot initialise the socket");
 
-    // retrieve the address of the host
-    struct hostent* remote_address = gethostbyname(m_server_host.c_str());
-    if(remote_address == nullptr){
-        ERROR("Cannot resolve the address of the remote server `" << m_server_host << "': " << gai_strerror(h_errno));
-    }
 
     struct sockaddr_in address;
     memset(&address, 0, sizeof(address));
     address.sin_family = AF_INET;
-    memcpy(&address.sin_addr, remote_address->h_addr, remote_address->h_length);
     address.sin_port = htons(m_server_port);
+
+    { // gethostbyname() is not thread safe, wrap it inside a global lock
+        scoped_lock<mutex> lock(g_network_lock);
+
+        // retrieve the address of the host
+        struct hostent* remote_address = gethostbyname(m_server_host.c_str());
+        if(remote_address == nullptr){
+            ERROR("Cannot resolve the address of the remote server `" << m_server_host << "': " << gai_strerror(h_errno));
+        }
+
+        memcpy(&address.sin_addr, remote_address->h_addr, remote_address->h_length);
+    }
 
     int rc = ::connect(fd, (struct sockaddr*) &address, sizeof(address));
     if(rc != 0){

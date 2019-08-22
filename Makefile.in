@@ -62,6 +62,7 @@ sources := \
 	library/interface.cpp \
 	library/baseline/adjacency_list.cpp \
 	network/client.cpp \
+	network/internal.cpp \
 	network/message.cpp \
 	network/server.cpp \
 	reader/dimacs9_reader.cpp \

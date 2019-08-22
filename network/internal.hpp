@@ -20,6 +20,7 @@
 #include "network/error.hpp"
 
 #include <cerrno>
+#include <mutex>
 #include <string.h> // strerror
 
 // Handy macro to throw a network error with ERROR( message )
@@ -28,3 +29,15 @@
 
 // Macro to report an error with the content of errno
 #define ERROR_ERRNO(message) ERROR(message << ". Low level description: " << strerror(errno) << " (errno: " << errno << ")")
+
+namespace network {
+
+// Some functions from the C library are not thread-safe, such as gethostbyname() and gethostbyaddr().
+// More details: http://man7.org/linux/man-pages/man3/gethostbyname.3.html
+// We wrap each call to these functions inside the following global lock
+extern std::mutex g_network_lock;
+
+// Convenience macro to wrap a critical section inside g_network_lock
+#define SYNCHRONISE_NETWORK(stmt) { std::scoped_lock<std::mutex> lock(g_network_lock); stmt; }
+
+} // namespace

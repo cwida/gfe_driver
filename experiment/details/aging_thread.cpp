@@ -151,7 +151,8 @@ void AgingThread::main_thread(){
 
     assert(m_current_operation == AgingOperation::STOP && "Invalid state, it should still be in the loop");
     m_interface->on_thread_destroy(m_worker_id);
-    m_callback.set_value_at_thread_exit();
+//    m_callback.set_value_at_thread_exit();
+    m_callback.set_value();
 }
 
 void AgingThread::main_experiment(){
