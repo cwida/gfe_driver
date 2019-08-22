@@ -29,6 +29,7 @@
 #include "common/timer.hpp"
 
 #include "baseline/adjacency_list.hpp"
+#include "baseline/dummy.hpp"
 #include "reader/reader.hpp"
 #if defined(HAVE_STINGER)
 #include "stinger/stinger.hpp"
@@ -64,6 +65,10 @@ std::unique_ptr<Interface> generate_baseline_adjlist(bool directed_graph){ // di
     return unique_ptr<Interface>{ new AdjacencyList(directed_graph) };
 }
 
+std::unique_ptr<Interface> generate_dummy(bool directed_graph){
+    return unique_ptr<Interface>{ new Dummy(directed_graph) };
+}
+
 #if defined(HAVE_STINGER)
 std::unique_ptr<Interface> generate_stinger(bool directed_graph){
     return unique_ptr<Interface>{ new Stinger(directed_graph) };
@@ -74,6 +79,7 @@ vector<ImplementationManifest> implementations() {
     vector<ImplementationManifest> result;
 
     result.emplace_back("baseline", "Sequential baseline, based on adjacency list", &generate_baseline_adjlist);
+    result.emplace_back("dummy", "Dummy implementation of the interface, all operations are nop", &generate_dummy);
 
 #if defined(HAVE_STINGER)
     result.emplace_back("stinger", "Stinger library", &generate_stinger);

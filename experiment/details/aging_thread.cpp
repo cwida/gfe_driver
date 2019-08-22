@@ -178,7 +178,7 @@ void AgingThread::main_experiment(){
         if(m_edges2remove.empty() /* There are no edges to remove */ ||
                 m_interface->num_edges() < max_number_edges /* the size of the current graph is no more than (exp_factor)x of the final graph */){
 
-            if(report_progress && static_cast<int>(100.0 * num_ops_done/num_total_ops) != m_instance->m_last_progress_reported){
+            if(report_progress && static_cast<int>(100.0 * num_ops_done/num_total_ops) > m_instance->m_last_progress_reported){
                 m_instance->m_last_progress_reported = 100.0 * num_ops_done/num_total_ops;
 #if defined(DEBUG)
                 LOG("[thread: " << common::concurrency::get_thread_id() << "] "
@@ -191,15 +191,6 @@ void AgingThread::main_experiment(){
                        "edges final graph: " <<  (100.0 * m_final_edges_current_position/m_edges.size()) << " %"
                 );
 #endif
-            }
-
-            // report how long it took to perform 1x, 2x, ... updates w.r.t. to the size of the final graph
-            int aging_coeff = num_ops_done / m_instance->m_num_edges;
-            if(aging_coeff > lastset_coeff){
-                if( m_instance->m_last_time_reported.compare_exchange_strong(/* updates lastset_coeff */ lastset_coeff, aging_coeff) ){
-                    uint64_t duration = chrono::duration_cast<chrono::microseconds>(chrono::steady_clock::now() - m_instance->m_time_start ).count();
-                    m_instance->m_reported_times[aging_coeff -1] = duration;
-                }
             }
 
             // insert `m_granularity' edges then
@@ -272,6 +263,14 @@ void AgingThread::main_experiment(){
             }
         } // end if (burst of insertions or deletions)
 
+        // report how long it took to perform 1x, 2x, ... updates w.r.t. to the size of the final graph
+        int aging_coeff = (num_ops_done + m_instance->m_granularity) / m_instance->m_num_edges;
+        if(aging_coeff > lastset_coeff){
+            if( m_instance->m_last_time_reported.compare_exchange_strong(/* updates lastset_coeff */ lastset_coeff, aging_coeff) ){
+                uint64_t duration = chrono::duration_cast<chrono::microseconds>(chrono::steady_clock::now() - m_instance->m_time_start ).count();
+                m_instance->m_reported_times[aging_coeff -1] = duration;
+            }
+        }
     } // end while (operation count)
 
     // insert the missing edges from the final graph

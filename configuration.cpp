@@ -122,7 +122,7 @@ void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
         ("b, batch", "Send the updates in batches of the given size", value<Quantity>())
         ("c, connect", "The server address, in the form hostname:port. The default is " + get_server_string(), value<string>())
         ("d, database", "Store the current configuration value into the a sqlite3 database at the given location", value<string>())
-        ("e, experiment", "The experiment to execute", value<string>())
+        ("e, experiment", "The experiment to execute", value<string>()->default_value(m_experiment))
         ("efe", "Expansion factor for the edges in the graph", value<double>()->default_value(to_string(m_ef_edges)))
         ("efv", "Expansion factor for the vertices in the graph", value<double>()->default_value(to_string(m_ef_vertices)))
         ("h, help", "Show this help menu")

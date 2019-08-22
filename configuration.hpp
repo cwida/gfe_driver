@@ -168,7 +168,7 @@ private:
     double m_coeff_aging { 0.0 }; // coefficient for the additional updates to perform
     double m_ef_vertices = 1; // expansion factor for the vertices in the graph
     double m_ef_edges = 1;  // expansion factor for the edges in the graph
-    std::string m_experiment; // the experiment to execute
+    std::string m_experiment = "basic"; // the experiment to execute
     bool m_is_interactive { false }; // interactive while loop
     uint64_t m_num_repetitions { 5 }; // when applicable, how many times the same experiment should be repeated
     int m_num_threads_read { 1 }; // number of threads to use for the read operations

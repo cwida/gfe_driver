@@ -61,6 +61,7 @@ sources := \
 	graph/vertex_list.cpp \
 	library/interface.cpp \
 	library/baseline/adjacency_list.cpp \
+	library/baseline/dummy.cpp \
 	network/client.cpp \
 	network/internal.cpp \
 	network/message.cpp \
