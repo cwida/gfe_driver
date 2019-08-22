@@ -26,6 +26,16 @@ namespace library { class Interface; } // forward decl.
 
 namespace network {
 
+/**
+ * This class bridges the remote requests (made by a client) and forwards them to a given library instance (library::Interface).
+ * The communication client - server is synchronous:
+ * 1- The client makes a request, e.g. an action to perform on the graph.
+ * 2- The server receives the request and invokes the related method in the library instance.
+ * 3- The server sends the result back to the client.
+ * 4- The client receives the response and resumes its execution.
+ *
+ * The class is not thread safe.
+ */
 class Server {
     std::shared_ptr<library::Interface> m_interface; // the interface we are serving
     const int m_port; // server port
@@ -85,7 +95,17 @@ class Server {
     friend class ConnectionHandler;
 
 public:
+    /**
+     * Initialise the server and listen for connections from the port specified in the global configuration.
+     * @param interface pass all requests to the given interface
+     */
     Server(std::shared_ptr<library::Interface> interface);
+
+    /**
+     * Initialise the server and listen for connections from the given port
+     * @param interface pass all requests to the given interface
+     * @param port the port to listen for TCP connections
+     */
     Server(std::shared_ptr<library::Interface> interface, int port);
 
     /**
@@ -98,12 +118,10 @@ public:
      */
     void main_loop();
 
-
     /**
      * Terminate the server when receiving SIGINT and SIGKILL
      */
     void handle_signals();
-
 
     /**
      * Terminate the server
@@ -112,5 +130,3 @@ public:
 };
 
 }
-
-

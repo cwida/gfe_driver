@@ -31,9 +31,9 @@ namespace common { class Database; } // forward declaration
 namespace library { class Interface; } // forward declaration
 
 // Singleton interface
-Configuration& configuration();
-ClientConfiguration& cfgclient();
-ServerConfiguration& cfgserver();
+Configuration& configuration(); // retrieve the current singleton (client or server)
+ClientConfiguration& cfgclient(); // retrieve the singleton for the client configuration
+ServerConfiguration& cfgserver(); // retrieve the signleton for the server configuration
 void cfgfree(); // invoked at the end to release the configuration
 
 // Generic configuration error
@@ -101,6 +101,13 @@ public:
     const std::string& get_database_path() const { return m_database_path; }
 };
 
+/**
+ * The global configuration for the server program (gfe_server).
+ * - Initialise (only one time) the singleton instance through ServerConfiguration::initialise(int argc, char* argv[])
+ * - Access the singleton instance through the function ::cfgserver();
+ * - At the end of the execution, release the singleton with ::cfgfree();
+ * The class is not thread safe.
+ */
 class ServerConfiguration : public Configuration {
 public:
     // remove the copy ctors
@@ -144,6 +151,13 @@ public:
 };
 
 
+/**
+ * The global configuration for the client program (gfe_client).
+ * - Initialise (only one time) the singleton instance through ClientConfiguration::initialise(int argc, char* argv[])
+ * - Access the singleton instance through the function ::cfgclient();
+ * - At the end of the execution, release the singleton with ::cfgfree();
+ * The class is not thread safe.
+ */
 class ClientConfiguration : public Configuration {
     // remove the copy ctors
     ClientConfiguration(const ClientConfiguration& ) = delete;

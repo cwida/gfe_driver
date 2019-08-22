@@ -21,7 +21,6 @@
 #include <random>
 #include "reader.hpp"
 
-
 namespace graph { class WeightedEdge; } // forward decl.
 
 namespace reader {
@@ -76,7 +75,4 @@ public:
     bool is_directed() const override;
 };
 
-
 } // namespace reader
-
-

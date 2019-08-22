@@ -27,7 +27,9 @@ namespace graph { class WeightedEdge; } // forward decl.
 namespace reader {
 
 /**
- * Parser to read the edge list from the LDBC benchmarks
+ * Parser to read the property file, the vertex and the edge list provided in the datasets from graphalytics.org
+ * Initialise the reader by passing the file to the property file (.properties), the vertex and edge files are
+ * derived from the parameters inside the property file.
  */
 class GraphalyticsReader : public Reader {
     std::unordered_map<std::string, std::string> m_properties; // property file
@@ -114,7 +116,4 @@ public:
     void set_emit_directed_edges(bool value);
 };
 
-
 } // namespace
-
-

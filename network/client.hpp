@@ -25,6 +25,17 @@
 
 namespace network {
 
+/**
+ * A Client acts as a proxy for a remote interface, reachable by a Server (gfe_server).
+ * All requests performed to an instance of a Client are forwarded to the end and result propagated back
+ * to the invoker. The communication between the client and a server is synchronous, but multiple
+ * connections can be enabled, simply by invoking the public methods from different threads. The first
+ * method invoked by any thread must be #on_thread_init(int worker_id), with a worker_id different
+ * from any other active thread.
+ *
+ * The class is thread-safe only if different threads access it with a different worker_id,
+ * previously set through #on_thread_init(int worker_id).
+ */
 class Client : public virtual library::UpdateInterface, public virtual library::LoaderInterface, public virtual library::GraphalyticsInterface {
     Client(const Client&) = delete;
     Client& operator=(const Client&) = delete;

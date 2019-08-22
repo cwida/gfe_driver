@@ -22,6 +22,7 @@
 
 namespace reader {
     
-    // Open an input stream to read the content of the given file
-    std::fstream init_fstream(const std::string& path);
+// Open an input stream to read the content of the given file
+std::fstream init_fstream(const std::string& path);
+
 }
