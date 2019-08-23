@@ -114,11 +114,11 @@ void AsyncBatch::main_thread(){
         COUT_DEBUG("Process batch at index " << m_send_index << ", size: " << m_batches_num_entries[m_send_index]);
         m_interface->batch(m_batches[m_send_index], m_batches_num_entries[m_send_index], /* force */ true);
         m_send_index = (m_send_index +1) % m_batches_sz; // next batch to send
-        m_thread_condvar.notify_all();
 
         { // wait for the next job
             unique_lock<mutex> lock(m_thread_mutex);
             m_send_upto--; // we just processed a job
+            m_thread_condvar.notify_all(); // sync with #flush() after changing m_send_upto
             m_thread_condvar.wait(lock, [this](){ return m_send_upto != 0; });
             if(m_send_upto == -1){ // terminate
                 m_send_upto = -2;
