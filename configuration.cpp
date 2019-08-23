@@ -70,7 +70,10 @@ bool Configuration::has_database() const {
 common::Database* Configuration::db(){
     if(m_database == nullptr && has_database()){
         m_database = new Database{m_database_path};
-        m_database->create_execution();
+        auto params = m_database->create_execution();
+        // random value with no semantic, the aim is to simplify the work of ./automerge.pl
+        // in recognising duplicate entries
+        params.add("magic", (uint64_t) std::random_device{}());
     }
     return m_database;
 }
