@@ -39,35 +39,98 @@ using namespace std;
 
 /*****************************************************************************
  *                                                                           *
+ *  Helpers                                                                  *
+ *                                                                           *
+ *****************************************************************************/
+static string libraries_help_screen(){
+    auto libs = library::implementations();
+    sort(begin(libs), end(libs), [](const auto& lib1, const auto& lib2){
+       return lib1.m_name < lib2.m_name;
+    });
+
+    stringstream stream;
+    stream << "The library to evaluate: ";
+    bool first = true;
+    for(const auto& l : libs){
+        if (first) first = false; else stream << ", ";
+        stream << l.m_name;
+    }
+
+    return stream.str();
+}
+
+/*****************************************************************************
+ *                                                                           *
  *  Base class                                                               *
  *                                                                           *
  *****************************************************************************/
 mutex _log_mutex;
 
-static Configuration* singleton {nullptr};
-Configuration& configuration(){
+static BaseConfiguration* singleton {nullptr};
+BaseConfiguration& configuration(){
     if(singleton == nullptr){
 //        LOG("[configuration] initialising a test configuration ... ");
-        singleton = new Configuration();
+        singleton = new BaseConfiguration();
     }
     return *singleton;
 }
 
 void cfgfree(){ delete singleton; singleton = nullptr; }
 
-Configuration::Configuration() {
+BaseConfiguration::BaseConfiguration() {
 //    m_num_threads_read = m_num_threads_write = cpu_topology().get_threads(false, false).size();
 }
 
-Configuration::~Configuration() {
+BaseConfiguration::~BaseConfiguration() {
     delete m_database; m_database = nullptr;
 }
 
-bool Configuration::has_database() const {
+void BaseConfiguration::parse_command_line_args(int argc, char* argv[]){
+    using namespace cxxopts;
+
+    Options opts(argv[0], cla_name());
+    cla_add(opts);
+
+    try {
+        auto result = opts.parse(argc, argv);
+        cla_parse(opts, result);
+
+    } catch ( argument_incorrect_type& e){
+        ERROR(e.what());
+    }
+}
+
+void BaseConfiguration::cla_add(cxxopts::Options& options){
+    using namespace cxxopts;
+
+    options.add_options("Generic")
+        ("d, database", "Store the current configuration value into the a sqlite3 database at the given location", value<string>())
+        ("h, help", "Show this help menu")
+        ("max_weight", "The maximum weight that can be assigned when reading non weighted graphs", value<double>()->default_value(to_string(max_weight())))
+        ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(seed())))
+    ;
+}
+
+void BaseConfiguration::cla_parse(cxxopts::Options& options, cxxopts::ParseResult& result){
+    if(result.count("help") > 0){
+        cout << options.help({"Generic"}) << endl;
+        exit(EXIT_SUCCESS);
+    }
+
+    set_seed( result["seed"].as<uint64_t>() );
+    set_max_weight( result["max_weight"].as<double>() );
+    if( result["database"].count() > 0 ){ set_database_path( result["database"].as<string>() ); }
+}
+
+string BaseConfiguration::cla_name() const { // this ought to be specialised in the subclasseses, e.g. "GFE Server", "GFE Client", etc.
+    return "GFE";
+}
+
+bool BaseConfiguration::has_database() const {
     return !m_database_path.empty();
 }
 
-common::Database* Configuration::db(){
+common::Database* BaseConfiguration::db(){
     if(m_database == nullptr && has_database()){
         m_database = new Database{m_database_path};
         auto params = m_database->create_execution();
@@ -78,21 +141,162 @@ common::Database* Configuration::db(){
     return m_database;
 }
 
-void Configuration::set_max_weight(double value){
+void BaseConfiguration::set_max_weight(double value){
     if(value <= 0) ERROR("Invalid value for max weight: " << value << ". Expected a positive value");
     m_max_weight = value;
 }
 
-bool Configuration::is_client() const {
+bool BaseConfiguration::is_client() const {
     return dynamic_cast<const ClientConfiguration*>(this) != nullptr;
 }
 
-bool Configuration::is_server() const {
+bool BaseConfiguration::is_server() const {
     return dynamic_cast<const ServerConfiguration*>(this) != nullptr;
 }
 
-void Configuration::save_parameters() {
-    // nop, it should be overriden by subclasses
+bool BaseConfiguration::is_standalone() const {
+    return dynamic_cast<const StandaloneConfiguration*>(this) != nullptr;
+}
+
+void BaseConfiguration::save_parameters() {
+    if(db() == nullptr) ERROR("Path where to store the results not set");
+    auto params = list_parameters();
+    sort(begin(params), end(params));
+    db()->store_parameters(params);
+}
+
+auto BaseConfiguration::list_parameters() const -> param_list_t {
+    using P = pair<string, string>;
+
+    param_list_t params;
+    params.push_back(P{"database", get_database_path()});
+    params.push_back(P{"git_commit", common::git_last_commit()});
+    params.push_back(P{"hostname", common::hostname()});
+    params.push_back(P{"seed", to_string(seed())});
+    return params;
+}
+
+
+/*****************************************************************************
+ *                                                                           *
+ *  Client/standalone common base class                                      *
+ *                                                                           *
+ *****************************************************************************/
+DriverConfiguration& cfgdriver(){
+    auto cfg = dynamic_cast<DriverConfiguration*>(singleton);
+    if(cfg == nullptr){ ERROR("Configuration not initialised or not in driver mode"); }
+    return *cfg;
+}
+
+void DriverConfiguration::cla_add(cxxopts::Options& options){
+    using namespace cxxopts;
+
+    BaseConfiguration::cla_add(options);
+
+    options.add_options("Generic")
+        ("a, aging", "The number of additional updates for the aging experiment to perform", value<double>()->default_value("0"))
+        ("efe", "Expansion factor for the edges in the graph", value<double>()->default_value(to_string(get_ef_edges())))
+        ("efv", "Expansion factor for the vertices in the graph", value<double>()->default_value(to_string(get_ef_vertices())))
+        ("G, graph", "The path to the graph to load", value<string>())
+        ("R, repetitions", "The number of repetitions of the same experiment (where applicable)", value<uint64_t>()->default_value(to_string(num_repetitions())))
+        ("r, readers", "The number of client threads to use for the read operations", value<int>()->default_value(to_string(num_threads(THREADS_READ))))
+        ("timeout", "Set the maximum time for an operation to complete, in seconds", value<uint64_t>()->default_value(to_string(get_timeout_per_operation())))
+        ("t, threads", "The number of threads to use for both the read and write operations", value<int>()->default_value(to_string(num_threads(THREADS_TOTAL))))
+        ("w, writers", "The number of client threads to use for the write operations", value<int>()->default_value(to_string(num_threads(THREADS_WRITE))))
+    ;
+}
+
+void DriverConfiguration::cla_parse(cxxopts::Options& options, cxxopts::ParseResult& result){
+    BaseConfiguration::cla_parse(options, result);
+
+    // number of threads
+    if( result["threads"].count() > 0) {
+        int value = result["threads"].as<int>();
+
+        set_num_thread_write(value);
+    }
+    if( result["readers"].count() > 0) {
+        set_num_thread_read( result["readers"].as<int>() );
+    }
+    if( result["writers"].count() > 0 ){
+        set_num_thread_write( result["writers"].as<int>() );
+    }
+
+    // the graph to work with
+    if( result["graph"].count() > 0 ){
+        set_graph( result["graph"].as<string>() );
+    }
+
+    set_coeff_aging( result["aging"].as<double>() );
+    set_num_repetitions( result["repetitions"].as<uint64_t>() );
+    set_timeout( result["timeout"].as<uint64_t>() );
+    set_ef_vertices( result["efe"].as<double>() );
+    set_ef_vertices( result["efv"].as<double>() );
+}
+
+auto DriverConfiguration::list_parameters() const -> param_list_t {
+    using P = pair<string, string>;
+
+    param_list_t params = BaseConfiguration::list_parameters();
+    params.push_back(P{"aging", to_string(coefficient_aging())});
+    params.push_back(P{"ef_edges", to_string(get_ef_edges())});
+    params.push_back(P{"ef_vertices", to_string(get_ef_vertices())});
+    if(!get_path_graph().empty()){ params.push_back(P{"graph", get_path_graph()}); }
+    params.push_back(P{"num_repetitions", to_string(num_repetitions())});
+    params.push_back(P{"num_threads_read", to_string(num_threads(ThreadsType::THREADS_READ))});
+    params.push_back(P{"num_threads_write", to_string(num_threads(ThreadsType::THREADS_WRITE))});
+    params.push_back(P{"timeout", to_string(get_timeout_per_operation())});
+    return params;
+}
+
+void DriverConfiguration::set_coeff_aging(double value){
+    if(value < 0 || (value > 0 && value < 1)){
+        ERROR("The parameter aging is invalid. It must be >= 1.0: " << value);
+    }
+    m_coeff_aging = value;
+}
+
+void DriverConfiguration::set_ef_vertices(double value){
+    m_ef_vertices = value;
+}
+
+void DriverConfiguration::set_ef_edges(double value){
+    m_ef_edges = value;
+}
+
+void DriverConfiguration::set_num_repetitions(uint64_t value) {
+    m_num_repetitions = value; // accept 0 as value
+}
+
+void DriverConfiguration::set_num_thread_read(int value){
+    ASSERT( value >= 0 );
+    m_num_threads_read = value;
+}
+
+void DriverConfiguration::set_num_thread_write(int value){
+    ASSERT( value >= 0 );
+    m_num_threads_write = value;
+}
+
+void DriverConfiguration::set_timeout(uint64_t seconds) {
+    m_timeout_seconds = seconds;
+}
+
+void DriverConfiguration::set_graph(const std::string& graph){
+    m_path_graph_to_load = graph;
+}
+
+int DriverConfiguration::num_threads(ThreadsType type) const {
+    switch(type){
+    case THREADS_READ:
+        return m_num_threads_read;
+    case THREADS_WRITE:
+        return m_num_threads_write;
+    case THREADS_TOTAL:
+        return m_num_threads_read + m_num_threads_write;
+    default:
+        ERROR("Invalid thread type: " << ((int) type));
+    }
 }
 
 /*****************************************************************************
@@ -115,155 +319,89 @@ ClientConfiguration& cfgclient(){
     return *cfg;
 }
 
-void ClientConfiguration::parse_command_line_args(int argc, char* argv[]){
+void ClientConfiguration::cla_add(cxxopts::Options& opts){
     using namespace cxxopts;
 
-    Options opts(argv[0], "Client program for the GFE");
+    DriverConfiguration::cla_add(opts);
 
     opts.add_options("Generic")
-        ("a, aging", "The number of additional updates for the aging experiment to perform", value<double>()->default_value("0"))
         ("b, batch", "Send the updates in batches of the given size", value<Quantity>())
         ("c, connect", "The server address, in the form hostname:port. The default is " + get_server_string(), value<string>())
-        ("d, database", "Store the current configuration value into the a sqlite3 database at the given location", value<string>())
         ("e, experiment", "The experiment to execute", value<string>()->default_value(m_experiment))
-        ("efe", "Expansion factor for the edges in the graph", value<double>()->default_value(to_string(m_ef_edges)))
-        ("efv", "Expansion factor for the vertices in the graph", value<double>()->default_value(to_string(m_ef_vertices)))
-        ("h, help", "Show this help menu")
-        ("G, graph", "The path to the graph to load", value<string>())
         ("i, interactive", "Show the command loop to interact with the server")
-        ("max_weight", "The maximum weight that can be assigned when reading non weighted graphs", value<double>()->default_value(to_string(max_weight())))
         ("p, port", "Specify the port of the remote server", value<uint32_t>())
-        ("R, repetitions", "The number of repetitions of the same experiment (where applicable)", value<uint64_t>()->default_value(to_string(m_num_repetitions)))
-        ("r, readers", "The number of client threads to use for the read operations", value<int>()->default_value(to_string(m_num_threads_read)))
-        ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(seed())))
         ("terminate_server_on_exit", "Terminate the server after the client finished")
-        ("timeout", "Set the maximum time for an operation to complete, in seconds", value<uint64_t>()->default_value(to_string(m_timeout_seconds)))
-        ("t, threads", "The number of threads to use for both the read and write operations", value<int>()->default_value(to_string(m_num_threads_read + m_num_threads_write)))
-//        ("v, verbose", "Print additional messages to the output")
-        ("w, writers", "The number of client threads to use for the write operations", value<int>()->default_value(to_string(m_num_threads_write)))
     ;
+}
 
-    try {
-        auto result = opts.parse(argc, argv);
+void ClientConfiguration::cla_parse(cxxopts::Options& options, cxxopts::ParseResult& result) {
+    using namespace cxxopts;
 
-        if(result.count("help") > 0){
-            cout << opts.help({"Generic"}) << endl;
-            exit(EXIT_SUCCESS);
-        }
+    DriverConfiguration::cla_parse(options, result);
 
-        set_seed( result["seed"].as<uint64_t>() );
-//        set_verbose( ( result.count("verbose") > 0 ) );
-        set_max_weight( result["max_weight"].as<double>() );
-        if( result["database"].count() > 0 ){ set_database_path( result["database"].as<string>() ); }
+    bool port_specified_in_connect = false;
+    if( result["connect"].count() > 0 ){
+        string param_server = result["connect"].as<string>();
+        auto pos_colon = param_server.find(':');
+        if(pos_colon == string::npos) { // port not specified
+            m_server_host = param_server;
+        } else {
+            m_server_host = param_server.substr(0, pos_colon);
+            string param_port = param_server.substr(pos_colon +1);
 
-        bool port_specified_in_connect = false;
-        if( result["connect"].count() > 0 ){
-            string param_server = result["connect"].as<string>();
-            auto pos_colon = param_server.find(':');
-            if(pos_colon == string::npos) { // port not specified
-                m_server_host = param_server;
-            } else {
-                m_server_host = param_server.substr(0, pos_colon);
-                string param_port = param_server.substr(pos_colon +1);
-
-                // parse the port number
-                try {
-                    int port = stoi(param_port); // throws invalid_argument if the conversion cannot be performed
-                    if(port <= 0 || port >= (1<<16)){ throw invalid_argument("invalid port number"); }
-                    m_server_port = port;
-                    port_specified_in_connect = true;
-                } catch (invalid_argument& e){
-                    ERROR("Invalid parameter --connect: " << param_server << ". The port number cannot be recognised: `" << param_port << "'");
-                }
-            }
-        };
-        if( result["port"].count() > 0 ){ // alias for -c <port>
             // parse the port number
-            uint32_t param_port = result["port"].as<uint32_t>();
-            if(port_specified_in_connect && param_port != m_server_port){
-                ERROR("The parameter port has been specified twice with different values -c " << m_server_port << " and -p " << param_port);
-            } else if (param_port <= 0 || param_port >= (1<<16)){
-                throw invalid_argument("invalid port number");
-            } else {
-                m_server_port = param_port;
+            try {
+                int port = stoi(param_port); // throws invalid_argument if the conversion cannot be performed
+                if(port <= 0 || port >= (1<<16)){ throw invalid_argument("invalid port number"); }
+                m_server_port = port;
+                port_specified_in_connect = true;
+            } catch (invalid_argument& e){
+                ERROR("Invalid parameter --connect: " << param_server << ". The port number cannot be recognised: `" << param_port << "'");
             }
         }
-
-        m_is_interactive = (result["interactive"].count() > 0);
-
-        double coeff_aging = result["aging"].as<double>();
-        if(coeff_aging < 0 || (coeff_aging > 0 && coeff_aging < 1)){
-            ERROR("The parameter aging is invalid. It must be >= 1.0: " << coeff_aging);
+    };
+    if( result["port"].count() > 0 ){ // alias for -c <port>
+        // parse the port number
+        uint32_t param_port = result["port"].as<uint32_t>();
+        if(port_specified_in_connect && param_port != m_server_port){
+            ERROR("The parameter port has been specified twice with different values -c " << m_server_port << " and -p " << param_port);
+        } else if (param_port <= 0 || param_port >= (1<<16)){
+            throw invalid_argument("invalid port number");
+        } else {
+            m_server_port = param_port;
         }
-        m_coeff_aging = coeff_aging;
+    }
 
-        // number of threads
-        if( result["threads"].count() > 0) {
-           ASSERT( result["threads"].as<int>() >= 0 );
-           m_num_threads_read = m_num_threads_write = result["threads"].as<int>();
-        }
-        if( result["readers"].count() > 0) {
-            ASSERT( result["readers"].as<int>() >= 0 );
-            m_num_threads_read = result["readers"].as<int>();
-        }
-        if( result["writers"].count() > 0 ){
-            ASSERT( result["writers"].as<int>() >= 0 );
-            m_num_threads_write = result["writers"].as<int>();
-        }
+    m_is_interactive = (result["interactive"].count() > 0);
 
-        // the graph to work with
-        if( result["graph"].count() > 0 ){
-            m_path_graph_to_load = result["graph"].as<string>();
-        }
+    // the experiment to execute
+    if( result["experiment"].count() > 0 ){
+        m_experiment = result["experiment"].as<string>();
+        transform(begin(m_experiment), end(m_experiment), begin(m_experiment), ::tolower);
+    }
 
-        // the experiment to execute
-        if( result["experiment"].count() > 0 ){
-            m_experiment = result["experiment"].as<string>();
-            transform(begin(m_experiment), end(m_experiment), begin(m_experiment), ::tolower);
-        }
+    m_terminate_server_on_exit = result["terminate_server_on_exit"].count() > 0;
 
-        m_num_repetitions = result["repetitions"].as<uint64_t>(); // accept 0 as value
-        m_terminate_server_on_exit = result["terminate_server_on_exit"].count() > 0;
-        m_timeout_seconds = result["timeout"].as<uint64_t>();
-
-        if(result["batch"].count() > 0){
-            m_batch_size = result["batch"].as<Quantity>();
-        }
-
-        m_ef_edges = result["efe"].as<double>();
-        m_ef_vertices = result["efv"].as<double>();
-    } catch ( argument_incorrect_type& e){
-        ERROR(e.what());
+    if(result["batch"].count() > 0){
+        m_batch_size = result["batch"].as<Quantity>();
     }
 }
 
-void ClientConfiguration::save_parameters() {
-    if(db() == nullptr) ERROR("Path where to store the results not set");
+string ClientConfiguration::cla_name() const {
+    return "Client program for the GFE";
+}
 
+auto ClientConfiguration::list_parameters() const -> param_list_t {
     using P = pair<string, string>;
-    vector<P> params;
-    params.push_back(P{"aging", to_string(coefficient_aging())});
+    auto params = DriverConfiguration::list_parameters();
     params.push_back(P{"batch", to_string(m_batch_size)});
-    params.push_back(P{"database", get_database_path()});
-    params.push_back(P{"ef_edges", to_string(m_ef_edges)});
-    params.push_back(P{"ef_vertices", to_string(m_ef_vertices)});
     if(!get_experiment_name().empty()) params.push_back(P{"experiment", get_experiment_name()});
-    params.push_back(P{"git_commit", common::git_last_commit()});
-    if(!get_path_graph().empty()){ params.push_back(P{"graph", get_path_graph()}); }
     params.push_back(P{"interactive", to_string( is_interactive() )});
-    params.push_back(P{"hostname", common::hostname()});
-    params.push_back(P{"num_repetitions", to_string(m_num_repetitions)});
-    params.push_back(P{"num_threads_read", to_string(m_num_threads_read)});
-    params.push_back(P{"num_threads_write", to_string(m_num_threads_write)});
     params.push_back(P{"role", "client"});
-    params.push_back(P{"seed", to_string(seed())});
     params.push_back(P{"server_host", get_server_host()});
     params.push_back(P{"server_port", to_string(get_server_port())});
     params.push_back(P{"terminate_server_on_exit", to_string(is_terminate_server_on_exit())});
-    params.push_back(P{"timeout", to_string(get_timeout_per_operation())});
-
-    sort(begin(params), end(params));
-    db()->store_parameters(params);
+    return params;
 }
 
 string ClientConfiguration::get_server_string() const {
@@ -272,17 +410,77 @@ string ClientConfiguration::get_server_string() const {
     return ss.str();
 }
 
-int ClientConfiguration::num_threads(ThreadsType type) const {
-    switch(type){
-    case THREADS_READ:
-        return m_num_threads_read;
-    case THREADS_WRITE:
-        return m_num_threads_write;
-    case THREADS_TOTAL:
-        return m_num_threads_read + m_num_threads_write;
-    default:
-        ERROR("Invalid thread type: " << ((int) type));
+/*****************************************************************************
+ *                                                                           *
+ *  Standalone configuration                                                 *
+ *                                                                           *
+ *****************************************************************************/
+void StandaloneConfiguration::initialise(int argc, char* argv[]){
+    if(singleton != nullptr){ ERROR("Global configuration already initialised!"); }
+    auto cfg = new StandaloneConfiguration();
+    singleton = cfg;
+    cfg->parse_command_line_args(argc, argv);
+}
+StandaloneConfiguration::StandaloneConfiguration() {  }
+StandaloneConfiguration::~StandaloneConfiguration() {  }
+
+StandaloneConfiguration& cfgstandalone(){
+    auto cfg = dynamic_cast<StandaloneConfiguration*>(singleton);
+    if(cfg == nullptr){ ERROR("Configuration not initialised or not in standalone mode"); }
+    return *cfg;
+}
+
+void StandaloneConfiguration::cla_add(cxxopts::Options& options) {
+    using namespace cxxopts;
+
+    DriverConfiguration::cla_add(options);
+
+    options.add_options("Generic")
+        ("l, library", libraries_help_screen(), value<string>())
+        ("u, undirected", "Is the graph undirected? By default, it's considered directed.")
+    ;
+}
+
+void StandaloneConfiguration::cla_parse(cxxopts::Options& options, cxxopts::ParseResult& result) {
+    DriverConfiguration::cla_parse(options, result);
+
+    // library to evaluate
+    if( result["library"].count() == 0 ){
+        ERROR("Missing mandatory argument --library. Which library do you want to evaluate??");
+    } else {
+        string library_name = result["library"].as<string>();
+        transform(begin(library_name), end(library_name), begin(library_name), ::tolower); // make it lower case
+        auto libs = library::implementations();
+        auto library_found = find_if(begin(libs), end(libs), [&library_name](const auto& candidate){
+            return library_name == candidate.m_name;
+        });
+        if(library_found == end(libs)){ ERROR("Library not recognised: `" << result["library"].as<string>() << "'"); }
+        m_library_name = library_found->m_name;
+        m_library_factory = library_found->m_factory;
     }
+
+    if( result["undirected"].count() > 0 ){
+        m_graph_directed = false;
+    }
+}
+
+string StandaloneConfiguration::cla_name() const {
+    return "GFE driver";
+}
+
+auto StandaloneConfiguration::list_parameters() const -> param_list_t {
+    using P = pair<string, string>;
+
+    auto params = DriverConfiguration::list_parameters();
+    params.push_back(P{"directed", to_string(is_graph_directed())});
+    params.push_back(P{"library", get_library_name()});
+    params.push_back(P{"role", "standalone"});
+
+    return params;
+}
+
+std::unique_ptr<library::Interface> StandaloneConfiguration::generate_graph_library() {
+    return m_library_factory(is_graph_directed());
 }
 
 /*****************************************************************************
@@ -305,223 +503,60 @@ ServerConfiguration& cfgserver(){
     return *cfg;
 }
 
-static string libraries_help_screen(){
-    auto libs = library::implementations();
-    sort(begin(libs), end(libs), [](const auto& lib1, const auto& lib2){
-       return lib1.m_name < lib2.m_name;
-    });
-
-    stringstream stream;
-    stream << "The library to evaluate: ";
-    bool first = true;
-    for(const auto& l : libs){
-        if (first) first = false; else stream << ", ";
-        stream << l.m_name;
-    }
-
-    return stream.str();
-}
-
-void ServerConfiguration::parse_command_line_args(int argc, char* argv[]){
+void ServerConfiguration::cla_add(cxxopts::Options& options) {
     using namespace cxxopts;
 
-    Options opts(argv[0], "Server program for the GFE");
+    BaseConfiguration::cla_add(options);
 
-    opts.add_options("Generic")
-        ("d, database", "Store the current configuration value into the a sqlite3 database at the given location", value<string>())
-        ("h, help", "Show this help menu")
+    options.add_options("Generic")
         ("l, library", libraries_help_screen(), value<string>())
-        ("max_weight", "The maximum weight that can be assigned when reading non weighted graphs", value<double>()->default_value(to_string(max_weight())))
         ("p, port", "The port where to accept remote connections from the clients", value<uint32_t>()->default_value( to_string(get_port()) ))
-        ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(seed())))
         ("u, undirected", "Is the graph undirected? By default, it's considered directed.")
-//        ("v, verbose", "Print additional messages to the output")
     ;
+}
 
-    try {
+void ServerConfiguration::cla_parse(cxxopts::Options& options, cxxopts::ParseResult& result) {
+    BaseConfiguration::cla_parse(options, result);
 
-        auto result = opts.parse(argc, argv);
+    // library to evaluate
+    if( result["library"].count() == 0 ){
+        ERROR("Missing mandatory argument --library. Which library do you want to evaluate??");
+    } else {
+        string library_name = result["library"].as<string>();
+        transform(begin(library_name), end(library_name), begin(library_name), ::tolower); // make it lower case
+        auto libs = library::implementations();
+        auto library_found = find_if(begin(libs), end(libs), [&library_name](const auto& candidate){
+            return library_name == candidate.m_name;
+        });
+        if(library_found == end(libs)){ ERROR("Library not recognised: `" << result["library"].as<string>() << "'"); }
+        m_library_name = library_found->m_name;
+        m_library_factory = library_found->m_factory;
+    }
 
-        if(result.count("help") > 0){
-            cout << opts.help({"Generic"}) << endl;
-            exit(EXIT_SUCCESS);
-        }
+    m_port = result["port"].as<uint32_t>();
 
-        set_seed( result["seed"].as<uint64_t>() );
-//        set_verbose( ( result.count("verbose") > 0 ) );
-        set_max_weight( result["max_weight"].as<double>() );
-        if( result["database"].count() > 0 ){ set_database_path( result["database"].as<string>() ); }
-
-        // library to evaluate
-        if( result["library"].count() == 0 ){
-            ERROR("Missing mandatory argument --library. Which library do you want to evaluate??");
-        } else {
-            string library_name = result["library"].as<string>();
-            transform(begin(library_name), end(library_name), begin(library_name), ::tolower); // make it lower case
-            auto libs = library::implementations();
-            auto library_found = find_if(begin(libs), end(libs), [&library_name](const auto& candidate){
-                return library_name == candidate.m_name;
-            });
-            if(library_found == end(libs)){ ERROR("Library not recognised: `" << result["library"].as<string>() << "'"); }
-            m_library_name = library_found->m_name;
-            m_library_factory = library_found->m_factory;
-        }
-
-        m_port = result["port"].as<uint32_t>();
-
-        if( result["undirected"].count() > 0 ){
-            m_graph_directed = false;
-        }
-
-    } catch ( argument_incorrect_type& e){
-        ERROR(e.what());
+    if( result["undirected"].count() > 0 ){
+        m_graph_directed = false;
     }
 }
 
-void ServerConfiguration::save_parameters() {
-    if(db() == nullptr) ERROR("Path where to store the results not set");
+string ServerConfiguration::cla_name() const {
+    return "Server program for the GFE";
+}
 
+auto ServerConfiguration::list_parameters() const -> param_list_t {
     using P = pair<string, string>;
-    vector<P> params;
-    params.push_back(P{"database", get_database_path()});
+
+    auto params = BaseConfiguration::list_parameters();
     params.push_back(P{"directed", to_string(is_graph_directed())});
-    params.push_back(P{"git_commit", common::git_last_commit()});
-    params.push_back(P{"hostname", common::hostname()});
     params.push_back(P{"library", m_library_name});
     params.push_back(P{"port", to_string(get_port())});
     params.push_back(P{"role", "server"});
-    params.push_back(P{"seed", to_string(seed())});
-//    params.push_back(P{"verbose", to_string(verbose())});
 
-    sort(begin(params), end(params));
-    db()->store_parameters(params);
+    return params;
 }
 
 std::unique_ptr<library::Interface> ServerConfiguration::generate_graph_library() {
     return m_library_factory(is_graph_directed());
 }
-
-///*****************************************************************************
-// *                                                                           *
-// *  Command line arguments                                                   *
-// *                                                                           *
-// *****************************************************************************/
-//static string libraries_help_screen(){
-//    auto libs = library::implementations();
-//    sort(begin(libs), end(libs), [](const auto& lib1, const auto& lib2){
-//       return lib1.m_name < lib2.m_name;
-//    });
-//
-//    stringstream stream;
-//    stream << "The library to evaluate: ";
-//    bool first = true;
-//    for(const auto& l : libs){
-//        if (first) first = false; else stream << ", ";
-//        stream << l.m_name;
-//    }
-//
-//    return stream.str();
-//}
-//
-//void Configuration::parse_command_line_args(int argc, char* argv[]){
-//    using namespace cxxopts;
-//
-//    Options opts(argv[0], "Evaluate the graph libraries");
-//
-//    opts.add_options("Generic")
-//        ("a, aging", "The number of additional updates for the aging experiment to perform", value<Quantity>()->default_value(to_string(m_num_aging_updates)))
-//        ("d, database", "Store the current configuration\result into the given database")
-//        ("e, experiment", "The experiment to execute", value<string>())
-//        ("G, graph", "The path to the graph to load", value<string>())
-//        ("h, help", "Show this help menu")
-//        ("l, library", libraries_help_screen())
-//        ("max_weight", "The maximum weight that can be assigned when reading non weighted graphs", value<uint64_t>()->default_value(to_string(m_max_weight)))
-//        ("r, readers", "The number of client threads to use for the read operations", value<int>()->default_value(to_string(m_num_threads_read)))
-//        ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(m_seed)))
-//        ("server", "Remote connection, provide a string host:port for the client, and just the port for the server", value<std::string>())
-//        ("t, threads", "The number of threads to use for both the read and write operations", value<int>()->default_value(to_string(m_num_threads_read + m_num_threads_write)))
-//        ("v, verbose", "Print additional messages to the output")
-//        ("w, writers", "The number of client threads to use for the write operations", value<int>()->default_value(to_string(m_num_threads_write)))
-//    ;
-//    opts.a
-//
-//    try {
-//
-//        auto result = opts.parse(argc, argv);
-//
-//        if(result.count("help") > 0){
-//            cout << opts.help({"Generic"}) << endl;
-//            exit(0);
-//        }
-//
-//
-//        m_graph_path = result["graph"].as<string>();
-//        m_seed = result["seed"].as<uint64_t>();
-//        m_verbose = ( result.count("verbose") > 0 );
-//
-//        uint64_t max_weight = result["max_weight"].as<uint64_t>();
-//        if(max_weight <= 0){
-//            ERROR("Invalid value for the max weight, it must be an integer strictly positive, given: " << max_weight);
-//        }
-//        m_max_weight = max_weight;
-//
-//        // database path
-//        if( result["database"].count() > 0 ){
-//            m_database_path = result["database"].as<string>();
-//        }
-//
-//        // library to evaluate
-//        if( result["library"].count() == 0 ){
-//            ERROR("Missing mandatory argument --library. Which library do you want to evaluate??");
-//        } else {
-//            string library_name = result["library"].as<string>();
-//            transform(begin(library_name), end(library_name), begin(library_name), ::tolower); // make it lower case
-//            auto libs = library::implementations();
-//            auto library_found = find_if(begin(libs), end(libs), [&library_name](const auto& candidate){
-//                return library_name == candidate.m_name;
-//            });
-//            if(library_found == end(libs)){ ERROR("Library not recognised: `" << result["library"].as<string>() << "'"); }
-//            m_library_name = library_found->m_name;
-//            m_library_factory = library_found->m_factory;
-//        }
-//
-//        // number of threads
-//        if( result["threads"].count() > 0) {
-//           ASSERT( result["threads"].as<int>() >= 0 );
-//           m_num_threads_read = m_num_threads_write = result["threads"].as<int>();
-//        }
-//        if( result["readers"].count() > 0) {
-//            ASSERT( result["readers"].as<int>() >= 0 );
-//            m_num_threads_read = result["readers"].as<int>();
-//        }
-//        if( result["writers"].count() > 0 ){
-//            ASSERT( result["writers"].as<int>() >= 0 );
-//            m_num_threads_write = result["writers"].as<int>();
-//        }
-//
-//        // network connection
-//        if( result["server"].count() > 0 ){
-//            string param_server = result["server"].as<string>();
-//            auto pos_colon = param_server.find(':');
-//            string param_port = param_server;
-//
-//            if(pos_colon != string::npos){
-//                m_server_host = param_server.substr(0, pos_colon);
-//                param_port = param_server.substr(pos_colon +1);
-//            }
-//
-//            // parse the port number
-//            try {
-//                int port = stoi(param_port); // throws invalid_argument if the conversion cannot be performed
-//                if(port <= 0 || port >= (1>>16)){ throw invalid_argument("invalid port number"); }
-//                m_server_port = port;
-//            } catch (invalid_argument& e){
-//                ERROR("Invalid parameter --server: " << param_server << ". The port number cannot be recognised: `" << param_port << "'");
-//            }
-//        };
-//
-//    } catch ( argument_incorrect_type& e){
-//        ERROR(e.what());
-//    }
-//}
 

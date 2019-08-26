@@ -21,19 +21,27 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <utility>
+#include <vector>
 
 #include "common/error.hpp"
 
-class Configuration; // forward declaration
+class BaseConfiguration; // forward declaration
 class ClientConfiguration; // forward declaration
+class DriverConfiguration; // forward declaration
 class ServerConfiguration; // forward declaration
+class StandaloneConfiguration; // forward declaration
 namespace common { class Database; } // forward declaration
+namespace cxxopts { class Options; } // forward declaration
+namespace cxxopts { class ParseResult; } // forward declaration
 namespace library { class Interface; } // forward declaration
 
 // Singleton interface
-Configuration& configuration(); // retrieve the current singleton (client or server)
+BaseConfiguration& configuration(); // retrieve the current singleton (client, server or standalone)
 ClientConfiguration& cfgclient(); // retrieve the singleton for the client configuration
-ServerConfiguration& cfgserver(); // retrieve the signleton for the server configuration
+DriverConfiguration& cfgdriver(); // retrieve the singleton for the driver configuration
+ServerConfiguration& cfgserver(); // retrieve the singleton for the server configuration
+StandaloneConfiguration& cfgstandalone(); // retrieve the singleton for the standalone configuration
 void cfgfree(); // invoked at the end to release the configuration
 
 // Generic configuration error
@@ -50,10 +58,10 @@ enum ThreadsType { THREADS_READ, THREADS_WRITE, THREADS_TOTAL };
 /**
  * Base class for the configuration. The actual type can be either ClientConfiguration or ServerConfiguration.
  */
-class Configuration {
+class BaseConfiguration {
     // remove the copy ctors
-    Configuration(const Configuration& ) = delete;
-    Configuration& operator=(const Configuration& ) = delete;
+    BaseConfiguration(const BaseConfiguration& ) = delete;
+    BaseConfiguration& operator=(const BaseConfiguration& ) = delete;
 
     // properties
     common::Database* m_database { nullptr }; // handle to the database
@@ -71,12 +79,29 @@ protected:
     // Set the property seed
     void set_seed(uint64_t value){ m_seed = value; }
 
+    // Invoked by save_parameters(); get the list of parameters to store in the database
+    // Each subclass should override this method to add its own parameters and invoke the same method in the superclass.
+    using param_list_t = std::vector<std::pair<std::string,std::string>>;
+    virtual param_list_t list_parameters() const;
+
+    // Add the command line options associated to this class. One definition per subclass.
+    virtual void cla_add(cxxopts::Options& options);
+
+    // Parse the command line options associated to the base configuration. One definition per subclass.
+    virtual void cla_parse(cxxopts::Options& options, cxxopts::ParseResult& result);
+
+    // The name of the program to show the in the help screen
+    virtual std::string cla_name() const;
+
+    // Parse the arguments from the command line
+    void parse_command_line_args(int argc, char* argv[]);
+
 public:
     // Constructor
-    Configuration();
+    BaseConfiguration();
 
     // Destructor
-    virtual ~Configuration();
+    virtual ~BaseConfiguration();
 
     // Check whether the configuration/results need to be stored into a database
     bool has_database() const;
@@ -85,14 +110,15 @@ public:
     common::Database* db();
 
     // Save the configuration properties into the database
-    virtual void save_parameters(); // nop for this class, expected to be overriden by the subclasses
+    void save_parameters();
 
     // Random seed, used in various places in the experiments
     uint64_t seed() const { return m_seed; };
 
-    // Is this a client or the server?
+    // Is this a client, the server or standalone program?
     bool is_client() const;
     bool is_server() const;
+    bool is_standalone() const;
 
     // Get the max weight that can be assigned by the reader to
     double max_weight() const { return m_max_weight; }
@@ -108,7 +134,7 @@ public:
  * - At the end of the execution, release the singleton with ::cfgfree();
  * The class is not thread safe.
  */
-class ServerConfiguration : public Configuration {
+class ServerConfiguration : public BaseConfiguration {
 public:
     // remove the copy ctors
     ServerConfiguration(const ServerConfiguration& ) = delete;
@@ -125,8 +151,17 @@ protected:
     // Do not explicitly initialise the configuration, use the method ::initialise();
     ServerConfiguration();
 
-    // Parse the arguments from the command line
-    void parse_command_line_args(int argc, char* argv[]);
+    // Add the command line options associated to this class. One definition per subclass.
+    void cla_add(cxxopts::Options& options) override;
+
+    // Parse the command line options associated to the base configuration. One definition per subclass.
+    void cla_parse(cxxopts::Options& options, cxxopts::ParseResult& result) override;
+
+    // The name of the program to show the in the help screen
+    std::string cla_name() const override;
+
+    // The list of parameters to store into the database
+    param_list_t list_parameters() const override;
 
 public:
     // Initialise the server configuration
@@ -143,11 +178,70 @@ public:
     // Generate an instance of the graph library to evaluate
     std::unique_ptr<library::Interface> generate_graph_library();
 
-    // Save the configuration properties into the database
-    virtual void save_parameters() override;
-
     // Whether the graph is directed or undirected
     bool is_graph_directed() const { return m_graph_directed; }
+};
+
+/**
+ * Base class for both ClientConfiguration and StandaloneCnfiguration
+ */
+class DriverConfiguration : public BaseConfiguration {
+    // remove the copy ctors
+    DriverConfiguration(const DriverConfiguration& ) = delete;
+    DriverConfiguration& operator=(const DriverConfiguration& ) = delete;
+
+private:
+    double m_coeff_aging { 0.0 }; // coefficient for the additional updates to perform
+    double m_ef_vertices = 1; // expansion factor for the vertices in the graph
+    double m_ef_edges = 1;  // expansion factor for the edges in the graph
+    uint64_t m_num_repetitions { 5 }; // when applicable, how many times the same experiment should be repeated
+    int m_num_threads_read { 1 }; // number of threads to use for the read operations
+    int m_num_threads_write { 1 }; // number of threads to use for the write (insert/update/delete) operations
+    uint64_t m_timeout_seconds { 3600 }; // max time to complete an operation, in seconds (0 => indefinite)
+    std::string m_path_graph_to_load; // the file must be accessible to the server
+
+protected:
+    void set_coeff_aging(double value); // Set the coefficient for `aging', i.e. how many updates (insertions/deletions) to perform w.r.t. to the size of the loaded graph
+    void set_ef_vertices(double value);
+    void set_ef_edges(double value);
+    void set_num_repetitions(uint64_t value); // Set how many times to repeat the Graphalytics suite of algorithms
+    void set_num_thread_read(int value); // Set the number of threads to use in the read operations.
+    void set_num_thread_write(int value); // Set the number of threads to use in the write operations.
+    void set_timeout(uint64_t seconds); // Set the timeout property
+    void set_graph(const std::string& graph); // Set the graph to load and run the experiments
+
+    // Add the command line options associated to this class. One definition per subclass.
+    void cla_add(cxxopts::Options& options) override;
+
+    // Parse the command line options associated to the base configuration. One definition per subclass.
+    void cla_parse(cxxopts::Options& options, cxxopts::ParseResult& result) override;
+
+    // The list of parameters to store into the database
+    param_list_t list_parameters() const override;
+public:
+    // Constructor
+    DriverConfiguration() = default;
+
+    // Coefficient for the surplus of updates to perform (noise) w.r.t. the final graph  to load
+    double coefficient_aging() const{ return m_coeff_aging; }
+
+    // Number of repetitions of the same experiment (when applicable)
+    uint64_t num_repetitions() const { return m_num_repetitions; }
+
+    // Get the number of threads to use
+    int num_threads(ThreadsType type) const;
+
+    // The path for the graph to load
+    const std::string& get_path_graph() const { return m_path_graph_to_load; }
+
+    // The budget to complete a Graphalytics algorithm, in seconds (e.g. LCC should terminate by get_timeout_per_operation() seconds)
+    uint64_t get_timeout_per_operation() const { return m_timeout_seconds; }
+
+    // Get the expansion factor in the aging experiment for the edges in the graph
+    double get_ef_edges() const { return m_ef_edges; }
+
+    // Get the expansion factor in the aging experiment for the vertices in the graph
+    double get_ef_vertices() const { return m_ef_vertices; }
 };
 
 
@@ -158,23 +252,15 @@ public:
  * - At the end of the execution, release the singleton with ::cfgfree();
  * The class is not thread safe.
  */
-class ClientConfiguration : public Configuration {
+class ClientConfiguration : public DriverConfiguration {
     // remove the copy ctors
     ClientConfiguration(const ClientConfiguration& ) = delete;
     ClientConfiguration& operator=(const ClientConfiguration& ) = delete;
 
 private:
     uint64_t m_batch_size = 0; // if > 0, send the updates in batches
-    double m_coeff_aging { 0.0 }; // coefficient for the additional updates to perform
-    double m_ef_vertices = 1; // expansion factor for the vertices in the graph
-    double m_ef_edges = 1;  // expansion factor for the edges in the graph
     std::string m_experiment = "basic"; // the experiment to execute
     bool m_is_interactive { false }; // interactive while loop
-    uint64_t m_num_repetitions { 5 }; // when applicable, how many times the same experiment should be repeated
-    int m_num_threads_read { 1 }; // number of threads to use for the read operations
-    int m_num_threads_write { 1 }; // number of threads to use for the write (insert/update/delete) operations
-    uint64_t m_timeout_seconds { 3600 }; // max time to complete an operation, in seconds (0 => indefinite)
-    std::string m_path_graph_to_load; // the file must be accessible to the server
     std::string m_server_host = "localhost";
     uint32_t m_server_port = ServerConfiguration::DEFAULT_PORT;
     bool m_terminate_server_on_exit { false }; // whether to terminate the server after the experiments have been completed
@@ -183,8 +269,17 @@ protected:
     // Do not explicitly initialise the configuration, use the method ::initialise();
     ClientConfiguration();
 
-    // Parse the arguments from the command line
-    void parse_command_line_args(int argc, char* argv[]);
+    // Add the command line options associated to this class. One definition per subclass.
+    void cla_add(cxxopts::Options& options) override;
+
+    // Parse the command line options associated to the base configuration. One definition per subclass.
+    void cla_parse(cxxopts::Options& options, cxxopts::ParseResult& result) override;
+
+    // The name of the program to show the in the help screen
+    std::string cla_name() const override;
+
+    // The list of parameters to store into the database
+    param_list_t list_parameters() const override;
 
 public:
     // Initialise the server configuration
@@ -192,9 +287,6 @@ public:
 
     // Destructor
     ~ClientConfiguration();
-
-    // Save the configuration properties into the database
-    virtual void save_parameters() override;
 
     // Get the hostname address of the server
     const std::string& get_server_host() const { return m_server_host; }
@@ -208,33 +300,62 @@ public:
     // Interactive mode?
     bool is_interactive() const { return m_is_interactive; }
 
-    // Get the number of threads to use
-    int num_threads(ThreadsType type) const;
-
-    // Coefficient for the surplus of updates to perform (noise) w.r.t. the final graph  to load
-    double coefficient_aging() const{ return m_coeff_aging; }
-
-    // Number of repetitions of the same experiment (when applicable)
-    uint64_t num_repetitions() const { return m_num_repetitions; }
-
-    // The path for the graph to load
-    const std::string& get_path_graph() const { return m_path_graph_to_load; }
-
     // The experiment to execute
     const std::string& get_experiment_name() const { return m_experiment; }
 
+    // Ask whether to shut down the server once the experiment has been performed
     bool is_terminate_server_on_exit() const { return m_terminate_server_on_exit; }
-
-    uint64_t get_timeout_per_operation() const { return m_timeout_seconds; }
 
     // Shall we send the updates in batches of the given size?
     uint64_t get_batch_size() const { return m_batch_size; }
-
-    // Get the expansion factor in the aging experiment for the edges in the graph
-    double get_ef_edges() const { return m_ef_edges; }
-
-    // Get the expansion factor in the aging experiment for the vertices in the graph
-    double get_ef_vertices() const { return m_ef_vertices; }
 };
 
+
+/**
+ * The global configuration for the standalone program (gfe_standalone).
+ * - Initialise (only one time) the singleton instance through StandaloneConfiguration::initialise(int argc, char* argv[])
+ * - Access the singleton instance through the function ::cfgstandalone();
+ * - At the end of the execution, release the singleton with ::cfgfree();
+ * The class is not thread safe.
+ */
+class StandaloneConfiguration : public DriverConfiguration {
+    // remove the copy ctors
+    StandaloneConfiguration(const ServerConfiguration& ) = delete;
+    StandaloneConfiguration& operator=(const StandaloneConfiguration& ) = delete;
+
+    // properties
+    bool m_graph_directed = true; // whether the graph is undirected or directed
+    std::string m_library_name; // the library to test
+    std::unique_ptr<library::Interface> (*m_library_factory)(bool directed) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
+
+    // Do not explicitly initialise the configuration, use the method ::initialise();
+    StandaloneConfiguration();
+
+    // Add the command line options associated to this class. One definition per subclass.
+    void cla_add(cxxopts::Options& options) override;
+
+    // Parse the command line options associated to the base configuration. One definition per subclass.
+    void cla_parse(cxxopts::Options& options, cxxopts::ParseResult& result) override;
+
+    // The name of the program to show the in the help screen
+    std::string cla_name() const override;
+
+    // The list of parameters to store into the database
+    param_list_t list_parameters() const override;
+
+public:
+    // Initialise the standalone configuration
+    static void initialise(int argc, char* argv[]);
+
+    // Destructor
+    ~StandaloneConfiguration();
+
+    const std::string& get_library_name() const { return m_library_name; }
+
+    // Generate an instance of the graph library to evaluate
+    std::unique_ptr<library::Interface> generate_graph_library();
+
+    // Whether the graph is directed or undirected
+    bool is_graph_directed() const { return m_graph_directed; }
+};
 

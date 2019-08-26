@@ -1859,7 +1859,24 @@ Options::help_one_group(const std::string& g) const
     result += toLocalString(" " + g + " options:\n");
   }
 
-  for (const auto& o : group->second.options)
+  std::vector<HelpOptionDetails> options = group->second.options; // copy
+  std::sort(begin(options), end(options), [](HelpOptionDetails& o1, HelpOptionDetails& o2){ // sort
+      const std::string& o1_str = o1.s.empty() ? o1.l : o1.s;
+      const std::string& o2_str = o2.s.empty() ? o2.l : o2.s;
+
+      if(::tolower(o1_str[0]) == ::tolower(o2_str[0])){ // 'A' before of 'a'
+          return o1_str < o2_str;
+      } else { // 'a' before 'B'
+          // convert both strings in lower case
+          std::string o1_lstr = o1_str;
+          std::transform(begin(o1_lstr), end(o1_lstr), begin(o1_lstr), ::tolower);
+          std::string o2_lstr = o2_str;
+          std::transform(begin(o2_lstr), end(o2_lstr), begin(o2_lstr), ::tolower);
+          return o1_lstr < o2_lstr;
+      }
+  });
+
+  for (const auto& o : options)
   {
     if (o.is_container &&
         m_positional_set.find(o.l) != m_positional_set.end() &&
@@ -1879,7 +1896,7 @@ Options::help_one_group(const std::string& g) const
   auto allowed = size_t{76} - longest - OPTION_DESC_GAP;
 
   auto fiter = format.begin();
-  for (const auto& o : group->second.options)
+  for (const auto& o : options)
   {
     if (o.is_container &&
         m_positional_set.find(o.l) != m_positional_set.end() &&
