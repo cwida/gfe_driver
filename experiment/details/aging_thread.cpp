@@ -40,7 +40,7 @@ using namespace std;
  * Debug                                                                     *
  *                                                                           *
  *****************************************************************************/
-//#define DEBUG
+#define DEBUG
 #define COUT_DEBUG_FORCE(msg) { LOG("[AgingThread::" << __FUNCTION__ << "] [" << concurrency::get_thread_id() << "] " << msg); }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
@@ -172,106 +172,108 @@ void AgingThread::main_experiment(){
 
     int64_t num_ops_done = 0;
     int lastset_coeff = 0;
-    while( (num_ops_done = m_instance->m_num_operations_performed.fetch_add(m_instance->m_granularity) ) < num_total_ops ){
 
-        // shall we perform a burst of insertions or deletions ?
-        if(m_edges2remove.empty() /* There are no edges to remove */ ||
-                m_interface->num_edges() < max_number_edges /* the size of the current graph is no more than (exp_factor)x of the final graph */){
+    if((is_undirected() && max_num_edges > 0) || (!is_undirected() && m_num_src_vertices_in_partitions > 0)){ // edge case
+        while( (num_ops_done = m_instance->m_num_operations_performed.fetch_add(m_instance->m_granularity) ) < num_total_ops ){
 
-            if(report_progress && static_cast<int>(100.0 * num_ops_done/num_total_ops) > m_instance->m_last_progress_reported){
-                m_instance->m_last_progress_reported = 100.0 * num_ops_done/num_total_ops;
+            // shall we perform a burst of insertions or deletions ?
+            if(m_edges2remove.empty() /* There are no edges to remove */ ||
+                    m_interface->num_edges() < max_number_edges /* the size of the current graph is no more than (exp_factor)x of the final graph */){
+
+                if(report_progress && static_cast<int>(100.0 * num_ops_done/num_total_ops) > m_instance->m_last_progress_reported){
+                    m_instance->m_last_progress_reported = 100.0 * num_ops_done/num_total_ops;
 #if defined(DEBUG)
-                LOG("[thread: " << common::concurrency::get_thread_id() << "] "
-                       "Progress: " << num_ops_done << "/" << num_total_ops << " (" << 100.0 * num_ops_done/num_total_ops << "%), "
-                       "edges final graph: " <<  m_final_edges_current_position << "/" << m_edges.size() << " (" << (100.0 * m_final_edges_current_position/m_edges.size()) << " %)"
-                );
+                    LOG("[thread: " << common::concurrency::get_thread_id() << "] "
+                            "Progress: " << num_ops_done << "/" << num_total_ops << " (" << 100.0 * num_ops_done/num_total_ops << "%), "
+                            "edges final graph: " <<  m_final_edges_current_position << "/" << m_edges.size() << " (" << (100.0 * m_final_edges_current_position/m_edges.size()) << " %)"
+                    );
 #else // just report the percentages
-                LOG("[thread: " << common::concurrency::get_thread_id() << "] "
-                       "Progress: " << 100.0 * num_ops_done/num_total_ops << "%, "
-                       "edges final graph: " <<  (100.0 * m_final_edges_current_position/m_edges.size()) << " %"
-                );
+                    LOG("[thread: " << common::concurrency::get_thread_id() << "] "
+                            "Progress: " << 100.0 * num_ops_done/num_total_ops << "%, "
+                            "edges final graph: " <<  (100.0 * m_final_edges_current_position/m_edges.size()) << " %"
+                    );
 #endif
-            }
+                }
 
-            // insert `m_granularity' edges then
-            for(int64_t i = 0, end = m_instance->m_granularity; i < end; i++){
-                double prob_insert_final = prob_bump * static_cast<double>(missing_edges_final()) / (num_total_ops - num_ops_done);
-                if ( m_uniform(m_random) < prob_insert_final){ // insert from the final graph
-                    assert(m_final_edges_current_position < m_edges.size());
+                // insert `m_granularity' edges then
+                for(int64_t i = 0, end = m_instance->m_granularity; i < end; i++){
+                    double prob_insert_final = prob_bump * static_cast<double>(missing_edges_final()) / (num_total_ops - num_ops_done);
+                    if ( m_uniform(m_random) < prob_insert_final){ // insert from the final graph
+                        assert(m_final_edges_current_position < m_edges.size());
 
-                    auto edge = m_edges[m_final_edges_current_position];
-                    m_final_edges_current_position++;
-                    assert((!is_undirected() || edge.source() < edge.destination()) && "Edges in undirected graphs should always be retrieved with the src < dst");
+                        auto edge = m_edges[m_final_edges_current_position];
+                        m_final_edges_current_position++;
+                        assert((!is_undirected() || edge.source() < edge.destination()) && "Edges in undirected graphs should always be retrieved with the src < dst");
 
-                    // if this edge has been previously inserted remove it
-                    auto raw_edge = edge.edge();
-//                    COUT_DEBUG("[Prob: " << prob_insert_final << "] ADD_EDGE FINAL: " << edge);
-                    auto res = m_edges_already_inserted.insert_or_assign(raw_edge, /* final */ true);
-                    if(! res.second ){ /* the edge was already present */
-                        remove_edge(raw_edge);
-                    }
+                        // if this edge has been previously inserted remove it
+                        auto raw_edge = edge.edge();
+                        auto res = m_edges_already_inserted.insert_or_assign(raw_edge, /* final */ true);
+                        if(! res.second ){ /* the edge was already present */
+                            remove_edge(raw_edge);
+                        }
 
-                    insert_edge(edge);
+                        insert_edge(edge);
 
-                } else {
-                    // insert a random edge (noise)
-                    uint64_t src_id {0}, dst_id {0};
-                    double weight = genrndweight(m_random);
-
-                    if(is_undirected()) {
-                        mpz_class edge_id = genrndarc.get_z_range(max_num_edges); // generate a random value in [0, max_num_edges)
-                        edge_id_2_vertices_id(edge_id, &src_id, &dst_id);
-                        assert(src_id < dst_id && "for undirected graphs, any edge should be generated with src < dst");
                     } else {
-                        src_id = src_rel2abs(genrndsrc(m_random));
-                        dst_id = genrnddst(m_random);
-                        if(dst_id == src_id){ // avoid having the same src & dst for an edge
-                            dst_id = (dst_id != m_instance->m_max_vertex_id_artificial) ? dst_id +1 : 0;
+                        // insert a random edge (noise)
+                        uint64_t src_id {0}, dst_id {0};
+                        double weight = genrndweight(m_random);
+
+                        if(is_undirected()) {
+                            mpz_class edge_id = genrndarc.get_z_range(max_num_edges); // generate a random value in [0, max_num_edges)
+                            edge_id_2_vertices_id(edge_id, &src_id, &dst_id);
+                            assert(src_id < dst_id && "for undirected graphs, any edge should be generated with src < dst");
+                        } else {
+                            src_id = src_rel2abs(genrndsrc(m_random));
+                            dst_id = genrnddst(m_random);
+                            if(dst_id == src_id){ // avoid having the same src & dst for an edge
+                                dst_id = (dst_id != m_instance->m_max_vertex_id_artificial) ? dst_id +1 : 0;
+                            }
+                        }
+                        assert(src_id <= m_instance->m_max_vertex_id_artificial);
+                        assert(dst_id <= m_instance->m_max_vertex_id_artificial);
+
+                        graph::WeightedEdge edge { src_id, dst_id, weight };
+
+                        auto raw_edge = edge.edge();
+                        auto res = m_edges_already_inserted.find(raw_edge);
+                        bool do_insert = true;
+                        bool is_already_registered = false;
+                        if(res == m_edges_already_inserted.end()){ // this edge is not already present
+                            m_edges_already_inserted[raw_edge] = false;
+                        } else if (!res->second){
+                            // already present, but it's not final, overwrite its value
+                            is_already_registered = true;
+                            remove_edge(raw_edge);
+                        } else {
+                            // already present and final, that is it belongs to the final graph
+                            do_insert = false;
+                        }
+
+                        if(do_insert){
+                            insert_edge(edge);
+                            if(!is_already_registered) m_edges2remove.append(raw_edge); /* otherwise already present in the list of edges to remove */
                         }
                     }
-                    assert(src_id <= m_instance->m_max_vertex_id_artificial);
-                    assert(dst_id <= m_instance->m_max_vertex_id_artificial);
+                }
+            } else {
+                // perform a burst of deletions
+                for(uint64_t i = 0, end = std::min<uint64_t>(m_instance->m_granularity, m_edges2remove.size()); i < end && !m_edges2remove.empty(); i++){
+                    remove_temporary_edge();
+                }
+            } // end if (burst of insertions or deletions)
 
-                    graph::WeightedEdge edge { src_id, dst_id, weight };
-
-                    auto raw_edge = edge.edge();
-                    auto res = m_edges_already_inserted.find(raw_edge);
-                    bool do_insert = true;
-                    bool is_already_registered = false;
-                    if(res == m_edges_already_inserted.end()){ // this edge is not already present
-                        m_edges_already_inserted[raw_edge] = false;
-                    } else if (!res->second){
-                        // already present, but it's not final, overwrite its value
-                        is_already_registered = true;
-                        remove_edge(raw_edge);
-                    } else {
-                        // already present and final, that is it belongs to the final graph
-                        do_insert = false;
-                    }
-
-                    if(do_insert){
-//                        COUT_DEBUG("[Prob: " << prob_insert_final << "] ADD_EDGE TEMP: " << edge);
-                        insert_edge(edge);
-                        if(!is_already_registered) m_edges2remove.append(raw_edge); /* otherwise already present in the list of edges to remove */
-                    }
+            // report how long it took to perform 1x, 2x, ... updates w.r.t. to the size of the final graph
+            int aging_coeff = (num_ops_done + m_instance->m_granularity) / m_instance->m_num_edges;
+            if(aging_coeff > lastset_coeff){
+                if( m_instance->m_last_time_reported.compare_exchange_strong(/* updates lastset_coeff */ lastset_coeff, aging_coeff) ){
+                    uint64_t duration = chrono::duration_cast<chrono::microseconds>(chrono::steady_clock::now() - m_instance->m_time_start ).count();
+                    m_instance->m_reported_times[aging_coeff -1] = duration;
                 }
             }
-        } else {
-            // perform a burst of deletions
-            for(uint64_t i = 0, end = std::min<uint64_t>(m_instance->m_granularity, m_edges2remove.size()); i < end && !m_edges2remove.empty(); i++){
-                remove_temporary_edge();
-            }
-        } // end if (burst of insertions or deletions)
+        } // end while (operation count)
 
-        // report how long it took to perform 1x, 2x, ... updates w.r.t. to the size of the final graph
-        int aging_coeff = (num_ops_done + m_instance->m_granularity) / m_instance->m_num_edges;
-        if(aging_coeff > lastset_coeff){
-            if( m_instance->m_last_time_reported.compare_exchange_strong(/* updates lastset_coeff */ lastset_coeff, aging_coeff) ){
-                uint64_t duration = chrono::duration_cast<chrono::microseconds>(chrono::steady_clock::now() - m_instance->m_time_start ).count();
-                m_instance->m_reported_times[aging_coeff -1] = duration;
-            }
-        }
-    } // end while (operation count)
+    } // end if (empty list of vertices to cover)
 
     // insert the missing edges from the final graph
     COUT_DEBUG("Processed edges: " << m_final_edges_current_position << " / " << m_edges.size() << " (" << (100.0 * m_final_edges_current_position/m_edges.size()) << " %)");

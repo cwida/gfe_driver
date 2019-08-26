@@ -52,7 +52,7 @@ using namespace std;
  *                                                                           *
  *****************************************************************************/
 extern mutex _log_mutex [[maybe_unused]];
-//#define DEBUG
+#define DEBUG
 #define COUT_DEBUG_FORCE(msg) { scoped_lock<mutex> lock(_log_mutex); cout << "[Aging::" << __FUNCTION__ << "] [" << concurrency::get_thread_id() << "] " << msg << endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
@@ -82,7 +82,8 @@ Aging::Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_pt
     set_report_progress(true);
 #endif
 
-    m_reported_times = new uint64_t[ ::ceil (static_cast<double>(num_operations) / m_num_edges ) + 1]();
+    // 1024 is a hack to avoid issues with small graphs
+    m_reported_times = new uint64_t[ std::max<uint64_t>( ::ceil (static_cast<double>(num_operations) / m_num_edges ) + 1, 1024 ) ]();
 }
 
 Aging::~Aging(){
