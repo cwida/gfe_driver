@@ -28,7 +28,12 @@
 #include "experiment/aging.hpp"
 #include "graph/edge_stream.hpp"
 #include "library/baseline/adjacency_list.hpp"
+#if defined(HAVE_LLAMA)
+#include "library/llama/llama_class.hpp"
+#endif
+#if defined(HAVE_STINGER)
 #include "library/stinger/stinger.hpp"
+#endif
 #include "library/interface.hpp"
 #include "reader/graphalytics_reader.hpp"
 #include "utility/graphalytics_validate.hpp"
@@ -63,6 +68,7 @@ static void load_graph(library::UpdateInterface* interface, const std::string& p
     graph::WeightedEdge edge;
     while(reader.read_edge(edge)){ interface->add_edge(edge); }
 
+    interface->build();
     interface->on_thread_destroy(0);
     interface->on_main_destroy();
 }
@@ -173,6 +179,20 @@ TEST(AdjacencyList, Aging){
     aging.execute();
     validate(adjlist.get(), path_example_undirected);
 }
+
+#if defined(HAVE_LLAMA)
+TEST(LLAMA, GraphalyticsDirected){
+    auto graph = make_unique<LLAMAClass>(/* directed */ true);
+    load_graph(graph.get(), path_example_directed);
+    validate(graph.get(), path_example_directed);
+}
+
+TEST(LLAMA, GraphalyticsUndirected){
+    auto graph = make_unique<LLAMAClass>(/* directed */ false);
+    load_graph(graph.get(), path_example_undirected);
+    validate(graph.get(), path_example_undirected);
+}
+#endif
 
 #if defined(HAVE_STINGER)
 TEST(Stinger, GraphalyticsDirected){

@@ -90,34 +90,6 @@ AS_IF([test x"${gmp_system_avail}" == x"no"], [
 [ LIBS="-lgmpxx -lgmp ${LIBS}" ]
 ) dnl end if
 
-
-#AC_ARG_WITH([gmp], AS_HELP_STRING([--with-gmp], [Link with]))
-#AS_IF(
-#    [test "x${with_tcmalloc}" = "xyes"], [tcmalloc_system=yes; tcmalloc_bundle=yes;],
-#    [test "x${with_tcmalloc}" = "xsystem"], [tcmalloc_system=yes;],
-#    [test "x${with_tcmalloc}" = "xbundled" -o "x${with_tcmalloc}" = "xbundle"], [tcmalloc_bundle=yes;],
-#    [test "x${with_tcmalloc}" = "x"], [], dnl nop
-#    [AC_MSG_FAILURE([Invalid argument for the argument --with-tcmalloc="${with_tcmalloc}". Recognised arguments are: yes, system, bundled.])]
-#)
-
-# Check whether tcmalloc is already available in the system
-#if( test "x${tcmalloc_system}" = "xyes" ); then
-#    AC_SEARCH_LIBS([tc_malloc], [tcmalloc_minimal tcmalloc], [tcmalloc_avail=yes])
-#fi
-#if( test "x${tcmalloc_bundle}" = "xyes" -a "x${tcmalloc_built}" != "xyes" ); then
-#    abs_top_builddir=$(realpath .)
-#    AX_SUBDIRS_CONFIGURE([third-party/gperftools-2.7], [[--enable-minimal], [--prefix=${abs_top_builddir}/third-party/gperftools-2.7]], [], [], [])
-#    EXTRA_LDFLAGS="${EXTRA_LDFLAGS} -L${abs_top_builddir}/third-party/gperftools-2.7/lib -Wl,-rpath=${abs_top_builddir}/third-party/gperftools-2.7/lib  -ltcmalloc_minimal"
-#    tcmalloc_avail=yes;
-#fi
-#
-#if( test "x${tcmalloc_avail}" != "xyes" ); then
-#    if( test "x${tcmalloc_system}" = "xyes" -o "x${tcmalloc_bundle}" = "xyes" ); then
-#        AC_MSG_FAILURE([Unable to link the library tcmalloc])
-#    fi
-#fi
-
-
 #############################################################################
 # sqlite3, run-time support for libcommon. If not present, libcommon uses its own version bundled.
 AX_LIB_SQLITE3()
@@ -306,6 +278,96 @@ if( test x"${with_stinger}" != x"no" ); then
 fi
 
 #############################################################################
+# Support for the LLAMA framework
+# Usage:
+# default (auto) => it attempts to support llama, but it does not abort in case it cannot 
+# --without-llama => disable support for llama
+# --with-llama => attempt to support llama and aborts in case of error
+# --with-llama=/path/to/llama_repo => add the given path into the list of include paths for the $CC, it fails in case it cannot enable llama 
+#
+AC_ARG_WITH([llama], [AS_HELP_STRING([--with-llama@<:@=ARG@:>@], [
+    Add support for the LLAMA library. The argument needs to be the path where the llama library is located. @<:@Default: auto@:>@
+    ])], [])    
+m4_divert_push([DEFAULTS])
+    AS_VAR_SET([with_llama], ["auto"])
+m4_divert_pop([DEFAULTS])
+
+
+if ( test -z "${with_llama}" ); then with_llama="no"; dnl transform the empty string '' into 'no'
+elif ( test x"${with_llama}" != x"yes" && test x"${with_llama}" != x"auto" ); then dnl --with-llama=/path/to/llama_repo/llama/include
+    with_llama=${with_llama%/} # remove the trailing slash if present
+    llama_includedir="";
+
+    AC_CHECK_FILE([${with_llama}/llama.h], [llama_includedir="${with_llama}"])
+    
+    if( test x"${llama_includedir}" == x"" ); then
+        AC_CHECK_FILE([${with_llama}/include/llama.h], [llama_includedir="${with_llama}/include"])
+    fi
+    if( test x"${llama_includedir}" == x"" ); then
+        AC_CHECK_FILE([${with_llama}/llama/include/llama.h], [llama_includedir="${with_llama}/llama/include"])
+    fi
+
+    if( test x"${llama_includedir}" == x"" ); then
+        AC_MSG_FAILURE([Cannot find the header llama.h inside ${with_llama}])
+    fi
+    
+    AS_VAR_APPEND([CPPFLAGS], [" -I${llama_includedir}"])
+fi
+    
+dnl check whether we can compile & link a program that makes usage of omp.h
+if ( test x"${with_llama}" != x"no" ); then
+    AC_MSG_CHECKING([whether the llama library can include <omp.h>, the OpenMP runtime library])
+    AC_LINK_IFELSE([
+        AC_LANG_PROGRAM([[
+            @%:@include <omp.h>
+        ]], [[
+            /* nop */
+        ]])
+    ], [
+        AC_MSG_RESULT([yes])
+    ], [
+        AC_MSG_RESULT([no])
+        if ( test x"${with_llama}" = x"auto" ); then
+            AC_MSG_NOTICE([llama support disabled: the OpenMP header omp.h is missing.])
+            with_llama="no";
+        else
+            AC_MSG_FAILURE([llama: missing prerequisite header omp.h (OpenMP runtime library)])
+        fi
+    ])
+fi
+    
+dnl check whether we can compile & link a simple program invoking functions from the llama library
+if ( test x"${with_llama}" != x"no" ); then
+    AC_MSG_CHECKING([whether we can compile and link against the llama library])
+    AC_LINK_IFELSE([
+        AC_LANG_PROGRAM([[
+            #define LL_MEMORY_ONLY 
+            #define LL_DELETIONS
+            #define register /* disable the usage of register */
+            @%:@include "llama.h"
+        ]], [[
+            ll_database llama{"/tmp/llama"};
+        ]])
+    ], [
+        AC_MSG_RESULT([yes])
+    ], [
+        AC_MSG_RESULT([no])
+        if ( test x"${with_llama}" = x"auto" ); then
+            AC_MSG_NOTICE([llama support disabled])
+            with_llama="no";
+        else
+            AC_MSG_FAILURE([unable to compile and link an executable with llama])
+        fi
+    ])
+fi
+
+dnl add the definition HAVE_STINGER into the list of preprocessor variables $CPPFLAGS
+if( test x"${with_llama}" != x"no" ); then
+    AC_MSG_NOTICE([llama support enabled])
+    AS_VAR_APPEND([CPPFLAGS], [" -DHAVE_LLAMA"])
+fi
+
+#############################################################################
 # Remove extra blanks from our variables
 EXTRA_CPPFLAGS=$(echo ${EXTRA_CPPFLAGS} | xargs)
 CPPFLAGS=$(echo ${CPPFLAGS} | xargs);
@@ -317,8 +379,7 @@ EXTRA_LDFLAGS=$(echo ${EXTRA_LDFLAGS} | xargs);
 # these two variables are only for presentation, overriding won't achieve much
 ALL_CFLAGS=$(echo ${EXTRA_CPPFLAGS} ${CPPFLAGS} ${EXTRA_CFLAGS} ${CFLAGS} | xargs)
 ALL_CXXFLAGS=$(echo ${EXTRA_CPPFLAGS} ${CPPFLAGS} ${EXTRA_CXXFLAGS} ${CXXFLAGS} | xargs)
-
-LIBS="${LIBS} ${EXTRA_LDFLAGS}"
+LDFLAGS="${LDFLAGS} ${EXTRA_LDFLAGS} ${LIBS}"
 
 #############################################################################
 # CC, CXX and linker additional output variables
@@ -337,7 +398,7 @@ echo \
 ${PACKAGE_NAME} version ${PACKAGE_VERSION}
 Compiler C..........: ${CC} ${ALL_CFLAGS}
 Compiler C++........: ${CXX} ${ALL_CXXFLAGS}
-Linker..............: ${LIBS}
+Linker..............: ${LDFLAGS}
 Enable assertions...: ${enable_assert}
 Enable debug........: ${enable_debug}
 Enable optimize.....: ${enable_optimize}

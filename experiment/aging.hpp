@@ -54,8 +54,8 @@ class Aging {
     std::atomic<int64_t> m_num_operations_performed = 0; // current number of operations performed
     const uint64_t m_num_operations_total; // total number of operations to perform
     const int64_t m_num_threads; // the total number of concurrent threads to use
-    const int64_t m_num_edges; // the total number of edges in the final graph
-    const int64_t m_num_vertices; // the total number of vertices in the final graph (a bit expensive to compute, but ok, c'est la vie)
+    const uint64_t m_num_edges; // the total number of edges in the final graph
+    const uint64_t m_num_vertices; // the total number of vertices in the final graph (a bit expensive to compute, but ok, c'est la vie)
     uint64_t m_max_vertex_id_artificial; // the maximum vertex id that can be generated
     const uint64_t m_max_vertex_id_final; // the maximum vertex id in the final graph
     const bool m_is_directed; // whether the graph is directed
@@ -66,12 +66,14 @@ class Aging {
     double m_ef_vertices = 1; // multiplying constant on the max number of vertices that can be generated (const = 1, "almost" no new vertices)
     int64_t m_granularity = 1024; // the granularity of each burst of insertions/deletions, as executed by a worker thread
     uint64_t m_batch_size = 0; // send the updates in batches
+    std::chrono::milliseconds m_build_frequency {0}; // the frequency to create a new delta/snapshot, that is invoking the method #build()
 
     // final data
     uint64_t m_num_artificial_vertices = 0; // the total number of artificial vertices (not present in the loaded graph)  inserted in the updates
     uint64_t m_completion_time = 0; // the amount of time to complete all updates, in microsecs
     uint64_t m_num_vertices_final_graph = 0; // the number of vertices in the final graph, after all updates have been performed
     uint64_t m_num_edges_final_graph = 0; // the number of edges in the final graph, after all updates have been performed
+    uint64_t m_num_build_invocations = 0; // total number of invocations to the method #build
 
     // whether to report the current progress
     bool m_report_progress = false;
@@ -134,6 +136,9 @@ public:
 
     // Whether to print to stdout the current progress
     void set_report_progress(bool value);
+
+    // Set how frequently create a new snapshot/delta in the library (0 = do not create new snapshots)
+    void set_build_frequency(std::chrono::milliseconds millisecs);
 
     // Store the results into the database
     void save();

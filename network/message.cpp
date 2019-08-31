@@ -43,6 +43,7 @@ std::ostream& operator<<(std::ostream& out, RequestType type){
     case RequestType::REMOVE_EDGE: out << "REMOVE_EDGE"; break;
     case RequestType::BATCH_PLAIN_FORCE_NO: out << "BATCH_PLAIN (force = false)"; break;
     case RequestType::BATCH_PLAIN_FORCE_YES: out << "BATCH_PLAIN (force = true)"; break;
+    case RequestType::BUILD: out << "BUILD"; break;
     case RequestType::DUMP_CLIENT: out << "DUMP_CLIENT"; break;
     case RequestType::DUMP_STDOUT: out << "DUMP_STDOUT"; break;
     case RequestType::DUMP_FILE: out << "DUMP_FILE"; break;

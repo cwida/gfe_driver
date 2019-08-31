@@ -51,7 +51,10 @@ class TimeoutService {
     void stop();
 public:
     /**
-     * Creates the service
+     * Creates the service.
+     * Note: giving the value timeout = 0 has the special behaviour that the service will never start,
+     * and the method #is_timeout() will always return false. It's like an indefinite time budget.
+     *
      * @param timeout the amount of time that must pass before the method is_timeout() can return true;
      */
     TimeoutService(std::chrono::seconds timeout) : m_start(clock_t::now()), m_budget(timeout){

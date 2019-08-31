@@ -170,6 +170,4 @@ int64_t Stinger::cdlp_propagate(int64_t vertex_id, int64_t* __restrict labels){
     return label_max;
 }
 
-
-
 } // namespace

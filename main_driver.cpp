@@ -78,6 +78,7 @@ static void run_standalone(int argc, char* argv[]){
         experiment.set_expansion_factor_vertices(cfgdriver().get_ef_vertices());
         experiment.set_expansion_factor_edges(cfgdriver().get_ef_edges());
         experiment.set_report_progress(true);
+        experiment.set_build_frequency(chrono::milliseconds{ cfgdriver().get_build_frequency() });
         experiment.execute();
         if(configuration().has_database()) experiment.save();
     }
@@ -110,6 +111,9 @@ int main(int argc, char* argv[]){
         rc = 1;
     } catch(cxxopts::option_not_exists_exception& e){
         cerr << "ERROR: " << e.what() << "\n";
+        rc = 1;
+    } catch(cxxopts::option_requires_argument_exception& e){
+        cerr << "ERROR: Invalid command line option, " << e.what() << "\n";
         rc = 1;
     }
 

@@ -293,6 +293,14 @@ bool Client::remove_edge(graph::Edge e){
     return response()->get<bool>(0);
 }
 
+void Client::build() {
+    request(RequestType::BUILD);
+    if(response()->type() == ResponseType::NOT_SUPPORTED){
+        ERROR("build: operation not supported by the remote interface");
+    }
+    assert(response()->type() == ResponseType::OK);
+}
+
 bool Client::batch(const library::UpdateInterface::SingleUpdate* batch, uint64_t batch_sz, bool force){
     if(batch_sz == 0) return true;
     assert(m_worker_id >= 0 && m_worker_id < max_num_connections && "Invalid worker id");

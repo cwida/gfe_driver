@@ -195,6 +195,7 @@ void DriverConfiguration::cla_add(cxxopts::Options& options){
 
     options.add_options("Generic")
         ("a, aging", "The number of additional updates for the aging experiment to perform", value<double>()->default_value("0"))
+        ("build_frequency", "The frequency to build a new snapshot in the aging experiment (default: 5 minutes)", value<DurationQuantity>())
         ("efe", "Expansion factor for the edges in the graph", value<double>()->default_value(to_string(get_ef_edges())))
         ("efv", "Expansion factor for the vertices in the graph", value<double>()->default_value(to_string(get_ef_vertices())))
         ("G, graph", "The path to the graph to load", value<string>())
@@ -232,6 +233,10 @@ void DriverConfiguration::cla_parse(cxxopts::Options& options, cxxopts::ParseRes
     set_timeout( result["timeout"].as<uint64_t>() );
     set_ef_vertices( result["efe"].as<double>() );
     set_ef_vertices( result["efv"].as<double>() );
+
+    if( result["build_frequency"].count() > 0 ){
+        set_build_frequency( result["build_frequency"].as<DurationQuantity>().as<chrono::milliseconds>().count() );
+    }
 }
 
 auto DriverConfiguration::list_parameters() const -> param_list_t {
@@ -239,6 +244,7 @@ auto DriverConfiguration::list_parameters() const -> param_list_t {
 
     param_list_t params = BaseConfiguration::list_parameters();
     params.push_back(P{"aging", to_string(coefficient_aging())});
+    params.push_back(P{"build_frequency", to_string(get_build_frequency())}); // milliseconds
     params.push_back(P{"ef_edges", to_string(get_ef_edges())});
     params.push_back(P{"ef_vertices", to_string(get_ef_vertices())});
     if(!get_path_graph().empty()){ params.push_back(P{"graph", get_path_graph()}); }
@@ -286,6 +292,10 @@ void DriverConfiguration::set_graph(const std::string& graph){
     m_path_graph_to_load = graph;
 }
 
+void DriverConfiguration::set_build_frequency( uint64_t millisecs ){
+    m_build_frequency = millisecs;
+}
+
 int DriverConfiguration::num_threads(ThreadsType type) const {
     switch(type){
     case THREADS_READ:
@@ -325,7 +335,7 @@ void ClientConfiguration::cla_add(cxxopts::Options& opts){
     DriverConfiguration::cla_add(opts);
 
     opts.add_options("Generic")
-        ("b, batch", "Send the updates in batches of the given size", value<Quantity>())
+        ("b, batch", "Send the updates in batches of the given size", value<ComputerQuantity>())
         ("c, connect", "The server address, in the form hostname:port. The default is " + get_server_string(), value<string>())
         ("e, experiment", "The experiment to execute", value<string>()->default_value(m_experiment))
         ("i, interactive", "Show the command loop to interact with the server")
@@ -383,7 +393,7 @@ void ClientConfiguration::cla_parse(cxxopts::Options& options, cxxopts::ParseRes
     m_terminate_server_on_exit = result["terminate_server_on_exit"].count() > 0;
 
     if(result["batch"].count() > 0){
-        m_batch_size = result["batch"].as<Quantity>();
+        m_batch_size = result["batch"].as<ComputerQuantity>();
     }
 }
 

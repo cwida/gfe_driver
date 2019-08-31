@@ -187,7 +187,7 @@ bool MetisReader::read(graph::WeightedEdge& e) {
         auto info_weight = read_value();
         if(!info_weight.first) {
             ERROR("line no: " << m_lineno << ", missing weight for the edge " << m_edge_vertex1 << " -> " << m_edge_vertex2 << ", line: " << m_current_line);
-        } else if(info_weight.second > std::numeric_limits<int32_t>::max()) {
+        } else if(info_weight.second > (uint64_t) std::numeric_limits<int32_t>::max()) {
             ERROR("line no: " << m_lineno << ", the weight for the edge " << m_edge_vertex1 << " -> " << m_edge_vertex2 << " "
                     "is too big: " << info_weight.second << ", line: " << m_current_line);
         }

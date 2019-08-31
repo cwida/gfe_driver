@@ -15,6 +15,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * Test the interface for the updates on directed graphs
+ */
+
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -28,6 +32,10 @@
 #include "graph/edge_stream.hpp"
 #include "library/interface.hpp"
 #include "library/baseline/adjacency_list.hpp"
+
+#if defined(HAVE_LLAMA)
+#include "library/llama/llama_class.hpp"
+#endif
 
 #if defined(HAVE_STINGER)
 #include "library/stinger/stinger.hpp"
@@ -64,7 +72,7 @@ static void sequential(shared_ptr<UpdateInterface> interface, bool deletions = t
         interface->add_edge(edge);
     }
 
-//    interface->dump();
+    interface->build();
 
     // check all edges have been inserted
     ASSERT_EQ(interface->num_edges(), edge_list->num_edges());
@@ -88,8 +96,11 @@ static void sequential(shared_ptr<UpdateInterface> interface, bool deletions = t
 
             interface->remove_edge(w_edge.edge());
             num_edges--;
+
+            interface->build(); // make a new delta in llama, otherwise the next ASSERT is going to fail
             ASSERT_EQ(num_edges, interface->num_edges());
         }
+        interface->build();
         ASSERT_EQ(interface->num_edges(), 0);
 
         for(uint64_t i = 1; i < edge_list->max_vertex_id(); i++){
@@ -145,6 +156,7 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
     for(auto& t : threads) t.join();
 
     interface->on_thread_init(0);
+    interface->build();
 //    interface->dump();
 
     // check all edges have been inserted
@@ -187,6 +199,7 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
 
         // check all edges have been removed
         interface->on_thread_init(0);
+        interface->build();
         ASSERT_EQ(interface->num_edges(), 0);
         for(uint64_t i = 1; i < edge_list->max_vertex_id(); i++){
             for(uint64_t j = i +1; j < edge_list->max_vertex_id(); j++){
@@ -210,11 +223,13 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
         start = 0;
         for(int thread_id = 0; thread_id < num_threads; thread_id ++){
             uint64_t length = vertices_per_thread + (thread_id < odd_threads);
-            threads.emplace_back(routine_remove_edges, thread_id, start, length);
+            threads.emplace_back(routine_remove_vertices, thread_id, start, length);
             start += length;
         }
         for(auto& t : threads) t.join();
 
+        interface->build();
+        ASSERT_EQ(interface->num_vertices(), 0);
         interface->on_thread_destroy(0);
     }
 
@@ -222,21 +237,28 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
     interface->on_main_destroy();
 }
 
-TEST(AdjacencyList, Updates){
+TEST(AdjacencyList, UpdatesDirected){
     auto adjlist = make_shared<AdjacencyList>(/* directed */ true);
     sequential(adjlist);
     parallel(adjlist, 128);
     parallel(adjlist, 1024);
 }
 
+#if defined(HAVE_LLAMA)
+TEST(LLAMA, UpdatesDirected){
+    auto llama = make_shared<LLAMAClass>(/* directed */ true);
+    sequential(llama, /* perform deletions ? */ false);
+    llama = make_shared<LLAMAClass>(/* directed */ true); // reinit as we didn't perform the deletions in `sequential'
+    parallel(llama, 128);
+    parallel(llama, 1024);
+}
+#endif
+
 #if defined(HAVE_STINGER)
-TEST(Stinger, Updates) {
+TEST(Stinger, UpdatesDirected) {
     auto stinger = make_shared<Stinger>(/* directed */ true);
     sequential(stinger);
     parallel(stinger, 128);
     parallel(stinger, 1024);
 }
 #endif
-
-
-

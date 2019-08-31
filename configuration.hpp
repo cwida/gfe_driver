@@ -191,6 +191,7 @@ class DriverConfiguration : public BaseConfiguration {
     DriverConfiguration& operator=(const DriverConfiguration& ) = delete;
 
 private:
+    uint64_t m_build_frequency { 5 * 60 * 1000 }; // in the aging experiment, the amount of time that must pass before each invocation to #build(), in milliseconds
     double m_coeff_aging { 0.0 }; // coefficient for the additional updates to perform
     double m_ef_vertices = 1; // expansion factor for the vertices in the graph
     double m_ef_edges = 1;  // expansion factor for the edges in the graph
@@ -201,6 +202,7 @@ private:
     std::string m_path_graph_to_load; // the file must be accessible to the server
 
 protected:
+    void set_build_frequency(uint64_t millisecs);
     void set_coeff_aging(double value); // Set the coefficient for `aging', i.e. how many updates (insertions/deletions) to perform w.r.t. to the size of the loaded graph
     void set_ef_vertices(double value);
     void set_ef_edges(double value);
@@ -242,6 +244,9 @@ public:
 
     // Get the expansion factor in the aging experiment for the vertices in the graph
     double get_ef_vertices() const { return m_ef_vertices; }
+
+    // Get the frequency to build a new snapshot, in milliseconds
+    uint64_t get_build_frequency() const{ return m_build_frequency; }
 };
 
 

@@ -25,7 +25,7 @@ namespace experiment::details {
 
 struct AgingPartition { 
     uint64_t m_start; // Because these are vertex_ids, they can be stored in 64 bits
-    uint64_t m_length; 
+    uint64_t m_length;
     
     AgingPartition(uint64_t s, uint64_t l) : m_start(s), m_length(l) {  };
 };

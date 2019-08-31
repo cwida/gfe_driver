@@ -42,14 +42,14 @@ ifdef libgmp_makedir
 endif
 
 # Linker
-LIBS := @LIBS@ 
-LDFLAGS := @LIBS@
+LDFLAGS := @LDFLAGS@
 
 #############################################################################
 # List of the sources to compile
 sources := \
 	experiment/details/aging_thread.cpp \
 	experiment/details/async_batch.cpp \
+	experiment/details/build_thread.cpp \
 	experiment/aging.cpp \
 	experiment/graphalytics.cpp \
 	experiment/insert_only.cpp \
@@ -82,6 +82,10 @@ sources := \
 ifneq (,$(findstring -DHAVE_STINGER,${ALL_CPPFLAGS}))
 	sources += $(addprefix library/stinger/, community_detection.cpp connected_components.cpp local_clustering_coefficient.cpp pagerank.cpp shortest_paths.cpp stinger_unsafe.cpp)
 endif
+ifneq (,$(findstring -DHAVE_LLAMA,${ALL_CPPFLAGS}))
+	sources += $(addprefix library/llama/, llama_bfs.cpp llama_class.cpp llama_cdlp.cpp llama_lcc.cpp llama_pagerank.cpp llama_sssp.cpp llama_wcc.cpp)
+endif
+
 
 #############################################################################
 # Helper variables

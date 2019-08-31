@@ -19,6 +19,8 @@
 
 #include <cassert>
 
+#include "common/system.hpp"
+
 using namespace std;
 
 namespace utility {
@@ -29,11 +31,15 @@ namespace utility {
  *                                                                           *
  *****************************************************************************/
 void TimeoutService::start() {
+    if(m_budget == 0s) return; // nop, the timer will never expire
+
     assert(!m_background_thread.joinable() && "A background thread is already present");
     m_background_thread = thread(&TimeoutService::main_thread, this);
 }
 
 void TimeoutService::stop(){
+    if(m_budget == 0s) return; // nop, never started
+
     {
         scoped_lock<mutex> lock(m_mutex);
         m_terminate = true;

@@ -36,6 +36,7 @@
 #include "details/aging_partition.hpp"
 #include "details/aging_thread.hpp"
 #include "details/async_batch.hpp"
+#include "details/build_thread.hpp"
 #include "graph/edge.hpp"
 #include "graph/edge_stream.hpp"
 #include "graph/vertex_list.hpp"
@@ -52,7 +53,7 @@ using namespace std;
  *                                                                           *
  *****************************************************************************/
 extern mutex _log_mutex [[maybe_unused]];
-#define DEBUG
+//#define DEBUG
 #define COUT_DEBUG_FORCE(msg) { scoped_lock<mutex> lock(_log_mutex); cout << "[Aging::" << __FUNCTION__ << "] [" << concurrency::get_thread_id() << "] " << msg << endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
@@ -115,6 +116,10 @@ void Aging::set_batch_size(uint64_t size){
 
 void Aging::set_report_progress(bool value){
     m_report_progress = value;
+}
+
+void Aging::set_build_frequency(std::chrono::milliseconds millisecs){
+    m_build_frequency = millisecs;
 }
 
 void Aging::compute_partitions_add_missing(vector<vector<AgingPartition>>* out_partitions) const {
@@ -239,13 +244,13 @@ void Aging::log_num_vtx_edges(){
 // run the experiment
 std::chrono::microseconds Aging::execute(){
     auto interface = m_interface.get();
-    int num_workers =  m_num_threads * 2 + /* main */ 1; // * 2 due to batch async
+    int num_workers =  m_num_threads * 2 + /* main */ 1 + /* build service */ 1; // * 2 due to batch async
     interface->on_main_init(num_workers);
     interface->on_thread_init(0);
 
     // compute the set of partitions for each worker
     vector<vector<AgingPartition>> partitions = is_directed() ? compute_partitions_directed() : compute_partitions_undirected();
-    assert(partitions.size() == m_num_threads && "Expected one partition set per thread");
+    assert((int64_t) partitions.size() == m_num_threads && "Expected one partition set per thread");
 
     // start the threads
     LOG("[Aging] Initialising " << m_num_threads << " threads ...");
@@ -262,12 +267,16 @@ std::chrono::microseconds Aging::execute(){
     all_workers_execute(workers, AgingOperation::COMPUTE_FINAL_EDGES);
     m_stream.reset(); // we don't need anymore the list of edges
 
+    // init the build service (the one that creates the new snapshots/deltas)
+    BuildThread build_service { m_interface, num_workers -1, m_build_frequency };
+
     // execute the experiment
     LOG("[Aging] Experiment started!");
     m_last_progress_reported = 0;
     m_last_time_reported = 0; m_time_start = chrono::steady_clock::now();
     Timer timer; timer.start();
     all_workers_execute(workers, AgingOperation::EXECUTE_EXPERIMENT);
+    interface->build(); // flush last changes
     timer.stop();
     LOG("[Aging] Experiment done!");
     LOG("[Aging] Updates performed with " << m_num_threads << " threads in " << timer);
@@ -301,12 +310,20 @@ std::chrono::microseconds Aging::execute(){
             start += length; // next iteration
         }
         all_workers_execute(workers, AgingOperation::REMOVE_VERTICES);
+        if(m_build_frequency > 0ms){ // if 0, the service didn't even start
+            build_service.stop(); // it will implicitly invoke #build()
+        } else {
+            interface->build(); // flush last changes
+        }
         delete[] m_vertices2remove; m_vertices2remove = nullptr;
         m_num_artificial_vertices = vertices2remove_sz;
         LOG("[Aging] Number of extra vertices: " << m_num_artificial_vertices << ", "
                 "expansion factor: " << static_cast<double>(m_num_artificial_vertices + m_num_vertices) / m_num_vertices);
         timer.stop();
         LOG("[Aging] Artificial vertices removed in " << timer);
+
+        m_num_build_invocations = build_service.num_invocations();
+        LOG("[Aging] Total number of invocations to #build(): " << m_num_build_invocations);
 
         m_num_vertices_final_graph = interface->num_vertices();
         m_num_edges_final_graph = interface->num_edges();
@@ -339,9 +356,9 @@ void Aging::save() {
     db.add("num_vertices_final", m_num_vertices_final_graph);
     db.add("num_edges_load", m_num_edges);
     db.add("num_edges_final", m_num_edges_final_graph);
+    db.add("num_snapshots_created", m_num_build_invocations);
     db.add("completion_time", m_completion_time); // microseconds
 
-    LOG("m_last_time_reported: " << m_last_time_reported);
     for(int i = 0, sz = m_last_time_reported; i < sz; i++){
         if(m_reported_times[i] == 0) continue; // missing??
         auto db = configuration().db()->add("aging_intermediate_throughput");

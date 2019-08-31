@@ -285,7 +285,6 @@ void AgingThread::main_experiment(){
         auto raw_edge = edge.edge();
         auto res = m_edges_already_inserted.insert_or_assign(raw_edge, /* final */ true);
 
-//        COUT_DEBUG("ADD_EDGE FINAL [2]: " << edge);
         if(! res.second ){ /* the edge was already present */
             remove_edge(raw_edge);
         }
@@ -303,8 +302,6 @@ void AgingThread::main_experiment(){
 }
 
 void AgingThread::insert_edge(graph::WeightedEdge edge){
-//    COUT_DEBUG("edge: " << edge);
-
     // be sure that the vertices source & destination are already present
     m_instance->insert_vertex(edge.source());
     m_instance->insert_vertex(edge.destination());
@@ -321,8 +318,6 @@ void AgingThread::insert_edge(graph::WeightedEdge edge){
 }
 
 void AgingThread::remove_edge(graph::Edge edge){
-//    COUT_DEBUG("edge: " << edge);
-
     if(is_undirected() && random01() < 0.5) edge.swap_src_dst(); // noise
 
     if(m_batch == nullptr){
@@ -345,7 +340,6 @@ void AgingThread::remove_temporary_edge(){
         assert(m_edges_already_inserted.find(edge) != m_edges_already_inserted.end() && "This should be in the list of the edges inserted");
         auto it = m_edges_already_inserted.find(edge);
         if(it->second == false /* this is not an edge of the final graph */ ){
-//            COUT_DEBUG("DELETE_EDGE TEMP: " << edge);
             remove_edge(edge);
             m_edges_already_inserted.erase(it);
             removed = true;
@@ -431,8 +425,6 @@ void AgingThread::edge_id_2_vertices_id(const mpz_class& edge_id, uint64_t* out_
     uint64_t dst_id = src_id + 1 + offset;
 
     assert(src_id < dst_id);
-//    COUT_DEBUG("edge_id: " << edge_id << ", M: " << M << ", v0: " << v0 << ", S: " << S << ", x: " << x << ", src_id: " << src_id << ", S1:"  << S1 << ", dst_id: " << dst_id);
-//    COUT_DEBUG("edge_id: " << edge_id << ", src_id: " << src_id << ", dst_id: " << dst_id);
     *out_src_id = src_id;
     *out_dst_id = dst_id;
 

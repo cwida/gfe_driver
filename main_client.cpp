@@ -139,11 +139,11 @@ static Command parse_command(){
     getline(cin, user_prompt);
 
     int pos = 0; // position in the user prompt
-    while(pos < user_prompt.length() && isspace(user_prompt[pos])) pos++;
+    while(pos < (int) user_prompt.length() && isspace(user_prompt[pos])) pos++;
 
     // parse the statement, single word
     int start = pos;
-    while(pos < user_prompt.length() && (isalnum(user_prompt[pos]) || user_prompt[pos] == '_')) pos++;
+    while(pos < (int) user_prompt.length() && (isalnum(user_prompt[pos]) || user_prompt[pos] == '_')) pos++;
     int end = pos;
 
 //    COUT_DEBUG("start: " << start << ", end: " << end);
@@ -152,17 +152,17 @@ static Command parse_command(){
 //    COUT_DEBUG( "Command: " << command.m_command  );
 
     // skip empty spaces
-    while(pos < user_prompt.length() && isspace(user_prompt[pos])) pos++;
+    while(pos < (int) user_prompt.length() && isspace(user_prompt[pos])) pos++;
 
     bool match_opened_parenthesis = false;
-    if(pos < user_prompt.length() && user_prompt[pos] == '('){
+    if(pos < (int) user_prompt.length() && user_prompt[pos] == '('){
         match_opened_parenthesis = true;
         pos++;
     }
 
     bool stop = false;
     bool skip_next_comma = false;
-    while(pos < user_prompt.length() && !stop){ // next argument
+    while(pos < (int) user_prompt.length() && !stop){ // next argument
         if(isspace(user_prompt[pos])){ pos++; continue; } // skip empty spaces at the start
         if(skip_next_comma && user_prompt[pos] == ','){ skip_next_comma = false; pos++; continue; }
         skip_next_comma = false;
@@ -184,7 +184,7 @@ static Command parse_command(){
         pos++;
 
         bool terminated = false;
-        while(pos < user_prompt.length() && !terminated){
+        while(pos < (int) user_prompt.length() && !terminated){
 //            cout << "character [2]: " << user_prompt[pos] << "\n";
             if(user_prompt[pos] == '\\'){
                 pos+=2;
@@ -439,6 +439,7 @@ static void run_experiments(){
             experiment.set_expansion_factor_vertices(cfgclient().get_ef_vertices());
             experiment.set_expansion_factor_edges(cfgclient().get_ef_edges());
             experiment.set_report_progress(true);
+            experiment.set_build_frequency(chrono::milliseconds{ cfgdriver().get_build_frequency() });
             experiment.execute();
             if(configuration().has_database()) experiment.save();
         }
@@ -496,6 +497,9 @@ int main(int argc, char* argv[]){
         rc = 1;
     } catch(cxxopts::option_not_exists_exception& e){
         cerr << "ERROR: " << e.what() << "\n";
+        rc = 1;
+    } catch(cxxopts::option_requires_argument_exception& e){
+        cerr << "ERROR: Invalid command line option, " << e.what() << "\n";
         rc = 1;
     }
 

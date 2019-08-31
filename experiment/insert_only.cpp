@@ -181,23 +181,33 @@ chrono::microseconds InsertOnly::execute() {
     } else {
         execute_round_robin(&vertices);
     }
-
     timer.stop();
+    LOG("Insertions performed with " << m_num_threads << " threads in " << timer);
+    m_time_insert = timer.microseconds();
+
+    m_interface->on_thread_init(0);
+    timer.start();
+    m_interface->build();
+    timer.stop();
+    m_interface->on_thread_destroy(0);
+    m_time_build = timer.microseconds();
+    if(m_time_build > 0){
+        LOG("Build time: " << timer);
+    }
 
     m_interface->on_main_destroy();
 
-    LOG("Insertions performed with " << m_num_threads << " threads in " << timer);
     LOG("Edge stream size: " << m_stream->num_edges() << ", num edges stored in the graph: " << m_interface->num_edges() << ", match: " << (m_stream->num_edges() == m_interface->num_edges() ? "yes" : "no"));
 
-    m_execution_time = timer.microseconds();
-    return timer.duration< chrono::microseconds >();
+    return chrono::microseconds{ m_time_insert + m_time_build };
 }
 
 void InsertOnly::save() {
     assert(configuration().db() != nullptr);
     auto db = configuration().db()->add("insert_only");
     db.add("scheduler", is_static_scheduler() ? "static" : "round_robin");
-    db.add("completion_time", m_execution_time); // microseconds
+    db.add("insertion_time", m_time_insert); // microseconds
+    db.add("build_time", m_time_build); // microseconds
 }
 
 } // namespace experiment

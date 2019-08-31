@@ -77,6 +77,7 @@ public:
      * Dump the content of the graph to the given path
      */
     virtual void dump(const std::string& path) const;
+    virtual void dump(const char* path) const; // helps jitting from the debugger
 
     /**
      * Thread initialisation callbacks
@@ -158,7 +159,7 @@ private:
 public:
     /**
      * Add the given vertex to the graph
-     * @return true if the edge has been inserted, false otherwise (e.g. the vertex already exists)
+     * @return true if the vertex has been inserted, false otherwise (that is, the vertex already exists)
      */
     virtual bool add_vertex(uint64_t vertex_id) = 0;
 
@@ -202,6 +203,12 @@ public:
      * Load the whole graph representation from the given path
      */
     virtual void load(const std::string& path) override;
+
+    /**
+     * Create a new snapshot. By default this operation is a `nop'.
+     * In LLAMA, it creates a new level, moving all pending updates in the write store into a new delta in the read-only store.
+     */
+    virtual void build();
 };
 
 /**

@@ -30,6 +30,9 @@
 
 #include "baseline/adjacency_list.hpp"
 #include "baseline/dummy.hpp"
+#if defined(HAVE_LLAMA)
+#include "llama/llama_class.hpp"
+#endif
 #include "reader/reader.hpp"
 #if defined(HAVE_STINGER)
 #include "stinger/stinger.hpp"
@@ -69,6 +72,12 @@ std::unique_ptr<Interface> generate_dummy(bool directed_graph){
     return unique_ptr<Interface>{ new Dummy(directed_graph) };
 }
 
+#if defined(HAVE_LLAMA)
+std::unique_ptr<Interface> generate_llama(bool directed_graph){
+    return unique_ptr<Interface>{ new LLAMAClass(directed_graph) };
+}
+#endif
+
 #if defined(HAVE_STINGER)
 std::unique_ptr<Interface> generate_stinger(bool directed_graph){
     return unique_ptr<Interface>{ new Stinger(directed_graph) };
@@ -80,6 +89,10 @@ vector<ImplementationManifest> implementations() {
 
     result.emplace_back("baseline", "Sequential baseline, based on adjacency list", &generate_baseline_adjlist);
     result.emplace_back("dummy", "Dummy implementation of the interface, all operations are nop", &generate_dummy);
+
+#if defined(HAVE_LLAMA)
+    result.emplace_back("llama", "LLAMA library", &generate_llama);
+#endif
 
 #if defined(HAVE_STINGER)
     result.emplace_back("stinger", "Stinger library", &generate_stinger);
@@ -110,6 +123,11 @@ void Interface::dump(const std::string& path) const {
     if(!handle.good()) ERROR("[dump] Cannot open the file: `" << path << "'");
     dump_ostream(handle);
     handle.close();
+}
+
+void Interface::dump(const char* c_path) const {
+    string path = c_path;
+    dump(path);
 }
 
 bool Interface::is_undirected() const {
@@ -184,6 +202,10 @@ void UpdateInterface::load(const string& path) {
         add_vertex(edge.m_destination);
         add_edge(edge);
     }
+}
+
+void UpdateInterface::build(){
+    /* nop */
 }
 
 } // namespace library

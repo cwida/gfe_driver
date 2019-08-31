@@ -42,6 +42,7 @@ enum class RequestType : uint32_t {
     LOAD, // load the graph from disk
     ADD_VERTEX, REMOVE_VERTEX, ADD_EDGE, REMOVE_EDGE,
     BATCH_PLAIN_FORCE_NO, BATCH_PLAIN_FORCE_YES,
+    BUILD, // create a new snapshot
     DUMP_CLIENT, DUMP_STDOUT, DUMP_FILE, // #dump()
     BFS, PAGERANK, WCC, CDLP, LCC, SSSP // graphalytics interface
 };

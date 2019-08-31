@@ -158,14 +158,15 @@ void Server::main_loop(){
         timeout.tv_usec = 0;
 
         // Dummy file descriptor
-        fd_set dummy; FD_ZERO(&dummy);
+        fd_set dummy0; FD_ZERO(&dummy0); // because of __restrict we need both dummy0 and dummy1 to silence a compiler warning
+        fd_set dummy1; FD_ZERO(&dummy1);
 
         // Set the file descriptor of the server
         fd_set server_ready;
         FD_ZERO(&server_ready);
         FD_SET(m_server_fd, &server_ready);
 
-        int ready = select(m_server_fd + 1, &server_ready, &dummy, &dummy, &timeout);
+        int ready = select(m_server_fd + 1, &server_ready, &dummy0, &dummy1, &timeout);
 
         if(ready < 0){
             if(m_server_stop){
@@ -217,7 +218,7 @@ Server::ConnectionHandler::~ConnectionHandler() {
 }
 
 void Server::ConnectionHandler::execute(){
-    int num_active_connections = ++(m_instance->m_num_active_connections);
+    [[maybe_unused]] int num_active_connections = ++(m_instance->m_num_active_connections);
     int64_t thread_id = common::concurrency::get_thread_id();
     struct sockaddr_in address; socklen_t address_len { sizeof(address) };
     /* ignore rc */ getpeername(m_fd, (struct sockaddr *) &address, &address_len);
@@ -242,7 +243,7 @@ void Server::ConnectionHandler::execute(){
         num_bytes_read += recv_bytes;
         int64_t message_sz = static_cast<int64_t>(*(reinterpret_cast<uint32_t*>(m_buffer_read)));
 
-        if(message_sz > m_buffer_read_sz){ // realloc the buffer if it is too small
+        if(message_sz > (int64_t) m_buffer_read_sz){ // realloc the buffer if it is too small
             m_buffer_read_sz = pow(2, ceil(log2(message_sz))); // next power of 2
             LOG("[server] [thread " << thread_id << "] Reallocate the internal read buffer to " << m_buffer_read_sz << " bytes");
             m_buffer_read = (char*) realloc(m_buffer_read, m_buffer_read_sz);
@@ -410,6 +411,16 @@ void Server::ConnectionHandler::handle_request(){
             }
         }
     } break;
+    case RequestType::BUILD: {
+        library::UpdateInterface* update_interface = dynamic_cast<library::UpdateInterface*>(interface());
+        if(update_interface == nullptr){
+            LOG("Operation not supported by the current interface: " << request()->type());
+            response(ResponseType::NOT_SUPPORTED);
+        } else {
+            update_interface->build();
+            response(ResponseType::OK);
+        }
+    } break;
 ////     Only to measure the overhead of the network connections for updates
 //    case RequestType::ADD_VERTEX:
 //    case RequestType::REMOVE_VERTEX:
@@ -417,6 +428,7 @@ void Server::ConnectionHandler::handle_request(){
 //    case RequestType::REMOVE_EDGE:
 //    case RequestType::BATCH_PLAIN_FORCE_NO:
 //    case RequestType::BATCH_PLAIN_FORCE_YES:
+//    case RequestType::BUILD:
 //        response(ResponseType::OK, true);
 //        break;
     case RequestType::DUMP_CLIENT: {
