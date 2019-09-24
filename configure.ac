@@ -28,6 +28,13 @@ if test "x${CXXFLAGS}" != "x"; then ac_user_cxxflags="yes"; fi
 m4_divert_pop([INIT_PREPARE])
 
 #############################################################################
+# cmake, dependency for libcommon
+AC_CHECK_PROGS(cmake, [cmake], [no])
+if( test x"${cmake}" = x"no" ); then
+   AC_MSG_ERROR([missing prerequisite: this program requires cmake (dependency for libcommon)])
+fi
+
+#############################################################################
 # git, dependency for libcommon
 AC_CHECK_PROGS(git, [git], [no])
 if( test x"${git}" = x"no" ); then

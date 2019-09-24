@@ -100,7 +100,8 @@ objects := $(filter-out ${objectdir}/main_%.o, ${objects_c} ${objects_cxx})
 .DEFAULT_GOAL = all
 .PHONY: all
 
-all: Makefile ${builddir}/gfe_server ${builddir}/gfe_client ${builddir}/gfe_driver
+#all: Makefile ${builddir}/gfe_server ${builddir}/gfe_client ${builddir}/gfe_driver
+all: ${builddir}/gfe_driver
 
 #############################################################################
 # Artifacts to build

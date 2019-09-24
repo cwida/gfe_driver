@@ -448,6 +448,7 @@ void StandaloneConfiguration::cla_add(cxxopts::Options& options) {
     options.add_options("Generic")
         ("l, library", libraries_help_screen(), value<string>())
         ("u, undirected", "Is the graph undirected? By default, it's considered directed.")
+		("v, validate", "Whether to validate the output results of the Graphalytics algorithms")
     ;
 }
 
@@ -472,6 +473,10 @@ void StandaloneConfiguration::cla_parse(cxxopts::Options& options, cxxopts::Pars
     if( result["undirected"].count() > 0 ){
         m_graph_directed = false;
     }
+
+    if( result["validate"].count() > 0 ){
+    	m_validate_output = true;
+    }
 }
 
 string StandaloneConfiguration::cla_name() const {
@@ -485,6 +490,7 @@ auto StandaloneConfiguration::list_parameters() const -> param_list_t {
     params.push_back(P{"directed", to_string(is_graph_directed())});
     params.push_back(P{"library", get_library_name()});
     params.push_back(P{"role", "standalone"});
+    params.push_back(P{"validate_output", to_string(validate_output())});
 
     return params;
 }

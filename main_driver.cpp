@@ -94,6 +94,12 @@ static void run_standalone(int argc, char* argv[]){
         }
 
         GraphalyticsSequential exp_seq { impl_ga, cfgdriver().num_repetitions(), properties };
+
+        if(cfgstandalone().validate_output()){
+            LOG("[driver] Enabling validation mode");
+            exp_seq.set_validate_output( path_graph );
+        }
+
         exp_seq.execute();
         exp_seq.report(configuration().has_database());
     }

@@ -18,19 +18,24 @@
 #include "graphalytics.hpp"
 
 #include <algorithm>
+#include <cstdio> // mkdtemp
+#include <cstring>
 #include <iostream>
 #include <string>
 #include <sstream>
 
+#include "common/database.hpp"
 #include "common/filesystem.hpp"
 #include "common/timer.hpp"
 #include "library/interface.hpp"
 #include "reader/graphalytics_reader.hpp"
+#include "utility/graphalytics_validate.hpp"
 #include "configuration.hpp"
 #include "statistics.hpp"
 
 using namespace common;
 using namespace std;
+using namespace utility;
 
 namespace experiment {
 
@@ -53,7 +58,7 @@ namespace experiment {
  *  GraphalyticsAlgorithms                                                   *
  *                                                                           *
  ****************************************************************************/
-GraphalyticsAlgorithms::GraphalyticsAlgorithms(const string& path){
+GraphalyticsAlgorithms::GraphalyticsAlgorithms(const string& path) {
     COUT_DEBUG("Read the properties from path: " << path);
     reader::GraphalyticsReader props { path };
 
@@ -117,92 +122,206 @@ GraphalyticsSequential::GraphalyticsSequential(std::shared_ptr<library::Graphaly
 
 std::chrono::microseconds GraphalyticsSequential::execute(){
     auto interface = m_interface.get();
+    constexpr uint64_t max_num_errors = 10; // if validation is enabled
 
     Timer t_global, t_local;
     t_global.start();
 
     for(uint64_t i = 0; i < m_num_repetitions; i++){
+
         if(m_properties.bfs.m_enabled){
             LOG("Execution " << (i+1) << "/" << m_num_repetitions << ": BFS from source vertex: " << m_properties.bfs.m_source_vertex);
+            string path_tmp = get_temporary_path("bfs", i);
+            const char* path_result = m_validate_output_enabled ? path_tmp.c_str() : nullptr;
             try {
                 t_local.start();
-                interface->bfs(m_properties.bfs.m_source_vertex);
+                interface->bfs(m_properties.bfs.m_source_vertex, path_result);
                 t_local.stop();
                 LOG(">> BFS Execution time: " << t_local);
                 m_exec_bfs.push_back(t_local.microseconds());
+
+                if(m_validate_output_enabled){
+                    string path_reference = get_validation_path("BFS");
+                    if(filesystem::exists(path_reference)){
+                        GraphalyticsValidate::bfs(path_tmp, path_reference, max_num_errors);
+                        LOG(">> Validation succeeded");
+                        m_validate_results.emplace_back("bfs", ValidationResult::SUCCEEDED);
+                    } else if (i == 0) { // report it only the first time
+                        LOG(">> Validation skipped, the reference file `" << path_reference << "' does not exist");
+                        m_validate_results.emplace_back("bfs", ValidationResult::SKIPPED);
+                    }
+                }
             } catch (library::TimeoutError& e){
                 LOG(">> BFS TIMEOUT");
                 m_exec_bfs.push_back(-1);
                 m_properties.bfs.m_enabled = false;
+            } catch (utility::GraphalyticsValidateError& e){
+            	LOG(">> Validation failed: " << e.what());
+            	m_validate_results.emplace_back("bfs", ValidationResult::FAILED);
+            	m_properties.bfs.m_enabled = false;
             }
         }
+
         if(m_properties.cdlp.m_enabled){
             LOG("Execution " << (i+1) << "/" << m_num_repetitions << ": CDLP, max_iterations: " << m_properties.cdlp.m_max_iterations);
-            t_local.start();
+            string path_tmp = get_temporary_path("cdlp", i);
+            const char* path_result = m_validate_output_enabled ? path_tmp.c_str() : nullptr;
             try {
-                interface->cdlp(m_properties.cdlp.m_max_iterations);
+                t_local.start();
+                interface->cdlp(m_properties.cdlp.m_max_iterations, path_result);
                 t_local.stop();
                 LOG(">> CDLP Execution time: " << t_local);
                 m_exec_cdlp.push_back(t_local.microseconds());
+
+                if(m_validate_output_enabled){
+                    string path_reference = get_validation_path("CDLP");
+                    if(filesystem::exists(path_reference)){
+                        GraphalyticsValidate::cdlp(path_tmp, path_reference, max_num_errors);
+                        LOG(">> Validation succeeded");
+                        m_validate_results.emplace_back("cdlp", ValidationResult::SUCCEEDED);
+                    } else if (i == 0) { // report it only the first time
+                        LOG(">> Validation skipped, the reference file `" << path_reference << "' does not exist");
+                        m_validate_results.emplace_back("cdlp", ValidationResult::SKIPPED);
+                    }
+                }
             } catch(library::TimeoutError& e){
                 LOG(">> CDLP TIMEOUT");
                 m_exec_cdlp.push_back(-1);
                 m_properties.cdlp.m_enabled = false;
+            } catch(utility::GraphalyticsValidateError& e){
+                LOG(">> Validation failed: " << e.what());
+                m_validate_results.emplace_back("cdlp", ValidationResult::FAILED);
+                m_properties.cdlp.m_enabled = false;
             }
         }
+
         if(m_properties.lcc.m_enabled){
             LOG("Execution " << (i+1) << "/" << m_num_repetitions << ": LCC");
+            string path_tmp = get_temporary_path("lcc", i);
+            const char* path_result = m_validate_output_enabled ? path_tmp.c_str() : nullptr;
             try {
                 t_local.start();
-                interface->lcc();
+                interface->lcc(path_result);
                 t_local.stop();
                 LOG(">> LCC Execution time: " << t_local);
                 m_exec_lcc.push_back(t_local.microseconds());
+
+                if(m_validate_output_enabled){
+                    string path_reference = get_validation_path("LCC");
+                    if(filesystem::exists(path_reference)){
+                        GraphalyticsValidate::lcc(path_tmp, path_reference, max_num_errors);
+                        LOG(">> Validation succeeded");
+                        m_validate_results.emplace_back("lcc", ValidationResult::SUCCEEDED);
+                    } else if (i == 0) { // report it only the first time
+                        LOG(">> Validation skipped, the reference file `" << path_reference << "' does not exist");
+                        m_validate_results.emplace_back("lcc", ValidationResult::SKIPPED);
+                    }
+                }
             } catch(library::TimeoutError& e){
                 LOG(">> LCC TIMEOUT");
                 m_exec_lcc.push_back(-1);
                 m_properties.lcc.m_enabled = false;
+            } catch(utility::GraphalyticsValidateError& e){
+                LOG(">> Validation failed: " << e.what());
+                m_validate_results.emplace_back("lcc", ValidationResult::FAILED);
+                m_properties.lcc.m_enabled = false;
             }
         }
+
         if(m_properties.pagerank.m_enabled){
             LOG("Execution " << (i+1) << "/" << m_num_repetitions << ": PageRank, damping factor: " << m_properties.pagerank.m_damping_factor << ", num_iterations: " << m_properties.pagerank.m_num_iterations);
+            string path_tmp = get_temporary_path("pagerank", i);
+            const char* path_result = m_validate_output_enabled ? path_tmp.c_str() : nullptr;
             try {
                 t_local.start();
-                interface->pagerank(m_properties.pagerank.m_num_iterations, m_properties.pagerank.m_damping_factor);
+                interface->pagerank(m_properties.pagerank.m_num_iterations, m_properties.pagerank.m_damping_factor, path_result);
                 t_local.stop();
                 LOG(">> PageRank Execution time: " << t_local);
                 m_exec_pagerank.push_back(t_local.microseconds());
+
+                if(m_validate_output_enabled){
+                    string path_reference = get_validation_path("PR");
+                    if(filesystem::exists(path_reference)){
+                        GraphalyticsValidate::pagerank(path_tmp, path_reference, max_num_errors);
+                        LOG(">> Validation succeeded");
+                        m_validate_results.emplace_back("pagerank", ValidationResult::SUCCEEDED);
+                    } else if (i == 0) { // report it only the first time
+                        LOG(">> Validation skipped, the reference file `" << path_reference << "' does not exist");
+                        m_validate_results.emplace_back("pagerank", ValidationResult::SKIPPED);
+                    }
+                }
             } catch(library::TimeoutError& e){
                 LOG(">> PageRank TIMEOUT");
                 m_exec_pagerank.push_back(-1);
                 m_properties.pagerank.m_enabled = false;
+            } catch(utility::GraphalyticsValidateError& e){
+                LOG(">> Validation failed: " << e.what());
+                m_validate_results.emplace_back("pagerank", ValidationResult::FAILED);
+                m_properties.pagerank.m_enabled = false;
             }
         }
+
         if(m_properties.sssp.m_enabled){
             LOG("Execution " << (i+1) << "/" << m_num_repetitions << ": SSSP, source: " << m_properties.sssp.m_source_vertex);
+            string path_tmp = get_temporary_path("sssp", i);
+            const char* path_result = m_validate_output_enabled ? path_tmp.c_str() : nullptr;
             try {
                 t_local.start();
-                interface->sssp(m_properties.sssp.m_source_vertex);
+                interface->sssp(m_properties.sssp.m_source_vertex, path_result);
                 t_local.stop();
                 LOG(">> SSSP Execution time: " << t_local);
                 m_exec_sssp.push_back(t_local.microseconds());
+
+                if(m_validate_output_enabled){
+                    string path_reference = get_validation_path("SSSP");
+                    if(filesystem::exists(path_reference)){
+                        GraphalyticsValidate::pagerank(path_tmp, path_reference, max_num_errors);
+                        LOG(">> Validation succeeded");
+                        m_validate_results.emplace_back("sssp", ValidationResult::SUCCEEDED);
+                    } else if (i == 0) { // report it only the first time
+                        LOG(">> Validation skipped, the reference file `" << path_reference << "' does not exist");
+                        m_validate_results.emplace_back("sssp", ValidationResult::SKIPPED);
+                    }
+                }
             } catch(library::TimeoutError& e){
                 LOG(">> SSSP TIMEOUT");
                 m_exec_sssp.push_back(-1);
+                m_properties.sssp.m_enabled = false;
+            } catch(utility::GraphalyticsValidateError& e){
+                LOG(">> Validation failed: " << e.what());
+                m_validate_results.emplace_back("sssp", ValidationResult::FAILED);
                 m_properties.sssp.m_enabled = false;
             }
         }
         if(m_properties.wcc.m_enabled){
             LOG("Execution " << (i+1) << "/" << m_num_repetitions << ": WCC");
+            string path_tmp = get_temporary_path("wcc", i);
+            const char* path_result = m_validate_output_enabled ? path_tmp.c_str() : nullptr;
             try {
                 t_local.start();
-                interface->wcc();
+                interface->wcc(path_result);
                 t_local.stop();
                 LOG(">> WCC Execution time: " << t_local);
                 m_exec_wcc.push_back(t_local.microseconds());
+
+                if(m_validate_output_enabled){
+                    string path_reference = get_validation_path("WCC");
+                    if(filesystem::exists(path_reference)){
+                        GraphalyticsValidate::pagerank(path_tmp, path_reference, max_num_errors);
+                        LOG(">> Validation succeeded");
+                        m_validate_results.emplace_back("wcc", ValidationResult::SUCCEEDED);
+                    } else if (i == 0) { // report it only the first time
+                        LOG(">> Validation skipped, the reference file `" << path_reference << "' does not exist");
+                        m_validate_results.emplace_back("wcc", ValidationResult::SKIPPED);
+                    }
+                }
             } catch(library::TimeoutError& e){
                 LOG(">> WCC TIMEOUT");
                 m_exec_wcc.push_back(-1);
+                m_properties.wcc.m_enabled = false;
+            } catch(utility::GraphalyticsValidateError& e){
+                LOG(">> Validation failed: " << e.what());
+                m_validate_results.emplace_back("wcc", ValidationResult::FAILED);
                 m_properties.wcc.m_enabled = false;
             }
         }
@@ -244,6 +363,82 @@ void GraphalyticsSequential::report(bool save_in_db){
         cout << ">> WCC " << stats << "\n";
         if(save_in_db) stats.save("wcc");
     }
+
+    if(!m_validate_results.empty()){
+        uint64_t num_validation_errors = 0;
+
+    	for(const auto& pair : m_validate_results){
+    	    num_validation_errors += (pair.second == ValidationResult::FAILED);
+
+    	    if(save_in_db){
+                auto store = configuration().db()->add("graphalytics_validation");
+                store.add("algorithm", pair.first);
+                switch(pair.second){
+                case ValidationResult::SUCCEEDED:
+                    store.add("result", "success");
+                    break;
+                case ValidationResult::FAILED:
+                    store.add("result", "failure");
+                    break;
+                case ValidationResult::SKIPPED:
+                    store.add("result", "skipped");
+                    break;
+                }
+    	    }
+    	}
+
+    	if(num_validation_errors == 0){
+    	    cout << ">> All executions succeeded the validation (" << m_validate_results.size() << " validation runs)" << endl;
+    	} else {
+    	    cout << ">> Executions that failed the validation: " << num_validation_errors << " out of " << m_validate_results.size() << " validation runs" << endl;
+    	}
+    }
+}
+
+void GraphalyticsSequential::set_validate_output(const std::string& path_property_file){
+    string path = path_property_file;
+    if(!common::filesystem::file_exists(path)){
+        path += ".properties"; // try again by adding the suffix .properties
+        if(!common::filesystem::file_exists(path)){
+            ERROR("The file `" + path_property_file + "' does not exist");
+        }
+    }
+
+    { // generate the temporary folder
+        stringstream ss;
+        ss << P_tmpdir << "/" << "graphalytics.validate_output.XXXXXX";
+        string dynpath = ss.str();
+        constexpr uint64_t buffer_sz = 1024;
+        char buffer[buffer_sz];
+        if(buffer_sz < dynpath.size() +1 /* \0 */ ) ERROR("Cannot generate the temporary path, the path name is too long");
+        strcpy(buffer, dynpath.c_str());
+        char* result = mkdtemp(buffer);
+        if(result == nullptr){ ERROR("Cannot create the temporary path, mkdtemp error"); }
+        m_validate_output_temp_dir = result;
+        LOG("Temporary directory to store the output files: " << m_validate_output_temp_dir);
+    }
+
+    m_validate_output_path_properties = path;
+    m_validate_output_enabled = true;
+}
+
+string GraphalyticsSequential::get_temporary_path(const string& algorithm_name, uint64_t execution_no) const{
+    if(!m_validate_output_enabled) return "";
+
+    stringstream ss;
+    ss << m_validate_output_temp_dir << "/";
+    ss << algorithm_name << "_" << execution_no << ".txt";
+    return ss.str();
+}
+
+string GraphalyticsSequential::get_validation_path(const string& algorithm_suffix) const {
+    if(!m_validate_output_enabled) return "";
+    string path = m_validate_output_path_properties;
+    auto index_of = path.find_last_of('.');
+    if(index_of != string::npos && path.substr(index_of) == ".properties"){
+        path = path.substr(0, index_of);
+    }
+    return path + "-" + algorithm_suffix;
 }
 
 } // namespace experiment

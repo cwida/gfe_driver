@@ -56,7 +56,6 @@ struct GraphalyticsAlgorithms {
         bool m_enabled = false;
     } wcc;
 
-
     /**
      * Load the properties of each algorithms from the given files
      */
@@ -74,6 +73,12 @@ class GraphalyticsSequential{
     const uint64_t m_num_repetitions; // number of times to repeat the execution of each algorithm
     GraphalyticsAlgorithms m_properties; // the properties of the graphalytics algorithms
 
+    bool m_validate_output_enabled = false; // whether to validate the output of the graphalytics algorithms
+    std::string m_validate_output_path_properties; // the full path to the .properties file for the graph
+    std::string m_validate_output_temp_dir; // the path where to store the output files from the Graphalytics algorithm
+    enum class ValidationResult { SUCCEEDED, FAILED, SKIPPED };  // validation results
+    std::vector<std::pair<std::string /* algorithm */, ValidationResult >> m_validate_results;
+
     // the completion times for each execution
     std::vector<int64_t> m_exec_bfs;
     std::vector<int64_t> m_exec_cdlp;
@@ -82,9 +87,32 @@ class GraphalyticsSequential{
     std::vector<int64_t> m_exec_sssp;
     std::vector<int64_t> m_exec_wcc;
 
+private:
+
+    /**
+     * Obtain a proper path where to store the output of an algorithm execution, for validation purposes
+     */
+    std::string get_temporary_path(const std::string& algorithm_name, uint64_t execution_no) const;
+
+    /**
+     * Retrieve the full path to the reference file related to the execution of a given algorithm.
+     */
+    std::string get_validation_path(const std::string& algorithm_suffix) const;
 
 public:
+    /**
+     * Create a new instance of the class
+     * @param interface the library to evaluate
+     * @param num_repetitions how many times to repeat the execution of the same algorithm
+     * @param properties which algorithms to evaluate and what are their parameters
+     */
     GraphalyticsSequential(std::shared_ptr<library::GraphalyticsInterface> interface, uint64_t num_repetitions, const GraphalyticsAlgorithms& properties);
+
+    /**
+     * Require to validate the output of the graphalytics algorithms.
+     * @param path_properties_file full path to the LDBC graph .properties file
+     */
+    void set_validate_output(const std::string& path_properties_file);
 
     /**
      * Execute the experiment

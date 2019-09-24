@@ -27,6 +27,8 @@
 #include <unordered_set>
 #include <utility>
 
+#include "common/error.hpp"
+
 using namespace std;
 
 namespace utility {
@@ -51,6 +53,16 @@ namespace utility {
  *****************************************************************************/
 #undef CURRENT_ERROR_TYPE
 #define CURRENT_ERROR_TYPE ::utility::GraphalyticsValidateError
+#define FATAL ERROR
+#define ERROR_INIT uint64_t error_count = 0;
+#define ERROR_COUNT(msg) if(max_num_errors == 1){ FATAL(msg); } else { \
+	error_count ++; /* error_count is a local var that should be already defined, init to 0 */ \
+	std::cerr << "VALIDATION ERROR #" << error_count << ": " << msg << endl; \
+	if(max_num_errors > 1 && error_count == max_num_errors) { \
+		FATAL("Reached the maximum number of errors: " << max_num_errors); \
+	} \
+}
+#define ERROR_EXIT if(error_count > 0){ FATAL("Validation found " << error_count << " mismatches"); }
 
 /*****************************************************************************
  *                                                                           *
@@ -71,14 +83,14 @@ static pair<int64_t, T> parse_value(uint64_t lineno, char* buffer, const char* b
     uint64_t pos = 0;
     char* current = buffer;
     while(pos < BUFFER_SZ && isspace(current[0])) { pos++; current++; };
-    if(pos == BUFFER_SZ || current[0] == '\0') ERROR("[lineno=" << lineno << ", file=" << buffer_name << "] The line is empty!");
-    if(!isdigit(current[0])) ERROR("[lineno=" << lineno << ", file=" << buffer_name << "] Cannot parse the vertex id in the line `" << buffer << "'");
+    if(pos == BUFFER_SZ || current[0] == '\0') FATAL("[lineno=" << lineno << ", file=" << buffer_name << "] The line is empty!");
+    if(!isdigit(current[0])) FATAL("[lineno=" << lineno << ", file=" << buffer_name << "] Cannot parse the vertex id in the line `" << buffer << "'");
     char* next = nullptr;
     int64_t vertex_id = strtoll(current, &next, 10);
     current = next;
     while(pos < BUFFER_SZ && isspace(current[0])) { pos++; current++; };
-    if(pos == BUFFER_SZ || current[0] == '\0') ERROR("[lineno=" << lineno << ", file=" << buffer_name << "] The line does not contain a value: `" << buffer << "'");
-    if(!validate_value_typed<T>(current)) ERROR("[lineno=" << lineno << ", file=" << buffer_name << "] Cannot parse the value in the line `" << buffer << "'");
+    if(pos == BUFFER_SZ || current[0] == '\0') FATAL("[lineno=" << lineno << ", file=" << buffer_name << "] The line does not contain a value: `" << buffer << "'");
+    if(!validate_value_typed<T>(current)) FATAL("[lineno=" << lineno << ", file=" << buffer_name << "] Cannot parse the value in the line `" << buffer << "'");
     T value = parse_value_typed<T>(current);
     return make_pair(vertex_id, value);
 };
@@ -88,7 +100,7 @@ namespace { template<typename T> struct Tuple { int64_t vertex_id; T value; uint
 template<typename T>
 static vector<Tuple<T>> read_results(const std::string& path_to_file){
     fstream handle(path_to_file, ios_base::in);
-    if(!handle.good()) ERROR("The result file does not exist or is not accessible. Path: `"  << path_to_file << "'");
+    if(!handle.good()) FATAL("The result file does not exist or is not accessible. Path: `"  << path_to_file << "'");
 
     uint64_t lineno = 0; // current line number
     char buffer[BUFFER_SZ]; // read the current line from the file
@@ -118,9 +130,11 @@ static vector<Tuple<T>> read_results(const std::string& path_to_file){
  *  Exact match                                                              *
  *                                                                           *
  *****************************************************************************/
-void GraphalyticsValidate::exact_match(const std::string& path_result, const std::string& path_expected){
+void GraphalyticsValidate::exact_match(const std::string& path_result, const std::string& path_expected, uint64_t max_num_errors){
+	ERROR_INIT
+
     fstream handle_expected(path_expected, ios_base::in);
-    if(!handle_expected.good()) ERROR("The reference file does not exist or is not accessible. Path: `" << path_expected << "'");
+    if(!handle_expected.good()) FATAL("The reference file does not exist or is not accessible. Path: `" << path_expected << "'");
     vector<Tuple<int64_t>> tuples_result = read_results<int64_t>(path_result);
 
     // now parse `reference'. It is always sorted
@@ -132,33 +146,36 @@ void GraphalyticsValidate::exact_match(const std::string& path_result, const std
         auto t_expected = parse_value<int64_t>(lineno, buffer, "expected");
 
         if(lineno >= tuples_result.size()){
-            ERROR("[lineno=" << lineno << "] VALIDATION ERROR, the reference contains more vertices than the actual result file");
-        }
+            ERROR_COUNT("[lineno=" << lineno << "] VALIDATION ERROR, the reference contains more vertices than the actual result file");
+        } else {
 
-        const auto& t_result = tuples_result[lineno];
+            const auto& t_result = tuples_result[lineno];
 
-        if (t_expected.first != t_result.vertex_id){
-            ERROR("[line number result:" << t_result.lineno << ", reference:" << lineno << "] VALIDATION ERROR, vertex retrieved: " << t_result.vertex_id << ", vertex expected: " << t_expected.first << " ");
-        } else if (t_expected.second != t_result.value){
-            ERROR("[line number result:" << t_result.lineno << ", reference:" << lineno << "] VALIDATION ERROR, vertex: " << t_result.vertex_id << " OK, value retrieved: " << t_result.value << ", value expected: " << t_expected.second);
+            if (t_expected.first != t_result.vertex_id){
+            	ERROR_COUNT("[line number result:" << t_result.lineno << ", reference:" << lineno << "] VALIDATION ERROR, vertex retrieved: " << t_result.vertex_id << ", vertex expected: " << t_expected.first << " ");
+            } else if (t_expected.second != t_result.value){
+            	ERROR_COUNT("[line number result:" << t_result.lineno << ", reference:" << lineno << "] VALIDATION ERROR, vertex: " << t_result.vertex_id << " OK, value retrieved: " << t_result.value << ", value expected: " << t_expected.second);
+            }
         }
 
         lineno++;
     }
 
     if(lineno < tuples_result.size()){
-        ERROR("The result file contains more lines [vertices] than the expected/reference output. Vertices result:" << tuples_result.size() << ", vertices expected: " << lineno);
+    	ERROR_COUNT("The result file contains more lines [vertices] than the expected/reference output. Vertices result:" << tuples_result.size() << ", vertices expected: " << lineno);
     }
 
     handle_expected.close();
+
+    ERROR_EXIT
 }
 
-void GraphalyticsValidate::bfs(const std::string& result, const std::string& expected){
-    exact_match(result, expected);
+void GraphalyticsValidate::bfs(const std::string& result, const std::string& expected, uint64_t max_num_errors){
+    exact_match(result, expected, max_num_errors);
 }
 
-void GraphalyticsValidate::cdlp(const std::string& result, const std::string& expected){
-    exact_match(result, expected);
+void GraphalyticsValidate::cdlp(const std::string& result, const std::string& expected, uint64_t max_num_errors){
+    exact_match(result, expected, max_num_errors);
 }
 
 /*****************************************************************************
@@ -166,9 +183,11 @@ void GraphalyticsValidate::cdlp(const std::string& result, const std::string& ex
  *  Epsilon match                                                            *
  *                                                                           *
  *****************************************************************************/
-void GraphalyticsValidate::epsilon_match(const std::string& path_result, const std::string& path_expected, double epsilon){
+void GraphalyticsValidate::epsilon_match(const std::string& path_result, const std::string& path_expected, double epsilon, uint64_t max_num_errors){
+	ERROR_INIT
+
     fstream handle_expected(path_expected, ios_base::in);
-    if(!handle_expected.good()) ERROR("The reference file does not exist or is not accessible. Path: `" << path_expected << "'");
+    if(!handle_expected.good()) FATAL("The reference file does not exist or is not accessible. Path: `" << path_expected << "'");
     vector<Tuple<double>> tuples_result = read_results<double>(path_result);
 
     uint64_t lineno = 0; // current line number
@@ -180,18 +199,19 @@ void GraphalyticsValidate::epsilon_match(const std::string& path_result, const s
 
         auto t_expected = parse_value<double>(lineno, buffer, "expected");
         if(lineno >= tuples_result.size()){
-            ERROR("[lineno=" << lineno << "] VALIDATION ERROR, the reference contains more vertices than the actual result file");
-        }
-        const auto& t_result = tuples_result[lineno];
-
-        if (t_expected.first != t_result.vertex_id){
-            ERROR("[lineno result:" << t_result.lineno << ", reference:" << lineno << "] VALIDATION ERROR, vertex retrieved: " << t_result.vertex_id << ", vertex expected: " << t_expected.first << " ");
+            ERROR_COUNT("[lineno=" << lineno << "] VALIDATION ERROR, the reference contains more vertices than the actual result file");
         } else {
-            double error = abs(t_result.value - t_expected.second) / t_expected.second;
-            COUT_DEBUG("vertex: " << t_result.vertex_id << ", value: " << t_result.value << ", expected: " << t_expected.second << ", error: " << error);
-            if (error > epsilon){
-                ERROR("[lineno result:" << t_result.lineno << ", reference:" << lineno << "] VALIDATION ERROR, vertex: " << t_result.vertex_id << " OK, "
-                        "value retrieved: " << t_result.value << ", value expected: " << t_expected.second << ", error: " << error << ", tolerance (epsilon): " << epsilon);
+            const auto& t_result = tuples_result[lineno];
+
+            if (t_expected.first != t_result.vertex_id){
+                ERROR_COUNT("[lineno result:" << t_result.lineno << ", reference:" << lineno << "] VALIDATION ERROR, vertex retrieved: " << t_result.vertex_id << ", vertex expected: " << t_expected.first << " ");
+            } else {
+                double error = abs(t_result.value - t_expected.second) / t_expected.second;
+                COUT_DEBUG("vertex: " << t_result.vertex_id << ", value: " << t_result.value << ", expected: " << t_expected.second << ", error: " << error);
+                if (error > epsilon){
+                    ERROR_COUNT("[lineno result:" << t_result.lineno << ", reference:" << lineno << "] VALIDATION ERROR, vertex: " << t_result.vertex_id << " OK, "
+                            "value retrieved: " << t_result.value << ", value expected: " << t_expected.second << ", error: " << error << ", tolerance (epsilon): " << epsilon);
+                }
             }
         }
 
@@ -203,19 +223,21 @@ void GraphalyticsValidate::epsilon_match(const std::string& path_result, const s
     }
 
     handle_expected.close();
+
+    ERROR_EXIT
 }
 
-void GraphalyticsValidate::pagerank(const std::string& result, const std::string& expected){
-    epsilon_match(result, expected, /* as defined in LDBC Graphalytics ~ PageRankValidationTest.java */ 0.0001);
+void GraphalyticsValidate::pagerank(const std::string& result, const std::string& expected, uint64_t max_num_errors){
+    epsilon_match(result, expected, /* as defined in LDBC Graphalytics ~ PageRankValidationTest.java */ 0.0001, max_num_errors);
 }
 
-void GraphalyticsValidate::lcc(const std::string& result, const std::string& expected){
-    epsilon_match(result, expected, 0.0001);
+void GraphalyticsValidate::lcc(const std::string& result, const std::string& expected, uint64_t max_num_errors){
+    epsilon_match(result, expected, 0.0001, max_num_errors);
 //    epsilon_match(result, expected, /* as defined in LDBC Graphalytics ~ LocalClusteringCoefficientValidationTest.java */ 0.000001);
 }
 
-void GraphalyticsValidate::sssp(const std::string& result, const std::string& expected){
-    epsilon_match(result, expected, 0.0001);
+void GraphalyticsValidate::sssp(const std::string& result, const std::string& expected, uint64_t max_num_errors){
+    epsilon_match(result, expected, 0.0001, max_num_errors);
 }
 
 
@@ -225,11 +247,13 @@ void GraphalyticsValidate::sssp(const std::string& result, const std::string& ex
  *                                                                           *
  *****************************************************************************/
 
-void GraphalyticsValidate::equivalence_match(const std::string& result, const std::string& expected){
+void GraphalyticsValidate::equivalence_match(const std::string& result, const std::string& expected, uint64_t max_num_errors){
+	ERROR_INIT
+
     fstream handle_result(result, ios_base::in);
-    if(!handle_result.good()) ERROR("The result file does not exist or is not accessible. Path: `"  << result << "'");
+    if(!handle_result.good()) FATAL("The result file does not exist or is not accessible. Path: `"  << result << "'");
     fstream handle_expected(expected, ios_base::in);
-    if(!handle_expected.good()) ERROR("The reference file does not exist or is not accessible. Path: `" << expected << "'");
+    if(!handle_expected.good()) FATAL("The reference file does not exist or is not accessible. Path: `" << expected << "'");
 
     char buffer[BUFFER_SZ]; // current line being processed
     uint64_t lineno = 0; // current line number
@@ -258,35 +282,39 @@ void GraphalyticsValidate::equivalence_match(const std::string& result, const st
         // first of all, does this vertex exist in the result file?
         auto ptr_t_res = components_result.find(t_ref.first);
         if(ptr_t_res == end(components_result)){
-            ERROR("[lineno reference:" << lineno << "] VALIDATION ERROR, the vertex " << t_ref.first << " is expected but not present in the result file");
-        }
-        auto t_res = *ptr_t_res;
+            ERROR_COUNT("[lineno reference:" << lineno << "] VALIDATION ERROR, the vertex " << t_ref.first << " is expected but not present in the result file");
+        } else {
+            auto t_res = *ptr_t_res;
 
-        // is the first time we see this vertex in the ref file?
-        auto mapping = ref_mapping.insert({t_ref.second, t_res.second});
-        if(mapping.second){ // as we have seen for the first time this component in ref, check we haven't seen previously also in exp
-            auto insert_rc = unique_components.insert(t_res.second);
-            if(!insert_rc.second){ // we were not able to insert `result' in the list of unique_values => a mapping for `result' already exists
-                ERROR("[lineno reference:" << lineno << "] VALIDATION ERROR, vertex: " << t_ref.first << ", the component " << t_res.second << " is associated to a single component in the result file but "
-                        "belongs to two different components in the reference file");
+            // is the first time we see this vertex in the ref file?
+            auto mapping = ref_mapping.insert({t_ref.second, t_res.second});
+            if(mapping.second){ // as we have seen for the first time this component in ref, check we haven't seen previously also in exp
+                auto insert_rc = unique_components.insert(t_res.second);
+                if(!insert_rc.second){ // we were not able to insert `result' in the list of unique_values => a mapping for `result' already exists
+                    ERROR_COUNT("[lineno reference:" << lineno << "] VALIDATION ERROR, vertex: " << t_ref.first << ", the component " << t_res.second << " is associated to a single component in the result file but "
+                            "belongs to two different components in the reference file");
+                }
+            } else if(!mapping.second && mapping.first->second != t_res.second) { // this mapping already exists, but the two components don't match
+                ERROR_COUNT("[lineno reference:" << lineno << "] VALIDATION ERROR, vertex: " << t_ref.first << ", invalid mapping, component in the result file: " << t_res.second <<
+                        ", expected value: " << mapping.first->second << " (in ref. file, mapped to value: " << t_ref.second << ")");
             }
-        } else if(!mapping.second && mapping.first->second != t_res.second) { // this mapping already exists, but the two components don't match
-            ERROR("[lineno reference:" << lineno << "] VALIDATION ERROR, vertex: " << t_ref.first << ", invalid mapping, component in the result file: " << t_res.second <<
-                                    ", expected value: " << mapping.first->second << " (in ref. file, mapped to value: " << t_ref.second << ")");
+
         }
 
         lineno++;
     }
 
     if(lineno < components_result.size()){
-        ERROR("The result file contains more lines [vertices] than the expected/reference output. Vertices result:" << components_result.size() << ", vertices expected: " << lineno);
+        ERROR_COUNT("The result file contains more lines [vertices] than the expected/reference output. Vertices result:" << components_result.size() << ", vertices expected: " << lineno);
     }
 
     handle_expected.close();
+
+    ERROR_EXIT
 }
 
-void GraphalyticsValidate::wcc(const std::string& result, const std::string& expected){
-    equivalence_match(result, expected);
+void GraphalyticsValidate::wcc(const std::string& result, const std::string& expected, uint64_t max_num_errors){
+    equivalence_match(result, expected, max_num_errors);
 }
 
 } // namespace

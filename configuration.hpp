@@ -332,6 +332,7 @@ class StandaloneConfiguration : public DriverConfiguration {
     bool m_graph_directed = true; // whether the graph is undirected or directed
     std::string m_library_name; // the library to test
     std::unique_ptr<library::Interface> (*m_library_factory)(bool directed) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
+    bool m_validate_output = false; // whether to validate the execution results of the Graphalytics algorithms
 
     // Do not explicitly initialise the configuration, use the method ::initialise();
     StandaloneConfiguration();
@@ -362,5 +363,8 @@ public:
 
     // Whether the graph is directed or undirected
     bool is_graph_directed() const { return m_graph_directed; }
+
+    // Whether to validate the execution results of the Graphalytics algorithms
+    bool validate_output() const { return m_validate_output; }
 };
 
