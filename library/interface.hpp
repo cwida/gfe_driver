@@ -184,9 +184,23 @@ public:
      */
     virtual bool remove_edge(graph::Edge e) = 0;
 
+    /**
+     * Load the whole graph representation from the given path
+     */
+    virtual void load(const std::string& path) override; // default implementation provided in terms of #add_vertex and #add_edge
 
     /**
-     * Perform a batch of edge insertions/deletions
+     * Create a new snapshot. By default this operation is a `nop'.
+     * In LLAMA, it creates a new level, moving all pending updates in the write store into a new delta in the read-only store.
+     */
+    virtual void build(); // default impl. => `nop'
+
+    /**
+     * Perform a batch of edge insertions/deletions.
+     * -- LIBRARY IMPLEMENTATIONS SHALL NOT OVERRIDE THIS METHOD: this is only used by the driver in client-server
+     * mode. The point is not to measure the performance of ``batch updates'' in the library, but to amortize the
+     * cost of many RPC calls over the network.
+     *
      * @param array the list of edge updates, insertions/deletions
      * @param array_sz the size of the list of edge updates
      * @param force if true, expect to perform all updates successfully and wait indefinitely until each operation is performed (due to async threads)
@@ -198,17 +212,6 @@ public:
         double m_weight; // if < 0, this is an edge removal, otherwise it's an edge insertion with the given weight
     };
     virtual bool batch(const SingleUpdate* array, size_t array_sz, bool force = true);
-
-    /**
-     * Load the whole graph representation from the given path
-     */
-    virtual void load(const std::string& path) override;
-
-    /**
-     * Create a new snapshot. By default this operation is a `nop'.
-     * In LLAMA, it creates a new level, moving all pending updates in the write store into a new delta in the read-only store.
-     */
-    virtual void build();
 };
 
 /**

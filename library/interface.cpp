@@ -202,6 +202,7 @@ void UpdateInterface::load(const string& path) {
         add_vertex(edge.m_destination);
         add_edge(edge);
     }
+    build();
 }
 
 void UpdateInterface::build(){
