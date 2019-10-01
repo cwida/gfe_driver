@@ -49,7 +49,7 @@ class Aging {
     std::shared_ptr<graph::WeightedEdgeStream> m_stream; // the final graph to insert
 
     cuckoohash_map<uint64_t, bool> m_vertices_present; // current list of vertices present
-    const cuckoohash_map<uint64_t, bool> m_vertices_final; // list of vertices in the final graph
+    const cuckoohash_map<uint64_t, uint64_t> m_vertices_final; // list of vertices in the final graph
 
     std::atomic<int64_t> m_num_operations_performed = 0; // current number of operations performed
     const uint64_t m_num_operations_total; // total number of operations to perform
@@ -128,7 +128,7 @@ public:
     // For instance with f = 1.3, then the experiment should create 30% more artificial vertices than those expected in the final graph
     void set_expansion_factor_vertices(double factor);
 
-    // Set the granularity of a single round of operation inside a thread
+    // Set the granularity of a single round of operations inside a thread
     void set_operation_granularity(uint64_t granularity);
 
     // Request to send edge updates in batches of the given size. Vertex insertions will continue to be sent one at the time

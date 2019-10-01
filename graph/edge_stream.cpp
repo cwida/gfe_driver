@@ -190,19 +190,21 @@ unique_ptr<VertexList> WeightedEdgeStream::vertex_list() const {
     return make_unique<VertexList>(vertices.release());
 }
 
-unique_ptr<cuckoohash_map<uint64_t, bool>> WeightedEdgeStream::vertex_table() const {
+unique_ptr<cuckoohash_map<uint64_t, uint64_t>> WeightedEdgeStream::vertex_table() const {
     LOG("Computing the list of vertices ... ")
     Timer timer; timer.start();
 
 //    unique_ptr<cuckoohash_map<uint64_t, bool>> ptr_vertex_table;
-    auto ptr_vertex_table = make_unique<cuckoohash_map<uint64_t, bool>>();
+    auto ptr_vertex_table = make_unique<cuckoohash_map<uint64_t, uint64_t>>();
     auto vertex_table = ptr_vertex_table.get();
 
     auto populate_vertex_table = [this, vertex_table](uint64_t start, uint64_t length){
         for(uint64_t i = start, end = start + length; i < end; i++){
 //            LOG("source: " << m_sources->get_value_at(i) << ", destination: " << m_destinations->get_value_at(i));
-            vertex_table->insert(m_sources->get_value_at(i), true);
-            vertex_table->insert(m_destinations->get_value_at(i), true);
+//            vertex_table->insert(m_sources->get_value_at(i), true);
+//            vertex_table->insert(m_destinations->get_value_at(i), true);
+            vertex_table->upsert(m_sources->get_value_at(i), [](uint64_t& value){ value +=1; }, 1);
+            vertex_table->upsert(m_destinations->get_value_at(i), [](uint64_t& value){ value += 1; }, 1);
         }
     };
 

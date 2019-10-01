@@ -22,7 +22,7 @@
 //
 #include "common/error.hpp"
 //#include "common/timer.hpp"
-#include "experiment/aging.hpp"
+#include "experiment/aging2_experiment.hpp"
 #include "experiment/insert_only.hpp"
 #include "experiment/graphalytics.hpp"
 #include "graph/edge_stream.hpp"
@@ -74,13 +74,17 @@ static void run_standalone(int argc, char* argv[]){
         if(configuration().has_database()) experiment.save();
     } else {
         LOG("[driver] Number of updates to perform: " << stream->num_edges() * cfgdriver().coefficient_aging());
-        Aging experiment(impl_upd, move(stream), cfgdriver().coefficient_aging(), cfgdriver().num_threads(THREADS_WRITE));
+        Aging2Experiment experiment;
+        experiment.set_library(impl_upd);
+        experiment.set_graph(move(stream));
+        experiment.set_coeff_operations(cfgdriver().coefficient_aging());
+        experiment.set_parallelism_degree(cfgdriver().num_threads(THREADS_WRITE));
         experiment.set_expansion_factor_vertices(cfgdriver().get_ef_vertices());
         experiment.set_expansion_factor_edges(cfgdriver().get_ef_edges());
         experiment.set_report_progress(true);
         experiment.set_build_frequency(chrono::milliseconds{ cfgdriver().get_build_frequency() });
-        experiment.execute();
-        if(configuration().has_database()) experiment.save();
+        auto result = experiment.execute();
+        if(configuration().has_database()) result.save(configuration().db());
     }
 
     if(cfgdriver().num_repetitions() > 0){

@@ -67,7 +67,13 @@ std::ostream& operator<<(std::ostream& out, const WeightedEdge& e);
 
 namespace std {
 template<> struct hash<graph::Edge>{ // hash function for graph::Edge
-    size_t operator()(const graph::Edge& e) const { return hash<uint64_t>{}(e.source()) ^ hash<uint64_t>{}(e.destination()); }
+    size_t operator()(const graph::Edge& e) const {
+        std::hash<uint64_t> H{};
+        constexpr uint64_t C = 0x9e3779b97f4a7c15ull;
+        uint64_t lhs = H(e.source()) + C + (0<<6) + (0 >> 2);
+        uint64_t rhs = H(e.destination()) + C + (lhs << 6) + (lhs >> 2);
+        return lhs ^ rhs;
+    }
 };
 
 } // namespace std

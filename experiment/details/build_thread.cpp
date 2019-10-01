@@ -29,7 +29,7 @@ using namespace std;
  * Debug                                                                     *
  *                                                                           *
  *****************************************************************************/
-#define DEBUG
+//#define DEBUG
 extern mutex _log_mutex [[maybe_unused]];
 #define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::_log_mutex}; std::cout << "[BuildThread::" << __FUNCTION__ << "] " << msg << std::endl; }
 #if defined(DEBUG)

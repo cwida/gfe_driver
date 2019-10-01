@@ -240,6 +240,8 @@ bool AdjacencyList::delete_vertex0(uint64_t vertex_id){
 }
 
 bool AdjacencyList::add_edge(graph::WeightedEdge e){
+    if(e.source() == e.destination()) INVALID_ARGUMENT("Cannot insert an edge with the same source and destination: " << e);
+
     scoped_lock<mutex_t> lock(m_mutex);
     return add_edge0(e);
 }

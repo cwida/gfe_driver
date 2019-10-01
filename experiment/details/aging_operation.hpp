@@ -19,7 +19,7 @@
 
 namespace experiment::details {
 
-// The single operations that can be perfomed by a single AgingThread
+// The single operations that can be performed by a single AgingThread instance
 enum class AgingOperation { NONE, START, STOP, COMPUTE_FINAL_EDGES, EXECUTE_EXPERIMENT, INTERNAL_CLEANUP, REMOVE_VERTICES };
 
 }

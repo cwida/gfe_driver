@@ -48,9 +48,13 @@ LDFLAGS := @LDFLAGS@
 # List of the sources to compile
 sources := \
 	experiment/details/aging_thread.cpp \
+	experiment/details/aging2_master.cpp \
+	experiment/details/aging2_worker.cpp \
 	experiment/details/async_batch.cpp \
 	experiment/details/build_thread.cpp \
 	experiment/aging.cpp \
+	experiment/aging2_experiment.cpp \
+	experiment/aging2_result.cpp \
 	experiment/graphalytics.cpp \
 	experiment/insert_only.cpp \
 	experiment/statistics.cpp \

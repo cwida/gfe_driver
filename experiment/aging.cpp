@@ -297,7 +297,6 @@ std::chrono::microseconds Aging::execute(){
             if(!m_vertices_final.contains(vertex.first)){
                 m_vertices2remove[vertices2remove_sz] = vertex.first;
                 vertices2remove_sz++;
-    //            m_interface->remove_vertex(vertex.first);
             }
         }
         lst_vertices.unlock();

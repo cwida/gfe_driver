@@ -487,6 +487,7 @@ auto StandaloneConfiguration::list_parameters() const -> param_list_t {
     using P = pair<string, string>;
 
     auto params = DriverConfiguration::list_parameters();
+    params.push_back(P{"aging_impl", "version_2"});
     params.push_back(P{"directed", to_string(is_graph_directed())});
     params.push_back(P{"library", get_library_name()});
     params.push_back(P{"role", "standalone"});
