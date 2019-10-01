@@ -17,8 +17,7 @@ constexpr size_t LIBCUCKOO_DEFAULT_SIZE =
 //! expansion. It must be a number between 0.0 and 1.0. The table will throw
 //! libcuckoo_load_factor_too_low if the load factor falls below this value
 //! during an automatic expansion.
-//constexpr double LIBCUCKOO_DEFAULT_MINIMUM_LOAD_FACTOR = 0.05;
-constexpr double LIBCUCKOO_DEFAULT_MINIMUM_LOAD_FACTOR = 0;
+constexpr double LIBCUCKOO_DEFAULT_MINIMUM_LOAD_FACTOR = 0.05;
 
 //! An alias for the value that sets no limit on the maximum hashpower. If this
 //! value is set as the maximum hashpower limit, there will be no limit. This
