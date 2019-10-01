@@ -206,7 +206,8 @@ void Aging2Worker::main_execute_updates(){
 #if defined(DEBUG)
             LOG("[thread: " << common::concurrency::get_thread_id() << ", worker_id: " << m_worker_id << "] "
                     "Progress: " << num_ops_done << "/" << num_total_ops << " (" << 100.0 * num_ops_done/num_total_ops << "%), "
-                    "edges final graph: " <<  m_partition_offset << "/" << (m_partition_end - m_partition_start) << " (" << (100.0 * m_partition_offset/ (m_partition_end - m_partition_start)) << " %)"
+                    "edges final graph: " <<  m_partition_offset << "/" << (m_partition_end - m_partition_start) << " (" << (100.0 * m_partition_offset/ (m_partition_end - m_partition_start)) << " %), "
+                    "hash load factor: " << (100.0 * m_master.m_edges_present.load_factor()) << " %"
             );
 #else // just report the percentages
             LOG("[thread: " << common::concurrency::get_thread_id() << ", worker_id: " << m_worker_id << "] "
@@ -409,4 +410,5 @@ int64_t Aging2Worker::missing_edges_final() const {
     assert(m_partition_start + m_partition_offset <= m_partition_end);
     return m_partition_end - (m_partition_start + m_partition_offset);
 }
+
 } // namespace

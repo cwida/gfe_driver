@@ -142,11 +142,16 @@ void Aging2Master::init_cumulative_frequencies(){
     }
 
     // build the index
-    uint64_t num_entries = std::max<uint64_t>(1, m_vertices_freq_sz / m_vertices_freq_index_leaf_sz);
+    uint64_t num_entries = std::max<uint64_t>(1, m_vertices_freq_sz / m_vertices_freq_index_leaf_sz + (m_vertices_freq_sz % m_vertices_freq_index_leaf_sz != 0));
     m_vertices_freq_index.rebuild(num_entries);
     for(uint64_t i = 0; i < num_entries; i++){
         m_vertices_freq_index.set_separator_key(i, m_vertices_freq[i * m_vertices_freq_index_leaf_sz].m_frequency);
     }
+
+    // sanity check
+//    bool check { true };
+//    m_vertices_freq_index.dump(cout, &check);
+//    assert(check == true && "Internal error in the index");
 
     timer.stop();
     LOG("[Aging2] Cumulative frequencies computed in " << timer);
@@ -237,7 +242,7 @@ uint64_t Aging2Master::distr_max_value() const {
 
 uint64_t Aging2Master::distr_vertex_offset(uint64_t cumulative_frequency) const {
     assert(cumulative_frequency < distr_max_value());
-    uint64_t offset = m_vertices_freq_index.find_lt(cumulative_frequency);
+    uint64_t offset = m_vertices_freq_index.find_lt(cumulative_frequency) * m_vertices_freq_index_leaf_sz;
     assert(offset < m_vertices_freq_sz && "Starting position outside of bounds");
     while(cumulative_frequency >= m_vertices_freq[offset].m_frequency) offset++;
     assert(offset < m_vertices_freq_sz && "Otherwise cumulative_frequency >= distr_max_value()");

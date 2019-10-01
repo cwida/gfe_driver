@@ -67,14 +67,29 @@ std::ostream& operator<<(std::ostream& out, const WeightedEdge& e);
 
 namespace std {
 template<> struct hash<graph::Edge>{ // hash function for graph::Edge
+private:
+    // Adapted from the General Purpose Hash Function Algorithms Library
+    // Author: Arash Partow - 2002
+    // URL: http://www.partow.net
+    // URL: http://www.partow.net/programming/hashfunctions/index.html
+    // MIT License
+    unsigned int APHash(uint64_t value) const {
+       unsigned int hash = 0xAAAAAAAA;
+       unsigned int i    = 0;
+       char* str = (char*) &value;
+
+       for (i = 0; i < sizeof(value); ++str, ++i) {
+          hash ^= ((i & 1) == 0) ? (  (hash <<  7) ^ (*str) * (hash >> 3)) :
+                                   (~((hash << 11) + ((*str) ^ (hash >> 5))));
+       }
+
+       return hash;
+    }
+
+public:
     size_t operator()(const graph::Edge& e) const {
-        std::hash<uint64_t> H{};
-        constexpr uint64_t C = 0x9e3779b97f4a7c15ull;
-        uint64_t lhs = H(e.source()) + C + (0<<6) + (0 >> 2);
-        uint64_t rhs = H(e.destination()) + C + (lhs << 6) + (lhs >> 2);
-        return lhs ^ rhs;
+        return APHash( (e.source() << 32) + (e.destination() & 0xFFFFFFFF) );
     }
 };
 
 } // namespace std
-
