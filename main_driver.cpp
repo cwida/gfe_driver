@@ -22,6 +22,7 @@
 //
 #include "common/error.hpp"
 //#include "common/timer.hpp"
+#include "experiment/aging.hpp"
 #include "experiment/aging2_experiment.hpp"
 #include "experiment/insert_only.hpp"
 #include "experiment/graphalytics.hpp"
@@ -62,29 +63,44 @@ static void run_standalone(int argc, char* argv[]){
 
     LOG("[driver] The library is set for a directed graph: " << (cfgstandalone().is_graph_directed() ? "yes" : "no"));
 
-    LOG("[driver] Loading the graph from " << path_graph);
-    auto stream = make_shared<graph::WeightedEdgeStream> ( cfgdriver().get_path_graph() );
-    stream->permute();
-    uint64_t random_vertex = stream->num_edges() > 0 ? stream->get(0).m_source : 0;
+    uint64_t random_vertex = 0;
 
-    LOG("[driver] Number of concurrent threads: " << cfgdriver().num_threads(THREADS_WRITE) );
-    if(cfgdriver().coefficient_aging() == 0.0){ // insert the elements in the graph one by one
-        InsertOnly experiment { impl_upd, move(stream), cfgdriver().num_threads(THREADS_WRITE) };
-        experiment.execute();
-        if(configuration().has_database()) experiment.save();
+    if(cfgstandalone().get_update_log().empty()){
+        LOG("[driver] Loading the graph from " << path_graph);
+        auto stream = make_shared<graph::WeightedEdgeStream> ( cfgdriver().get_path_graph() );
+        stream->permute();
+        if(stream->num_edges() > 0) random_vertex = stream->get(0).m_source;
+
+        LOG("[driver] Number of concurrent threads: " << cfgdriver().num_threads(THREADS_WRITE) );
+
+        if(cfgdriver().coefficient_aging() == 0.0){ // insert the elements in the graph one by one
+            InsertOnly experiment { impl_upd, move(stream), cfgdriver().num_threads(THREADS_WRITE) };
+            experiment.execute();
+            if(configuration().has_database()) experiment.save();
+        } else { // Aging experiment, without the graphlog
+            LOG("[driver] Number of updates to perform: " << stream->num_edges() * cfgdriver().coefficient_aging());
+            Aging experiment(impl_upd, move(stream), cfgdriver().coefficient_aging(), cfgdriver().num_threads(THREADS_WRITE));
+            experiment.set_expansion_factor_vertices(cfgdriver().get_ef_vertices());
+            experiment.set_expansion_factor_edges(cfgdriver().get_ef_edges());
+            experiment.set_report_progress(true);
+            experiment.set_build_frequency(chrono::milliseconds{ cfgdriver().get_build_frequency() });
+            experiment.execute();
+            if(configuration().has_database()) experiment.save();
+        }
+
     } else {
-        LOG("[driver] Number of updates to perform: " << stream->num_edges() * cfgdriver().coefficient_aging());
+        LOG("[driver] Number of concurrent threads: " << cfgdriver().num_threads(THREADS_WRITE) );
+        LOG("[driver] Aging2, path to log of updates: " << cfgstandalone().get_update_log());
         Aging2Experiment experiment;
         experiment.set_library(impl_upd);
-        experiment.set_graph(move(stream));
-        experiment.set_coeff_operations(cfgdriver().coefficient_aging());
+        experiment.set_log(cfgstandalone().get_update_log());
         experiment.set_parallelism_degree(cfgdriver().num_threads(THREADS_WRITE));
-        experiment.set_expansion_factor_vertices(cfgdriver().get_ef_vertices());
-        experiment.set_expansion_factor_edges(cfgdriver().get_ef_edges());
         experiment.set_report_progress(true);
         experiment.set_build_frequency(chrono::milliseconds{ cfgdriver().get_build_frequency() });
+
         auto result = experiment.execute();
         if(configuration().has_database()) result.save(configuration().db());
+        random_vertex = result.get_random_vertex_id();
     }
 
     if(cfgdriver().num_repetitions() > 0){

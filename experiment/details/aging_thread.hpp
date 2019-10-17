@@ -52,7 +52,7 @@ class AgingThread {
     std::vector<graph::WeightedEdge> m_edges; // primary edges to insert in the final graph
     uint64_t m_final_edges_current_position { 0 }; // index to keep track up to where which edges have been inserted
 
-    std::unordered_map<graph::Edge, bool> m_edges_already_inserted; // keep track of which edges has already been inserted
+    std::unordered_map<graph::Edge, bool> m_edges_already_inserted; // keep track of which edges have already been inserted
     common::CircularArray<graph::Edge> m_edges2remove; // edges that have been inserted but do not belong to the final graph
 
     AsyncBatch* m_batch; // send the edge updates in batches

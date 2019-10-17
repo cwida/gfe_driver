@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cctype> // tolower
+#include <cstdlib>
 #include <random>
 #include <sstream>
 #include <string>
@@ -26,9 +27,11 @@
 
 #include "common/cpu_topology.hpp"
 #include "common/database.hpp"
+#include "common/filesystem.hpp"
 #include "common/quantity.hpp"
 #include "common/system.hpp"
 #include "library/interface.hpp"
+#include "reader/graphlog_reader.hpp"
 #include "third-party/cxxopts/cxxopts.hpp"
 
 using namespace common;
@@ -114,15 +117,18 @@ void BaseConfiguration::cla_add(cxxopts::Options& options){
 void BaseConfiguration::cla_parse(cxxopts::Options& options, cxxopts::ParseResult& result){
     if(result.count("help") > 0){
         cout << options.help({"Generic"}) << endl;
-        exit(EXIT_SUCCESS);
+        ::exit(EXIT_SUCCESS);
     }
 
     set_seed( result["seed"].as<uint64_t>() );
-    set_max_weight( result["max_weight"].as<double>() );
+
+    if( result["max_weight"].count() > 0)
+        set_max_weight( result["max_weight"].as<double>() );
+
     if( result["database"].count() > 0 ){ set_database_path( result["database"].as<string>() ); }
 }
 
-string BaseConfiguration::cla_name() const { // this ought to be specialised in the subclasseses, e.g. "GFE Server", "GFE Client", etc.
+string BaseConfiguration::cla_name() const { // this ought to be specialised in the subclasses, e.g. "GFE Server", "GFE Client", etc.
     return "GFE";
 }
 
@@ -172,6 +178,7 @@ auto BaseConfiguration::list_parameters() const -> param_list_t {
     params.push_back(P{"database", get_database_path()});
     params.push_back(P{"git_commit", common::git_last_commit()});
     params.push_back(P{"hostname", common::hostname()});
+    params.push_back(P("max_weight", to_string(max_weight())));
     params.push_back(P{"seed", to_string(seed())});
     return params;
 }
@@ -228,11 +235,17 @@ void DriverConfiguration::cla_parse(cxxopts::Options& options, cxxopts::ParseRes
         set_graph( result["graph"].as<string>() );
     }
 
-    set_coeff_aging( result["aging"].as<double>() );
+    if(result["aging"].count() > 0)
+        set_coeff_aging( result["aging"].as<double>() );
+
     set_num_repetitions( result["repetitions"].as<uint64_t>() );
     set_timeout( result["timeout"].as<uint64_t>() );
-    set_ef_vertices( result["efe"].as<double>() );
-    set_ef_vertices( result["efv"].as<double>() );
+
+    if( result["efe"].count() > 0 )
+        set_ef_edges( result["efe"].as<double>() );
+
+    if( result["efv"].count() > 0 )
+        set_ef_vertices( result["efv"].as<double>() );
 
     if( result["build_frequency"].count() > 0 ){
         set_build_frequency( result["build_frequency"].as<DurationQuantity>().as<chrono::milliseconds>().count() );
@@ -447,12 +460,47 @@ void StandaloneConfiguration::cla_add(cxxopts::Options& options) {
 
     options.add_options("Generic")
         ("l, library", libraries_help_screen(), value<string>())
+        ("log", "Repeat the log of updates specified in the given file", value<string>())
         ("u, undirected", "Is the graph undirected? By default, it's considered directed.")
 		("v, validate", "Whether to validate the output results of the Graphalytics algorithms")
     ;
 }
 
 void StandaloneConfiguration::cla_parse(cxxopts::Options& options, cxxopts::ParseResult& result) {
+    if(result["log"].count() > 0 && result["help"].count() == 0){
+        m_update_log = result["log"].as<string>();
+        if(!common::filesystem::exists(m_update_log)){ ERROR("Option --log \"" << m_update_log << "\", the file does not exist"); }
+
+        // verify that the properties from the log file are not also specified via command line
+        if(result["aging"].count() > 0) { ERROR("Cannot specify the option --aging together with the log file"); }
+        if(result["efe"].count() > 0) { ERROR("Cannot specify the option --efe together with the log file"); }
+        if(result["efv"].count() > 0) { ERROR("Cannot specify the option --efv together with the log file"); }
+        if(result["max_weight"].count() > 0) { ERROR("Cannot specify the option --max_weight together with the log file"); }
+
+
+        // read the properties from the log file
+        auto log_properties = reader::graphlog::parse_properties(m_update_log);
+        if(log_properties.find("aging_coeff") == log_properties.end()) { ERROR("The log file `" << m_update_log << "' does not contain the expected property 'aging_coeff'"); }
+        set_coeff_aging(stod(log_properties["aging_coeff"]));
+        if(log_properties.find("ef_edges") == log_properties.end()) { ERROR("The log file `" << m_update_log << "' does not contain the expected property 'ef_edges'"); }
+        set_ef_edges(stod(log_properties["ef_edges"]));
+        if(log_properties.find("ef_vertices") == log_properties.end()) { ERROR("The log file `" << m_update_log << "' does not contain the expected property 'ef_vertices'"); }
+        set_ef_vertices(stod(log_properties["ef_vertices"]));
+        if(log_properties.find("max_weight") != log_properties.end()){ // otherwise assume the default
+            set_max_weight(stod(log_properties["max_weight"]));
+        }
+
+        // validate that the graph in the input log file matches the same graph specified in the command line
+        auto it_path_graph = log_properties.find("input_graph");
+        if(it_path_graph != log_properties.end() && result["graph"].count() > 0){
+            auto name_log = common::filesystem::filename(it_path_graph->second);
+            auto name_param = common::filesystem::filename(common::filesystem::absolute_path(result["graph"].as<string>()));
+            if(name_log != name_param){
+                ERROR("The log file is based on the graph `" << name_log << "', while the parameter --graph refers to `" << name_param << "'");
+            }
+        }
+    }
+
     DriverConfiguration::cla_parse(options, result);
 
     // library to evaluate
@@ -487,9 +535,12 @@ auto StandaloneConfiguration::list_parameters() const -> param_list_t {
     using P = pair<string, string>;
 
     auto params = DriverConfiguration::list_parameters();
-    params.push_back(P{"aging_impl", "version_2"});
     params.push_back(P{"directed", to_string(is_graph_directed())});
     params.push_back(P{"library", get_library_name()});
+    if(!get_update_log().empty()) {
+        params.push_back(P{"aging_impl", "version_2"});
+        params.push_back(P{"log", get_update_log()});
+    }
     params.push_back(P{"role", "standalone"});
     params.push_back(P{"validate_output", to_string(validate_output())});
 

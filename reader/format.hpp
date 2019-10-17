@@ -25,6 +25,7 @@ namespace reader {
 enum class Format {
     UNKNOWN, // No idea
     LDBC_GRAPHALYTICS, // It has its own descriptor in the form of a java .property file, two additional files contain a vertex list and an edge list
+    GRAPHLOG, // Custom format, this is a binary sequence of edge insertions/deletions
     PLAIN, // Extension .el, a list with one edge per line: src dst
     PLAIN_WEIGHTED, // Extension .wel, a list with one edge per line: src dst weight
     METIS, // Extension .metis or .graph, METIS v5.1 format

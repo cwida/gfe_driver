@@ -244,9 +244,9 @@ bool GraphalyticsReader::read_edge(graph::WeightedEdge& edge){
             if(!is_number(current)) ERROR("line: `" << current_line << "', cannot read the weight");
             m_last_weight = strtod(current, nullptr);
         } else {
-//            m_last_weight = 1.0;
-            uniform_real_distribution<double> distribution{1.0, configuration().max_weight()};
+            uniform_real_distribution<double> distribution{0, configuration().max_weight()}; // in [0, max_weight)
             m_last_weight = distribution(m_random_generator);
+            if(m_last_weight == 0.0) m_last_weight = configuration().max_weight(); // in (0, max_weight]
         }
 
         m_last_reported = false;

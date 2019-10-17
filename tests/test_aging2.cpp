@@ -32,19 +32,18 @@ using namespace library;
 using namespace std;
 
 static
-void validate_aging2(bool is_directed, const string& path_graph, uint64_t exp_granularity = 1024){
+void validate_aging2(bool is_directed, const string& path_graph, const string& path_log, uint64_t exp_granularity = 1024){
     auto stream = make_shared<WeightedEdgeStream>(path_graph);
     auto adjlist = make_shared<AdjacencyList>(is_directed);
 
     Aging2Experiment exp_aging;
     exp_aging.set_library(adjlist);
-    exp_aging.set_graph(move(stream));
-    exp_aging.set_coeff_operations(8);
+    exp_aging.set_log(path_log);
     exp_aging.set_parallelism_degree(8);
-    exp_aging.set_expansion_factor_edges(1.5);
-    exp_aging.set_expansion_factor_vertices(1.5);
     exp_aging.set_worker_granularity(exp_granularity);
     exp_aging.execute();
+
+    adjlist->dump();
 
     stream = make_shared<WeightedEdgeStream>(path_graph);
     unordered_set<uint64_t> vertices;
@@ -65,10 +64,9 @@ void validate_aging2(bool is_directed, const string& path_graph, uint64_t exp_gr
     ASSERT_EQ(vertices.size(), adjlist->num_vertices());
 }
 
-TEST(Aging2, Directed){
-    validate_aging2(true, common::filesystem::directory_executable() + "/graphs/rome99.no_duplicates.gr", 64);
-}
 
 TEST(Aging2, Undirected){
-    validate_aging2(false, common::filesystem::directory_executable() + "/graphs/ldbc_graphalytics/example-undirected.properties", 4);
+    const string path_graph = common::filesystem::directory_executable() + "/graphs/ldbc_graphalytics/example-undirected.properties";
+    const string path_log = common::filesystem::directory_executable() + "/graphs/ldbc_graphalytics/example-undirected.graphlog";
+    validate_aging2(/* is directed ? */ false, path_graph, path_log, 4);
 }

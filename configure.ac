@@ -78,6 +78,11 @@ else
 fi
 
 #############################################################################
+# zlib
+AC_CHECK_HEADERS([zlib.h], [], [ AC_MSG_ERROR([zlib.h not found. The library zlib is a required dependency.]) ], [ [/* avoid default includes */] ])
+AC_SEARCH_LIBS([inflate], [z], [ ], [ AC_MSG_ERROR([Library zlib not found. This library is a required dependency.]) ], [ ]):
+
+#############################################################################
 # GMP GNU Multiple Precision Arithmetic Library
 # check if GMP is already available in the system
 gmp_system_avail="yes"
@@ -405,7 +410,7 @@ echo \
 ${PACKAGE_NAME} version ${PACKAGE_VERSION}
 Compiler C..........: ${CC} ${ALL_CFLAGS}
 Compiler C++........: ${CXX} ${ALL_CXXFLAGS}
-Linker..............: ${LDFLAGS}
+Linker..............: ${CXX} ${LDFLAGS}
 Enable assertions...: ${enable_assert}
 Enable debug........: ${enable_debug}
 Enable optimize.....: ${enable_optimize}

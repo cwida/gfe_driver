@@ -38,14 +38,12 @@ class Aging2Worker {
     Aging2Master& m_master; // pointer to the master thread
     library::UpdateInterface* m_library; // the library being evaluated
     const int m_worker_id; // this id is passed to the interface #on_worker_init and #on_worker_destroy
-    uint64_t m_partition_start; // the location where to insert the `real' edges that belong to the final graph
-    uint64_t m_partition_end; // the last position (+1) of the partition of `real' edges to insert, from the final graph
-    uint64_t m_partition_offset = 0; // offset from `m_partition_start' for the next to insert from the final graph
-    common::CircularArray<graph::Edge> m_edges2remove; // edges that have been inserted but do not belong to the final graph
+    common::CircularArray<std::vector<graph::WeightedEdge>*> m_updates; // the updates to perform
     std::mt19937_64 m_random { std::random_device{}() }; // pseudo-random generator
     std::uniform_real_distribution<double> m_uniform{ 0., 1. }; // uniform distribution in [0, 1]
 
-    enum class Task { IDLE, START, STOP, EXECUTE_UPDATES, REMOVE_ARTIFICIAL_VERTICES };
+    enum class TaskOp { IDLE, START, STOP, LOAD_EDGES, EXECUTE_UPDATES, REMOVE_VERTICES };
+    struct Task { TaskOp m_type; uint64_t* m_payload; uint64_t m_payload_sz; };
     Task m_task; // current task being executed
 
     std::thread m_thread; // the thread associated to the background thread/service
@@ -61,14 +59,20 @@ class Aging2Worker {
     // the controller for the background thread
     void main_thread();
 
+    // load a batch of edges in the background thread
+    void main_load_edges(uint64_t* edges, uint64_t num_edges);
+
     // execute the insert/delete operations for the graph in the background thread
     void main_execute_updates();
 
     // remote the artificial vertices, those that do not belong to the final graph, in the background thread
-    void main_remove_artificial_vertices();
+    void main_remove_vertices(uint64_t* vertices, uint64_t num_vertices);
 
     // Set the task to execute asynchronously
-    void set_task_async(Task t);
+    void set_task_async(TaskOp task_type, uint64_t* payload = nullptr, uint64_t payload_sz = 0);
+
+    // Execute a batch of updates
+    void graph_execute_batch_updates(graph::WeightedEdge* __restrict updates, uint64_t num_updates);
 
     // Insert a single vertex in the graph system/library, if it's not already present
     void graph_insert_vertex(uint64_t vertex_id);
@@ -94,11 +98,14 @@ public:
     // Destructor. It implicitly stops the background thread.
     ~Aging2Worker();
 
+    // Load a batch of edges
+    void load_edges(uint64_t* edges, uint64_t num_edges);
+
     // Request the thread to execute all updates
     void execute_updates();
 
     // Request to remove the vertices that do not belong to the final graph
-    void remove_artificial_vertices();
+    void remove_vertices(uint64_t* vertices, uint64_t num_vertices);
 
     // Wait for the last operation issued to complete
     void wait();

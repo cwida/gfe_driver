@@ -21,6 +21,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -47,9 +48,8 @@ void cfgfree(); // invoked at the end to release the configuration
 // Generic configuration error
 DEFINE_EXCEPTION(ConfigurationError);
 
-// Print the given message only if we are in verbose mode
+// Print the given message to the standard output
 extern std::mutex _log_mutex;
-
 #define LOG( msg ) { std::scoped_lock lock(_log_mutex); std::cout << msg << /* flush immediately */ std::endl; }
 
 // Type of counter for the number of threads
@@ -66,7 +66,7 @@ class BaseConfiguration {
     // properties
     common::Database* m_database { nullptr }; // handle to the database
     std::string m_database_path { "" }; // the path where to store the results
-    double m_max_weight { 1024.0 }; // the maximum weight that can be assigned when reading non weighted graphs
+    double m_max_weight { 1.0 }; // the maximum weight that can be assigned when reading non weighted graphs
     uint64_t m_seed = 5051789ull; // random seed, used in various places in the experiments
 
 protected:
@@ -331,6 +331,7 @@ class StandaloneConfiguration : public DriverConfiguration {
     // properties
     bool m_graph_directed = true; // whether the graph is undirected or directed
     std::string m_library_name; // the library to test
+    std::string m_update_log; // aging experiment through the log file
     std::unique_ptr<library::Interface> (*m_library_factory)(bool directed) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
     bool m_validate_output = false; // whether to validate the execution results of the Graphalytics algorithms
 
@@ -357,6 +358,8 @@ public:
     ~StandaloneConfiguration();
 
     const std::string& get_library_name() const { return m_library_name; }
+
+    const std::string& get_update_log() const { return m_update_log; }
 
     // Generate an instance of the graph library to evaluate
     std::unique_ptr<library::Interface> generate_graph_library();

@@ -19,6 +19,7 @@
 
 #include <cstring>
 #include <strings.h>
+#include "common/filesystem.hpp"
 
 namespace reader {
 
@@ -28,6 +29,8 @@ Format get_graph_format(const char* path) {
         extension++; // skip the '.'
         if ( strcasecmp(extension, "properties") == 0 ){ // properties file of the Graphalytics suite
             return reader::Format::LDBC_GRAPHALYTICS;
+        } else if( strcasecmp(extension, "log") == 0 || strcasecmp(extension, "glog") == 0 || strcasecmp(extension, "graphlog") == 0){
+            return reader::Format::GRAPHLOG;
         } else if( strcasecmp(extension, "el") == 0){
             return reader::Format::PLAIN;
         } else if( strcasecmp(extension, "wel") == 0 ){

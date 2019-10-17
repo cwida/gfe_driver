@@ -33,17 +33,17 @@ class Aging2Result {
     friend class details::Aging2Worker;
 
     const uint64_t m_num_threads; // the total number of threads used for the experiment, that is, the parallelism degree
-    const uint64_t m_worker_granularity = 1024; // the granularity of a task for a worker, that is the number of contiguous operations (inserts/deletes) performed inside the threads between each invocation to the scheduler.
-    uint64_t m_num_artificial_vertices = 0; // the total number of artificial vertices (not present in the loaded graph) inserted during the updates
+    const uint64_t m_worker_granularity; // the granularity of a task for a worker, that is the number of contiguous operations (inserts/deletes) performed inside the threads between each invocation to the scheduler.
+    uint64_t m_num_artificial_vertices = 0; // the total number of artificial vertices (not present in the loaded graph), inserted during the updates
     uint64_t m_completion_time = 0; // the amount of time to complete all updates, in microsecs
     uint64_t m_num_vertices_load = 0; // the number of vertices loaded from the input graph
     uint64_t m_num_vertices_final_graph = 0; // the number of vertices in the final graph, after all updates have been performed
     uint64_t m_num_edges_load = 0; // the number of edges loaded from the input graph
     uint64_t m_num_edges_final_graph = 0; // the number of edges in the final graph, after all updates have been performed
     uint64_t m_num_build_invocations = 0; // total number of invocations to the method #build
-    uint64_t m_num_operations_expected = 0; // total number of operations expected to be performed by the workers, before running the experiment
-    uint64_t m_num_operations_performed = 0; // total number of operations performed by the workers
+    uint64_t m_num_operations_total = 0; // total number of operations expected to be performed by the workers
     std::vector<uint64_t> m_reported_times; // time to complete 1x, 2x, 3x, ... updates (inserts/deletions) w.r.t. the size of the input graph, in microsecs
+    uint64_t m_random_vertex_id = 0; // the ID of a random vertex stored in the graph
 
 public:
     // Default ctor
@@ -55,6 +55,11 @@ public:
     // the total number of artificial vertices (not present in the loaded graph) inserted during the updates
     uint64_t num_artificial_vertices() const {
         return m_num_artificial_vertices;
+    }
+
+    // Get a random vertex stored in the graph
+    uint64_t get_random_vertex_id() const {
+        return m_random_vertex_id;
     }
 
     // Save the results of the experiment into the database

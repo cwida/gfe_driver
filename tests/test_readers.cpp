@@ -41,7 +41,6 @@ static void validate_read(Reader& reader, uint64_t source, uint64_t dest, double
     ASSERT_EQ(edge.weight(), weight);
 }
 
-
 TEST(PlainWeighted, WithoutComments) {
     graph::WeightedEdgeStream stream{  common::filesystem::directory_executable() + "/graphs/weighted_no_comments.wel" };
     stream.permute();

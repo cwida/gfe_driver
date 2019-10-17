@@ -19,6 +19,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <thread>
@@ -29,7 +30,7 @@
 #include "common/timer.hpp"
 #include "experiment/aging2_experiment.hpp"
 #include "experiment/aging2_result.hpp"
-#include "graph/edge_stream.hpp"
+#include "reader/graphlog_reader.hpp"
 #include "library/interface.hpp"
 #include "aging2_worker.hpp"
 #include "build_thread.hpp"
@@ -62,16 +63,20 @@ namespace experiment::details {
 
 Aging2Master::Aging2Master(const Aging2Experiment& parameters) :
     m_parameters(parameters),
-    m_vertices_final(move(* (parameters.m_stream->vertex_table().get()) ) ),
     m_is_directed(m_parameters.m_library->is_directed()),
     m_results(parameters) {
 
+    auto properties = reader::graphlog::parse_properties(parameters.m_path_log);
+    m_results.m_num_artificial_vertices = stoull(properties["internal.vertices.temporary.cardinality"]);
+    m_results.m_num_vertices_load = stoull(properties["internal.vertices.final.cardinality"]);
+    m_results.m_num_edges_load = stoull(properties["internal.edges.final"]);
+    m_results.m_num_operations_total = stoull(properties["internal.edges.cardinality"]);
+
     // 1024 is a hack to avoid issues with small graphs
-    m_reported_times = new uint64_t[ std::max<uint64_t>( ::ceil (static_cast<double>(num_operations_total()) / m_parameters.m_stream->num_edges() ) + 1, 1024 ) ]();
+    m_reported_times = new uint64_t[static_cast<uint64_t>( ::ceil( static_cast<double>(num_operations_total())/num_edges_final_graph())  + 1 )]();
 
     m_parameters.m_library->on_main_init(m_parameters.m_num_threads + /* this + builder service */ 2);
 
-    init_cumulative_frequencies();
     init_workers();
     m_parameters.m_library->on_thread_init(m_parameters.m_num_threads);
 }
@@ -82,79 +87,7 @@ Aging2Master::~Aging2Master(){
     m_parameters.m_library->on_thread_destroy(m_parameters.m_num_threads);
     m_parameters.m_library->on_main_destroy();
 
-    delete[] m_vertices_freq; m_vertices_freq = nullptr; m_vertices_freq_sz = 0;
-
     delete[] m_reported_times; m_reported_times = nullptr;
-
-    delete[] m_vertices2remove; m_vertices2remove = nullptr; // avoid potential leaks due to exceptions
-}
-
-void Aging2Master::init_cumulative_frequencies(){
-    Timer timer; timer.start();
-    LOG("[Aging2] Computing the cumulative frequency for the edges in the input graph ... ");
-
-    // compute the frequencies for the vertices
-    m_vertices_freq_sz = std::max<uint64_t>( m_vertices_final.size() * parameters().m_ef_vertices, m_vertices_final.size() );
-    m_vertices_freq = new RankFrequency[m_vertices_freq_sz]();
-    { // restrict the scope
-        auto lst_vertices = m_vertices_final.lock_table();
-        int64_t pos = 0;
-        for(auto& pair: lst_vertices){ m_vertices_freq[ pos++ ] = { pair.first, pair.second }; }
-        lst_vertices.unlock();
-    }
-    std::sort(m_vertices_freq, m_vertices_freq + m_vertices_final.size(), [](const RankFrequency& r1, const RankFrequency& r2){
-        return r1.m_frequency > r2.m_frequency; // decreasing order
-    });
-    assert(m_vertices_freq_sz >= m_vertices_final.size());
-    uint64_t vertices_to_insert = m_vertices_freq_sz - m_vertices_final.size();
-    if(vertices_to_insert > 0){
-        uint64_t vertex_id = 0;
-
-        int64_t pos_tail = m_vertices_freq_sz -1;
-        int64_t pos_head = m_vertices_final.size() -1;
-        uint64_t remaining_free_spots = vertices_to_insert;
-        while(remaining_free_spots > 0 && pos_tail > 0){
-            assert(pos_head >= 0);
-            if(remaining_free_spots *  m_vertices_freq_sz >= vertices_to_insert * pos_tail){
-                // generate the ID of the vertex to insert
-                do { vertex_id ++; } while(m_vertices_final.contains(vertex_id));
-                // interpolate the frequency w.r.t. the two neighbours
-                uint64_t vertex_freq = m_vertices_freq[pos_head].m_frequency;
-                if(pos_tail < m_vertices_freq_sz -1){
-                    vertex_freq = (vertex_freq + m_vertices_freq[pos_tail +1].m_frequency) /2;
-                }
-                m_vertices_freq[pos_tail] = {vertex_id, vertex_freq};
-                remaining_free_spots--;
-//                COUT_DEBUG("vertex[temp][" << pos_tail << "]: " << vertex_id << ", " << vertex_freq);
-            } else {
-                m_vertices_freq[pos_tail] = m_vertices_freq[pos_head];
-                pos_head--;
-//                COUT_DEBUG("vertex[final][" << pos_tail << "]: " << m_vertices_freq[pos_tail].m_vertex_id << ", " << m_vertices_freq[pos_tail].m_frequency << ", pos_head: " << pos_head);
-            }
-
-            pos_tail--;
-        }
-    }
-
-    // okay, finally compute the prefix sum
-    for(uint64_t i = 1; i < m_vertices_freq_sz; i++){
-        m_vertices_freq[i].m_frequency += m_vertices_freq[i -1].m_frequency;
-    }
-
-    // build the index
-    uint64_t num_entries = std::max<uint64_t>(1, m_vertices_freq_sz / m_vertices_freq_index_leaf_sz + (m_vertices_freq_sz % m_vertices_freq_index_leaf_sz != 0));
-    m_vertices_freq_index.rebuild(num_entries);
-    for(uint64_t i = 0; i < num_entries; i++){
-        m_vertices_freq_index.set_separator_key(i, m_vertices_freq[i * m_vertices_freq_index_leaf_sz].m_frequency);
-    }
-
-    // sanity check
-//    bool check { true };
-//    m_vertices_freq_index.dump(cout, &check);
-//    assert(check == true && "Internal error in the index");
-
-    timer.stop();
-    LOG("[Aging2] Cumulative frequencies computed in " << timer);
 }
 
 void Aging2Master::init_workers() {
@@ -174,6 +107,31 @@ void Aging2Master::init_workers() {
  * Experiment                                                                *
  *                                                                           *
  *****************************************************************************/
+void Aging2Master::load_edges(){
+    LOG("[Aging2] Loading the sequence of updates to perform from " << m_parameters.m_path_log << " ...");
+    Timer timer; timer.start();
+
+    fstream handle(m_parameters.m_path_log, ios_base::in | ios_base::binary);
+    auto properties = reader::graphlog::parse_properties(handle);
+    uint64_t array_sz = stoull(properties["internal.edges.block_size"]);
+    unique_ptr<uint64_t[]> ptr_array { new uint64_t[array_sz] };
+    uint64_t* array = ptr_array.get();
+    reader::graphlog::set_marker(properties, handle, reader::graphlog::Section::EDGES);
+
+    reader::graphlog::EdgeLoader loader(handle);
+    uint64_t num_edges = 0;
+    while( (num_edges = loader.load(array, array_sz / 3)) > 0 ){
+        for(auto w: m_workers) w->load_edges(array, num_edges);
+        if(m_results.m_random_vertex_id == 0) { set_random_vertex_id(array, num_edges); }
+        for(auto w: m_workers) w->wait();
+    }
+    handle.close();
+
+    timer.stop();
+    LOG("[Aging2] Graphlog loaded in " << timer);
+}
+
+
 void Aging2Master::do_run_experiment(){
     LOG("[Aging2] Experiment started ...");
     m_last_progress_reported = 0;
@@ -194,35 +152,36 @@ void Aging2Master::do_run_experiment(){
     m_results.m_num_build_invocations = build_service.num_invocations();
 }
 
-void Aging2Master::do_remove_artificial_vertices(){
+void Aging2Master::remove_vertices(){
+    LOG("[Aging2] Removing the list of temporary vertices ...");
     Timer timer; timer.start();
 
-    auto lst_vertices = m_vertices_present.lock_table();
-    m_vertices2remove = new uint64_t[lst_vertices.size()];
-    m_results.m_num_artificial_vertices = 0;
-    for(auto vertex : lst_vertices){
-        if(!m_vertices_final.contains(vertex.first)){
-            m_vertices2remove[m_results.m_num_artificial_vertices] = vertex.first;
-            m_results.m_num_artificial_vertices++;
-        }
-    }
-    lst_vertices.unlock();
+    fstream handle(m_parameters.m_path_log, ios_base::in | ios_base::binary);
+    auto properties = reader::graphlog::parse_properties(handle);
+    uint64_t num_vertices = stoull(properties["internal.vertices.temporary.cardinality"]);
+    unique_ptr<uint64_t[]> ptr_vertices { new uint64_t[num_vertices] };
+    uint64_t* vertices = ptr_vertices.get();
+    reader::graphlog::set_marker(properties, handle, reader::graphlog::Section::VTX_TEMP);
 
-    for(auto w: m_workers) w->remove_artificial_vertices();
+    reader::graphlog::VertexLoader loader { handle };
+    loader.load(vertices, num_vertices);
+    m_results.m_num_artificial_vertices = num_vertices;
+
+    for(auto w: m_workers) w->remove_vertices(vertices, num_vertices);
     for(auto w: m_workers) w->wait();
     m_parameters.m_library->build();
 
-    delete[] m_vertices2remove; m_vertices2remove = nullptr;
 
     LOG("[Aging2] Number of extra vertices: " << m_results.m_num_artificial_vertices << ", "
-            "expansion factor: " << static_cast<double>(m_results.m_num_artificial_vertices + m_vertices_final.size()) / m_vertices_final.size());
+            "expansion factor: " << static_cast<double>(m_results.m_num_artificial_vertices +  m_results.m_num_vertices_final_graph) / m_results.m_num_vertices_final_graph);
     timer.stop();
-    LOG("[Aging2] Artificial vertices removed in " << timer);
+    LOG("[Aging2] Temporary vertices removed in " << timer);
 }
 
 Aging2Result Aging2Master::execute(){
+    load_edges();
     do_run_experiment();
-    do_remove_artificial_vertices();
+    remove_vertices();
 
     store_results();
     log_num_vtx_edges();
@@ -235,35 +194,17 @@ Aging2Result Aging2Master::execute(){
  * Utility methods                                                           *
  *                                                                           *
  *****************************************************************************/
-
-uint64_t Aging2Master::distr_max_value() const {
-    return m_vertices_freq[m_vertices_freq_sz -1].m_frequency;
-}
-
-uint64_t Aging2Master::distr_vertex_offset(uint64_t cumulative_frequency) const {
-    assert(cumulative_frequency < distr_max_value());
-    uint64_t offset = m_vertices_freq_index.find_lt(cumulative_frequency) * m_vertices_freq_index_leaf_sz;
-    assert(offset < m_vertices_freq_sz && "Starting position outside of bounds");
-    while(cumulative_frequency >= m_vertices_freq[offset].m_frequency) offset++;
-    assert(offset < m_vertices_freq_sz && "Otherwise cumulative_frequency >= distr_max_value()");
-    return offset;
-}
-
 uint64_t Aging2Master::num_operations_total() const {
-    return parameters().m_mult_ops * parameters().m_stream->num_edges();
+    return m_results.m_num_operations_total;
 }
 
-uint64_t Aging2Master::max_num_edges() const{
-    return parameters().m_ef_edges * parameters().m_stream->num_edges();
+uint64_t Aging2Master::num_edges_final_graph() const {
+   return m_results.m_num_edges_load;
 }
 
 void Aging2Master::store_results(){
-    m_results.m_num_vertices_load = m_vertices_final.size();
-    m_results.m_num_edges_load = parameters().m_stream->num_edges();
     m_results.m_num_vertices_final_graph = parameters().m_library->num_vertices();
     m_results.m_num_edges_final_graph = parameters().m_library->num_edges();
-    m_results.m_num_operations_expected = num_operations_total();
-    m_results.m_num_operations_performed = m_num_operations_performed;
     m_results.m_reported_times.reserve(m_last_time_reported);
     for(size_t i = 0, sz = m_last_time_reported; i < sz; i++){
         m_results.m_reported_times.push_back( m_reported_times[i] );
@@ -271,19 +212,28 @@ void Aging2Master::store_results(){
 }
 
 void Aging2Master::log_num_vtx_edges(){
-    uint64_t num_vertices0 = m_vertices_final.size();
-    uint64_t num_edges0 = parameters().m_stream->num_edges();
-
     scoped_lock<mutex> lock(_log_mutex);
     cout << "[Aging2] Number of stored vertices: " << m_results.m_num_vertices_final_graph << " [match: ";
-    if(num_vertices0 == m_results.m_num_vertices_final_graph){ cout << "yes"; } else {
-        cout << "no, expected " << num_edges0;
+    if(m_results.m_num_vertices_load == m_results.m_num_vertices_final_graph){ cout << "yes"; } else {
+        cout << "no, expected " << m_results.m_num_vertices_load;
     }
     cout << "], number of stored edges: " << m_results.m_num_edges_final_graph << " [match: ";
-    if(num_edges0 == m_results.m_num_edges_final_graph){ cout << "yes"; } else {
-        cout << "no, expected " << num_edges0;
+    if(m_results.m_num_edges_load == m_results.m_num_edges_final_graph){ cout << "yes"; } else {
+        cout << "no, expected " << m_results.m_num_edges_load;
     }
     cout << "]" << endl;
+}
+
+void Aging2Master::set_random_vertex_id(uint64_t* edges, uint64_t num_edges){
+    uint64_t* __restrict sources = edges;
+    uint64_t* __restrict destinations = sources + num_edges;
+    double* __restrict weights = reinterpret_cast<double*>(destinations + num_edges);
+
+    uint64_t i = 0;
+    while(i < num_edges && weights[i] <= 0) i++;
+
+    if(i < num_edges)
+        m_results.m_random_vertex_id = sources[i];
 }
 
 } // namespace

@@ -57,13 +57,8 @@ void Aging2Experiment::set_library(std::shared_ptr<library::UpdateInterface> lib
     m_library = library;
 }
 
-void Aging2Experiment::set_graph(shared_ptr<graph::WeightedEdgeStream> graph){
-    m_stream = graph;
-}
-
-void Aging2Experiment::set_coeff_operations(double value){
-    if(value < 1){ INVALID_ARGUMENT("value < 1: " << value); }
-    m_mult_ops = value;
+void Aging2Experiment::set_log(const std::string& path){
+    m_path_log = path;
 }
 
 void Aging2Experiment::set_max_weight(double value){
@@ -74,18 +69,6 @@ void Aging2Experiment::set_max_weight(double value){
 void Aging2Experiment::set_parallelism_degree(uint64_t num_threads){
     if(num_threads < 1){ INVALID_ARGUMENT("num_threads < 1: " << num_threads); }
     m_num_threads = num_threads;
-}
-
-void Aging2Experiment::set_expansion_factor_edges(double value){
-    if(value < 1){ INVALID_ARGUMENT("The expansion factor must be a value >= 1. Value given: " << value); }
-    LOG("[Aging2] Expansion factor for the edges set to: " << value);
-    m_ef_edges = value;
-}
-
-void Aging2Experiment::set_expansion_factor_vertices(double value){
-    if(value < 1){ INVALID_ARGUMENT("The expansion factor must be a value >= 1. Value given: " << value); }
-    LOG("[Aging2] Expansion factor for the vertices set to: " << value);
-    m_ef_vertices = value;
 }
 
 void Aging2Experiment::set_build_frequency(std::chrono::milliseconds millisecs){
@@ -103,7 +86,7 @@ void Aging2Experiment::set_worker_granularity(uint64_t value){
 
 Aging2Result Aging2Experiment::execute(){
     if(m_library.get() == nullptr) ERROR("Library not set. Use #set_library to set it.");
-    if(m_stream.get() == nullptr) ERROR("Graph not set. Use #set_graph to set it.")
+    if(m_path_log.empty()) ERROR("Path to the log file not set. Use #set_log to set it.")
 
     details::Aging2Master master{*this};
     return master.execute();
