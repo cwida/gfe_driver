@@ -44,7 +44,7 @@ using namespace std;
  *                                                                           *
  *****************************************************************************/
 extern mutex _log_mutex [[maybe_unused]];
-#define DEBUG
+//#define DEBUG
 #define COUT_DEBUG_FORCE(msg) { scoped_lock<mutex> lock(_log_mutex); cout << "[Aging2Worker::" << __FUNCTION__ << "] [" << concurrency::get_thread_id() << ", worker_id: " << m_worker_id << "] " << msg << endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
@@ -225,6 +225,7 @@ void Aging2Worker::main_execute_updates(){
             start = end;
         }
 
+        COUT_DEBUG("Releasing a buffer of cardinality " << operations->size() << ", " << m_updates.size() -1 << " buffers left");
         delete m_updates[0];
         m_updates.pop();
     }

@@ -114,16 +114,26 @@ void Aging2Master::load_edges(){
     fstream handle(m_parameters.m_path_log, ios_base::in | ios_base::binary);
     auto properties = reader::graphlog::parse_properties(handle);
     uint64_t array_sz = stoull(properties["internal.edges.block_size"]);
-    unique_ptr<uint64_t[]> ptr_array { new uint64_t[array_sz] };
-    uint64_t* array = ptr_array.get();
+    unique_ptr<uint64_t[]> ptr_array1 { new uint64_t[array_sz] };
+    unique_ptr<uint64_t[]> ptr_array2 { new uint64_t[array_sz] };
+    uint64_t* array1 = ptr_array1.get();
+    uint64_t* array2 = ptr_array2.get();
     reader::graphlog::set_marker(properties, handle, reader::graphlog::Section::EDGES);
 
     reader::graphlog::EdgeLoader loader(handle);
-    uint64_t num_edges = 0;
-    while( (num_edges = loader.load(array, array_sz / 3)) > 0 ){
-        for(auto w: m_workers) w->load_edges(array, num_edges);
-        if(m_results.m_random_vertex_id == 0) { set_random_vertex_id(array, num_edges); }
+    uint64_t num_edges = loader.load(array1, array_sz / 3);
+    while( num_edges > 0 ){
+        // partition the batch among the workers
+        for(auto w: m_workers) w->load_edges(array1, num_edges);
+        if(m_results.m_random_vertex_id == 0) { set_random_vertex_id(array1, num_edges); }
+
+        // load the next batch in the meanwhile
+        num_edges = loader.load(array2, array_sz /3);
+
+        // wait for the workers to complete
         for(auto w: m_workers) w->wait();
+
+        swap(array1,array2);
     }
     handle.close();
 
