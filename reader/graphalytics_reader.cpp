@@ -402,7 +402,7 @@ GraphalyticsReader::GraphalyticsReader(const std::string& path_properties) : m_r
     // check that the key vertex-file, edge-file and directed are present
     if(m_properties.find("vertex-file") == m_properties.end()) ERROR("The property `vertex-file' is not set in the property file");
     if(m_properties.find("edge-file") == m_properties.end()) ERROR("The property `edge-file' is not set in the property file");
-    COUT_DEBUG("vertex-file: " << get_path_vertex_list() << ", edge-file: " << get_path_edge_list() << ", is_directed: " << is_directed() << ", is_weighted: " << is_weighted());
+    COUT_DEBUG("vertex-file: " << get_path_vertex_list() << ", edge-file: " << get_path_edge_list() << ", is_directed: " << is_directed() << ", is_weighted: " << is_weighted() << ", is_compressed: " << is_compressed());
 
     // init the reader impl. (plain or compressed)
     reset();

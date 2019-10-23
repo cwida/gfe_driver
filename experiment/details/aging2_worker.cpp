@@ -243,13 +243,23 @@ void Aging2Worker::main_load_edges(uint64_t* edges, uint64_t num_edges){
     uint64_t* __restrict destinations = sources + num_edges;
     double* __restrict weights = reinterpret_cast<double*>(destinations + num_edges);
 
+    uniform_real_distribution<double> rndweight{0, m_master.parameters().m_max_weight}; // in [0, max_weight)
+
     for(uint64_t i = 0; i < num_edges; i++){
         if(static_cast<int>((sources[i] + destinations[i]) % modulo) == m_worker_id){
             if(last->size() > last_max_sz){
                 last = new vector<graph::WeightedEdge>();
                 m_updates.append(last);
             }
-            last->emplace_back(sources[i], destinations[i], weights[i]);
+
+            // generate a random weight
+            double weight = weights[i];
+            if(weight == 0.0){
+                weight = rndweight(m_random); // in [0, max_weight)
+                if(weight == 0.0) weight = m_master.parameters().m_max_weight; // in (0, max_weight]
+            }
+
+            last->emplace_back(sources[i], destinations[i], weight);
         }
     }
 }

@@ -46,7 +46,7 @@ class Aging2Experiment {
     std::string m_path_log; // the path to the log file [graphlog] with the sequence of updates to perform
     uint64_t m_num_threads = 1; // set the number of threads to use
     uint64_t m_worker_granularity = 1024; // the granularity of a task for a worker, that is the number of contiguous operations (inserts/deletes) performed inside the threads between each invocation to the scheduler.
-    double m_max_weight = 1024.0; // set the max weight for the edges to create
+    double m_max_weight = 1.0; // set the max weight for the edges to create
     std::chrono::milliseconds m_build_frequency {0}; // the frequency to create a new delta/snapshot, that is invoking the method #build()
     bool m_report_progress = false; // whether to report the current progress
 

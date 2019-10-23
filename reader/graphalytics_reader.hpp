@@ -27,7 +27,6 @@ namespace reader::details { class GraphalyticsReaderBaseImpl; } // forward decl.
 
 namespace reader {
 
-
 /**
  * Parser to read the property file, the vertex and the edge list provided in the datasets from graphalytics.org
  * Initialise the reader by passing the file to the property file (.properties), the vertex and edge files are

@@ -97,6 +97,7 @@ static void run_standalone(int argc, char* argv[]){
         experiment.set_parallelism_degree(cfgdriver().num_threads(THREADS_WRITE));
         experiment.set_report_progress(true);
         experiment.set_build_frequency(chrono::milliseconds{ cfgdriver().get_build_frequency() });
+        experiment.set_max_weight(cfgdriver().max_weight());
 
         auto result = experiment.execute();
         if(configuration().has_database()) result.save(configuration().db());
