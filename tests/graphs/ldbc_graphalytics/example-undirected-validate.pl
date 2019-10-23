@@ -5,7 +5,7 @@
 use strict;
 use warnings;
 
-open(my $f, "/tmp/log.txt"); # create a log (input.txt) in the generator of the form [src: <id>, dst: <id>, weight: <value>]
+open(my $f, "/tmp/edges.txt"); # create a log (input.txt) in the generator of the form [src: <id>, dst: <id>, weight: <value>]
 my $matches = 0;
 
 while(my $line = <$f>){

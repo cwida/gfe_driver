@@ -23,8 +23,10 @@
 #include <unordered_map>
 
 namespace graph { class WeightedEdge; } // forward decl.
+namespace reader::details { class GraphalyticsReaderBaseImpl; } // forward decl.
 
 namespace reader {
+
 
 /**
  * Parser to read the property file, the vertex and the edge list provided in the datasets from graphalytics.org
@@ -35,26 +37,12 @@ class GraphalyticsReader : public Reader {
     std::unordered_map<std::string, std::string> m_properties; // property file
     bool m_directed = true; // whether the graph being processed is directed or not
     bool m_is_weighted = false; // whether the graph being processed contains weights or not
-    void* m_handle_edge_file { nullptr }; // fstream, handle to parse the edge-file
-    void* m_handle_vertex_file { nullptr }; // fstream, handle to parse the vertex-file
+    details::GraphalyticsReaderBaseImpl* m_impl { nullptr }; // actual reader implementation
     uint64_t m_last_source {0}; uint64_t m_last_destination {0}; double m_last_weight {0.0}; // the last edge being parsed
     bool m_last_reported = true; // whether we have reported the last edge with source/dest vertices swapped in an undirected graph
     bool m_emit_directed_edges = false; // if the graph is undirected, report the same edge twice as src -> dest and dest -> src
+    bool m_is_compressed = false; // whether both the edge & vertex files have been compressed with zlib
     std::mt19937_64 m_random_generator; // random generator for non weighted graphs, it will assign a random weight
-
-    // Close the internal handles to parse the edge-file/vertex-file
-    void close();
-
-    /**
-     * Check whether the given line is a comment or empty, that is, it starts with a sharp symbol # or contains no symbols
-     */
-    static bool ignore_line(const char* line);
-    static bool ignore_line(const std::string& line);
-
-    /**
-     * Check whether the current marker points to a number
-     */
-    static bool is_number(const char* marker);
 
 public:
     /**
@@ -109,6 +97,11 @@ public:
      * Check whether the graph is weighted
      */
     bool is_weighted() const;
+
+    /**
+     * Check whether the edge and vertex files have been compressed with zlib
+     */
+    bool is_compressed() const;
 
     /**
      * Shall we report the same edge twice in an undirected graph, once as src -> dest and once as dest -> src

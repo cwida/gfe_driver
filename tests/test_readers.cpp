@@ -16,6 +16,7 @@
  */
 #include "gtest/gtest.h"
 
+#include <limits>
 #include <iostream>
 #include "common/error.hpp"
 #include "common/filesystem.hpp"
@@ -30,15 +31,16 @@ using namespace std;
 using namespace graph;
 using namespace reader;
 
-
-// validate the next read from a reader
-static void validate_read(Reader& reader, uint64_t source, uint64_t dest, double weight){
+static void validate_read(Reader& reader, uint64_t source, uint64_t dest, double weight = numeric_limits<double>::infinity()){
     WeightedEdge edge;
     bool rc = reader.read(edge);
     ASSERT_TRUE(rc);
     ASSERT_EQ(edge.source(), source);
     ASSERT_EQ(edge.destination(), dest);
-    ASSERT_EQ(edge.weight(), weight);
+
+    if(weight != numeric_limits<double>::infinity()){
+        ASSERT_EQ(edge.weight(), weight);
+    }
 }
 
 TEST(PlainWeighted, WithoutComments) {
@@ -499,4 +501,115 @@ TEST(Graphalytics, ExampleUndirected) {
     validate_read(reader, 6, 9, 0.23);
     validate_read(reader, 6, 10, 0.63);
     validate_read(reader, 7, 9, 0.36);
+}
+
+TEST(Graphalytics, ExampleDirectedCompressed) {
+    GraphalyticsReader reader(common::filesystem::directory_executable() + "/graphs/ldbc_graphalytics/example-directed-compressed.properties");
+
+    // Read the edges
+    validate_read(reader, 0, 1, 0.5);
+    validate_read(reader, 0, 2, 0.3);
+    validate_read(reader, 1, 0, 0.53);
+    validate_read(reader, 1, 2, 0.62);
+
+    // Restart
+    reader.reset();
+    validate_read(reader, 0, 1, 0.5);
+    validate_read(reader, 0, 2, 0.3);
+    validate_read(reader, 1, 0, 0.53);
+    validate_read(reader, 1, 2, 0.62);
+    validate_read(reader, 1, 5, 0.52);
+    validate_read(reader, 1, 6, 0.21);
+    validate_read(reader, 2, 1, 0.69);
+    validate_read(reader, 2, 4, 0.53);
+    validate_read(reader, 2, 6, 0.1);
+    validate_read(reader, 3, 2, 0.3);
+    validate_read(reader, 3, 4, 0.1);
+    validate_read(reader, 3, 5, 0.12);
+    validate_read(reader, 6, 0, 0.39);
+    validate_read(reader, 7, 1, 0.23);
+    validate_read(reader, 7, 4, 0.39);
+    validate_read(reader, 8, 4, 0.83);
+    validate_read(reader, 9, 4, 0.69);
+
+    // Done
+    WeightedEdge edge;
+    ASSERT_FALSE(reader.read(edge));
+
+    // Read the vertices
+    uint64_t vertex { 0 };
+    ASSERT_TRUE( reader.read_vertex(vertex) );
+    ASSERT_EQ(vertex, 0);
+    ASSERT_TRUE( reader.read_vertex(vertex) );
+    ASSERT_EQ(vertex, 1);
+    ASSERT_TRUE( reader.read_vertex(vertex) );
+    ASSERT_EQ(vertex, 2);
+    ASSERT_TRUE( reader.read_vertex(vertex) );
+    ASSERT_EQ(vertex, 3);
+    ASSERT_TRUE( reader.read_vertex(vertex) );
+    ASSERT_EQ(vertex, 4);
+    ASSERT_TRUE( reader.read_vertex(vertex) );
+    ASSERT_EQ(vertex, 5);
+    ASSERT_TRUE( reader.read_vertex(vertex) );
+    ASSERT_EQ(vertex, 6);
+    ASSERT_TRUE( reader.read_vertex(vertex) );
+    ASSERT_EQ(vertex, 7);
+    ASSERT_TRUE( reader.read_vertex(vertex) );
+    ASSERT_EQ(vertex, 8);
+    ASSERT_TRUE( reader.read_vertex(vertex) );
+    ASSERT_EQ(vertex, 9);
+}
+
+TEST(Graphalytics, ExampleUndirectedCompressed) {
+    GraphalyticsReader reader(common::filesystem::directory_executable() + "/graphs/ldbc_graphalytics/example-undirected-compressed.properties");
+
+    // Read the edges
+    reader.set_emit_directed_edges(true);
+    validate_read(reader, 0, 1, 0.9);
+    validate_read(reader, 1, 0, 0.9);
+    validate_read(reader, 0, 2, 0.69);
+    validate_read(reader, 2, 0, 0.69);
+
+    // Restart
+    reader.reset();
+    reader.set_emit_directed_edges(false);
+    validate_read(reader, 0, 1, 0.9);
+    validate_read(reader, 0, 2, 0.69);
+    validate_read(reader, 1, 2, 0.13);
+    validate_read(reader, 1, 3, 0.5);
+    validate_read(reader, 1, 4, 0.32);
+    validate_read(reader, 3, 4, 0.12);
+    validate_read(reader, 3, 5, 0.63);
+    validate_read(reader, 4, 5, 0.64);
+    validate_read(reader, 5, 6, 0.53);
+    validate_read(reader, 5, 7, 0.23);
+    validate_read(reader, 5, 8, 0.63);
+    validate_read(reader, 6, 7, 0.36);
+}
+
+TEST(Graphalytics, ExampleUndirectedNonWeighted) {
+    GraphalyticsReader reader(common::filesystem::directory_executable() + "/graphs/ldbc_graphalytics/example-undirected-nonweighted.properties");
+
+    // Read the edges
+    reader.set_emit_directed_edges(true);
+    validate_read(reader, 0, 1);
+    validate_read(reader, 1, 0);
+    validate_read(reader, 0, 2);
+    validate_read(reader, 2, 0);
+
+    // Restart
+    reader.reset();
+    reader.set_emit_directed_edges(false);
+    validate_read(reader, 0, 1);
+    validate_read(reader, 0, 2);
+    validate_read(reader, 1, 2);
+    validate_read(reader, 1, 3);
+    validate_read(reader, 1, 4);
+    validate_read(reader, 3, 4);
+    validate_read(reader, 3, 5);
+    validate_read(reader, 4, 5);
+    validate_read(reader, 5, 6);
+    validate_read(reader, 5, 7);
+    validate_read(reader, 5, 8);
+    validate_read(reader, 6, 7);
 }
