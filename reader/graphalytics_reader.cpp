@@ -255,7 +255,7 @@ public:
             m_output_pos = 0;
             m_output_sz = (/* truncate */ data_processed / sizeof(T)) * sizeof(T);
             m_output_leftover_sz = data_processed % sizeof(T);
-            assert(rc == Z_STREAM_END || m_output_leftover_sz == 0);
+            assert((rc == Z_OK) || (rc == Z_STREAM_END || m_output_leftover_sz == 0));
         }
 
         assert(m_output_sz > 0 && "Empty output");
