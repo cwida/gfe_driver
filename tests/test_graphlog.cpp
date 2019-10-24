@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 
 #include <iostream>
+#include <limits>
 
 #include "common/filesystem.hpp"
 #include "graph/edge.hpp"
@@ -325,6 +326,140 @@ TEST(Graphlog, EdgeReader){
     validate_edge(reader, 3, 7, -1);
     validate_edge(reader, 4, 6, 0);
     validate_edge(reader, 4, 6, -1);
+    { // stream depleted
+        graph::WeightedEdge edge;
+        ASSERT_FALSE( reader.read_edge(edge) );
+        ASSERT_FALSE( reader.read_edge(edge) );
+    }
+}
+
+TEST(Graphlog, DenseVertices){
+    // reader for the graphs built with vtxremap
+    EdgeReader reader { common::filesystem::directory_executable() + "/graphs/ldbc_graphalytics/example-undirected-compressed.graphlog"  };
+
+    // use the script in tests/graphs/ldbc_graphalytics/example-undirected-validate.pl to create the following sequence from the debug
+    // log of the graphlog program
+    validate_edge(reader, 5, 7, 0);
+    validate_edge(reader, 6, 7, 0.36);
+    validate_edge(reader, 1, 6, 0);
+    validate_edge(reader, 4, 5, 0);
+    validate_edge(reader, 1, 7, 0);
+    validate_edge(reader, 1, 3, 0);
+    validate_edge(reader, 4, 6, 0);
+    validate_edge(reader, 3, 5, 0);
+    validate_edge(reader, 1, 5, 0);
+    validate_edge(reader, 0, 5, 0);
+    validate_edge(reader, 0, 1, 0);
+    validate_edge(reader, 5, 8, 0.63);
+    validate_edge(reader, 0, 1, -1);
+    validate_edge(reader, 1, 2, 0);
+    validate_edge(reader, 1, 2, -1);
+    validate_edge(reader, 0, 1, 0);
+    validate_edge(reader, 1, 3, -1);
+    validate_edge(reader, 0, 6, 0);
+    validate_edge(reader, 1, 6, -1);
+    validate_edge(reader, 1, 4, 0);
+    validate_edge(reader, 1, 5, -1);
+    validate_edge(reader, 1, 2, 0.13);
+    validate_edge(reader, 1, 7, -1);
+    validate_edge(reader, 2, 8, 0);
+    validate_edge(reader, 2, 8, -1);
+    validate_edge(reader, 0, 2, 0);
+    validate_edge(reader, 0, 5, -1);
+    validate_edge(reader, 7, 8, 0);
+    validate_edge(reader, 0, 1, -1);
+    validate_edge(reader, 1, 6, 0);
+    validate_edge(reader, 4, 6, -1);
+    validate_edge(reader, 0, 1, 0.9);
+    validate_edge(reader, 3, 5, -1);
+    validate_edge(reader, 2, 5, 0);
+    validate_edge(reader, 4, 5, -1);
+    validate_edge(reader, 5, 6, 0);
+    validate_edge(reader, 5, 6, -1);
+    validate_edge(reader, 2, 4, 0);
+    validate_edge(reader, 1, 6, -1);
+    validate_edge(reader, 4, 5, 0);
+    validate_edge(reader, 2, 4, -1);
+    validate_edge(reader, 3, 4, 0.12);
+    validate_edge(reader, 4, 5, -1);
+    validate_edge(reader, 3, 5, 0);
+    validate_edge(reader, 0, 6, -1);
+    validate_edge(reader, 2, 6, 0);
+    validate_edge(reader, 3, 5, -1);
+    validate_edge(reader, 3, 5, 0);
+    validate_edge(reader, 2, 6, -1);
+    validate_edge(reader, 1, 3, 0);
+    validate_edge(reader, 1, 4, -1);
+    validate_edge(reader, 5, 7, -1);
+    validate_edge(reader, 5, 7, 0.23);
+    validate_edge(reader, 4, 7, 0);
+    validate_edge(reader, 4, 7, -1);
+    validate_edge(reader, 0, 8, 0);
+    validate_edge(reader, 0, 8, -1);
+    validate_edge(reader, 4, 5, 0);
+    validate_edge(reader, 3, 5, -1);
+    validate_edge(reader, 2, 4, 0);
+    validate_edge(reader, 2, 4, -1);
+    validate_edge(reader, 0, 2, -1);
+    validate_edge(reader, 0, 2, 0.69);
+    validate_edge(reader, 0, 5, 0);
+    validate_edge(reader, 2, 5, -1);
+    validate_edge(reader, 3, 6, 0);
+    validate_edge(reader, 1, 3, -1);
+    validate_edge(reader, 0, 7, 0);
+    validate_edge(reader, 7, 8, -1);
+    validate_edge(reader, 1, 3, 0);
+    validate_edge(reader, 0, 7, -1);
+    validate_edge(reader, 1, 4, 0.32);
+    validate_edge(reader, 3, 6, -1);
+    validate_edge(reader, 3, 5, 0);
+    validate_edge(reader, 1, 3, -1);
+    validate_edge(reader, 1, 5, 0);
+    validate_edge(reader, 0, 5, -1);
+    validate_edge(reader, 1, 6, 0);
+    validate_edge(reader, 1, 5, -1);
+    validate_edge(reader, 1, 7, 0);
+    validate_edge(reader, 3, 5, -1);
+    validate_edge(reader, 5, 6, 0.53);
+    validate_edge(reader, 4, 5, -1);
+    validate_edge(reader, 1, 5, 0);
+    validate_edge(reader, 1, 6, -1);
+    validate_edge(reader, 0, 3, 0);
+    validate_edge(reader, 1, 7, -1);
+    validate_edge(reader, 4, 8, 0);
+    validate_edge(reader, 4, 8, -1);
+    validate_edge(reader, 1, 3, 0);
+    validate_edge(reader, 0, 3, -1);
+    validate_edge(reader, 3, 5, 0.63);
+    validate_edge(reader, 1, 3, -1);
+    validate_edge(reader, 0, 5, 0);
+    validate_edge(reader, 1, 5, -1);
+    validate_edge(reader, 4, 7, 0);
+    validate_edge(reader, 4, 7, -1);
+    validate_edge(reader, 1, 8, 0);
+    validate_edge(reader, 1, 8, -1);
+    validate_edge(reader, 1, 5, 0);
+    validate_edge(reader, 0, 5, -1);
+    validate_edge(reader, 4, 5, 0.64);
+    validate_edge(reader, 1, 5, -1);
+    validate_edge(reader, 2, 4, 0);
+    validate_edge(reader, 2, 4, -1);
+    validate_edge(reader, 1, 5, 0);
+    validate_edge(reader, 1, 5, -1);
+    validate_edge(reader, 2, 3, 0);
+    validate_edge(reader, 2, 3, -1);
+    validate_edge(reader, 2, 4, 0);
+    validate_edge(reader, 2, 4, -1);
+    validate_edge(reader, 1, 3, 0.5);
+    validate_edge(reader, 2, 3, 0);
+    validate_edge(reader, 2, 3, -1);
+    validate_edge(reader, 0, 6, 0);
+    validate_edge(reader, 0, 6, -1);
+    validate_edge(reader, 4, 6, 0);
+    validate_edge(reader, 4, 6, -1);
+    validate_edge(reader, 1, 7, 0);
+    validate_edge(reader, 1, 7, -1);
+
     { // stream depleted
         graph::WeightedEdge edge;
         ASSERT_FALSE( reader.read_edge(edge) );
