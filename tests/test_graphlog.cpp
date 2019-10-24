@@ -18,7 +18,6 @@
 #include "gtest/gtest.h"
 
 #include <iostream>
-#include <limits>
 
 #include "common/filesystem.hpp"
 #include "graph/edge.hpp"
