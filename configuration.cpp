@@ -32,6 +32,8 @@
 #include "common/system.hpp"
 #include "library/interface.hpp"
 #include "reader/graphlog_reader.hpp"
+#include "reader/graphalytics_reader.hpp"
+#include "reader/format.hpp"
 #include "third-party/cxxopts/cxxopts.hpp"
 
 using namespace common;
@@ -459,6 +461,7 @@ void StandaloneConfiguration::cla_add(cxxopts::Options& options) {
     DriverConfiguration::cla_add(options);
 
     options.add_options("Generic")
+        ("dense_vertices", "Whether the vertices in the input graph are in the domain [0, N), N = #total vertices")
         ("l, library", libraries_help_screen(), value<string>())
         ("log", "Repeat the log of updates specified in the given file", value<string>())
         ("u, undirected", "Is the graph undirected? By default, it's considered directed.")
@@ -503,6 +506,10 @@ void StandaloneConfiguration::cla_parse(cxxopts::Options& options, cxxopts::Pars
 
     DriverConfiguration::cla_parse(options, result);
 
+    if( result["dense_vertices"].count() > 0 ){
+        m_dense_vertices = true;
+    }
+
     // library to evaluate
     if( result["library"].count() == 0 ){
         ERROR("Missing mandatory argument --library. Which library do you want to evaluate??");
@@ -535,6 +542,7 @@ auto StandaloneConfiguration::list_parameters() const -> param_list_t {
     using P = pair<string, string>;
 
     auto params = DriverConfiguration::list_parameters();
+    params.push_back(P{"dense_vertices", to_string(m_dense_vertices)});
     params.push_back(P{"directed", to_string(is_graph_directed())});
     params.push_back(P{"library", get_library_name()});
     if(!get_update_log().empty()) {
@@ -548,7 +556,26 @@ auto StandaloneConfiguration::list_parameters() const -> param_list_t {
 }
 
 std::unique_ptr<library::Interface> StandaloneConfiguration::generate_graph_library() {
-    return m_library_factory(is_graph_directed());
+    uint64_t num_dense_vertices = 0;
+    if(has_dense_vertices()){
+        if(!get_update_log().empty()){
+            auto log_properties = reader::graphlog::parse_properties(m_update_log);
+            auto it = log_properties.find("internal.vertices.cardinality");
+            if(it == log_properties.end()) { ERROR("Missing mandatory property `internal.vertices.cardinality' in the log file " << get_update_log()); }
+            num_dense_vertices = stoull(it->second);
+        } else if(coefficient_aging() == 0.0 && reader::get_graph_format(get_path_graph()) == reader::Format::LDBC_GRAPHALYTICS) {
+            reader::GraphalyticsReader reader { get_path_graph() };
+            auto value = reader.get_property("meta.vertices");
+            if(value.empty()) ERROR("Missing property `meta.vertices' in the graph " << get_path_graph());
+            num_dense_vertices = stoull(value);
+        } else {
+            ERROR("Property --dense_vertices not supported with the given graph format. Unable to retrieve in advance the total number of vertices in the graph");
+        }
+
+        LOG("[configuration] Number of vertices (dense domain): " << num_dense_vertices);
+    }
+
+    return m_library_factory(is_graph_directed(), num_dense_vertices);
 }
 
 /*****************************************************************************
@@ -625,6 +652,6 @@ auto ServerConfiguration::list_parameters() const -> param_list_t {
 }
 
 std::unique_ptr<library::Interface> ServerConfiguration::generate_graph_library() {
-    return m_library_factory(is_graph_directed());
+    return m_library_factory(is_graph_directed(), 0);
 }
 

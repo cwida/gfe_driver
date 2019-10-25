@@ -85,6 +85,7 @@ namespace library {
 
 // Implementation based on stinger_alg/src/page_rank.c
 void Stinger::pagerank(uint64_t num_iterations, double damping_factor, const char* dump2file){
+    if(m_dense_vertices && dump2file != nullptr) ERROR("dump2file != nullptr not supported yet with dense vertices");
     TIMER_INIT
 
     const size_t num_registered_vertices = stinger_max_active_vertex(STINGER) +1; // logical vertex
@@ -132,9 +133,11 @@ void Stinger::pagerank(uint64_t num_iterations, double damping_factor, const cha
 
 
     // store the final results (if required)
-    cuckoohash_map<uint64_t, double> result;
-    to_external_ids(rank0t, num_registered_vertices, &result); // convert the internal logical IDs into the external IDs
-    save(result, dump2file);
+    if(!m_dense_vertices){
+        cuckoohash_map<uint64_t, double> result;
+        to_external_ids(rank0t, num_registered_vertices, &result); // convert the internal logical IDs into the external IDs
+        save(result, dump2file);
+    }
 };
 
 } // namespace

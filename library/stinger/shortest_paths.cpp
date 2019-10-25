@@ -169,14 +169,18 @@ static void save(cuckoohash_map<uint64_t, double>& result, bool weighted, const 
  *****************************************************************************/
 
 void Stinger::compute_shortest_paths(uint64_t source_external_id, bool weighted, const char* dump2file){
+    if(m_dense_vertices && dump2file != nullptr) ERROR("dump2file != nullptr not supported yet with dense vertices");
+
     int64_t source_internal_id = get_internal_id(source_external_id);
     if(source_internal_id < 0) ERROR("The vertex `" << source_external_id << "' does not exist");
     auto result = a_star(STINGER, stinger_max_active_vertex(STINGER) +1, source_internal_id, /* all vertices */ -1, /* ignore weights */ !weighted, chrono::seconds( m_timeout ));
 
     // covert the internal vertex IDs back to external IDs
-    cuckoohash_map<uint64_t, double> external_ids;
-    to_external_ids(result, &external_ids);
-    save(external_ids, weighted, dump2file);
+    if(!m_dense_vertices){
+        cuckoohash_map<uint64_t, double> external_ids;
+        to_external_ids(result, &external_ids);
+        save(external_ids, weighted, dump2file);
+    }
 }
 
 void Stinger::bfs(uint64_t source_vertex_id, const char* dump2file){
