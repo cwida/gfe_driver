@@ -65,7 +65,7 @@ Stinger::Stinger(bool directed, uint64_t num_vertices) : m_directed(directed), m
 
     struct stinger_config_t config;
     memset(&config, 0, sizeof(config)); // init
-    config.nv = m_dense_vertices ? num_vertices : (1ll<<32); // max number of vertices, 4G
+    config.nv = 1ll<<32; // max number of vertices, 4G
     config.nebs = 0; // max number of edge blocks, 0=auto
     config.netypes = 1; // number of edge types, we are not going to use this feature, 1
 #if defined(STINGER_USE_INTERNAL_MAPPING)

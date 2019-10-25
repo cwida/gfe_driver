@@ -348,8 +348,7 @@ void Aging::save() {
     auto db = configuration().db()->add("aging");
     db.add("granularity", m_granularity);
     db.add("num_threads", m_num_threads);
-    db.add("num_updates_requested", m_num_operations_total);
-    db.add("num_updates_executed", m_num_operations_performed);
+    db.add("num_updates", m_num_operations_performed);
     db.add("num_artificial_vertices", m_num_artificial_vertices);
     db.add("num_vertices_load", m_num_vertices);
     db.add("num_vertices_final", m_num_vertices_final_graph);
