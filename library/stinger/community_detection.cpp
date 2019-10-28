@@ -104,8 +104,6 @@ static void save(cuckoohash_map<uint64_t, int64_t>& result, const char* dump2fil
 namespace library {
 
 void Stinger::cdlp(uint64_t max_iterations, const char* dump2file){
-    if(m_dense_vertices && dump2file != nullptr) ERROR("dump2file != nullptr not supported yet with dense_vertices");
-
     TIMER_INIT
 
     bool change = true;
@@ -138,11 +136,9 @@ void Stinger::cdlp(uint64_t max_iterations, const char* dump2file){
     }
 
     // save the computation into `dump2file'
-    if(m_dense_vertices){
-        cuckoohash_map<uint64_t, int64_t> result;
-        to_external_ids(labels0, num_mappings, &result);
-        save(result, dump2file);
-    }
+    cuckoohash_map<uint64_t, int64_t> result;
+    to_external_ids(labels0, num_mappings, &result);
+    save(result, dump2file);
 }
 
 int64_t Stinger::cdlp_propagate(int64_t vertex_id, int64_t* __restrict labels){

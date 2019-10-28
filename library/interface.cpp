@@ -61,26 +61,26 @@ namespace library {
  *  Factory                                                                  *
  *                                                                           *
  *****************************************************************************/
-ImplementationManifest::ImplementationManifest(const string& name, const string& description, unique_ptr<Interface> (*factory)(bool, uint64_t)) :
+ImplementationManifest::ImplementationManifest(const string& name, const string& description, unique_ptr<Interface> (*factory)(bool)) :
     m_name(name), m_description(description), m_factory(factory){ }
 
-std::unique_ptr<Interface> generate_baseline_adjlist(bool directed_graph, uint64_t){ // directed or undirected graph
+std::unique_ptr<Interface> generate_baseline_adjlist(bool directed_graph){ // directed or undirected graph
     return unique_ptr<Interface>{ new AdjacencyList(directed_graph) };
 }
 
-std::unique_ptr<Interface> generate_dummy(bool directed_graph, uint64_t){
+std::unique_ptr<Interface> generate_dummy(bool directed_graph){
     return unique_ptr<Interface>{ new Dummy(directed_graph) };
 }
 
 #if defined(HAVE_LLAMA)
-std::unique_ptr<Interface> generate_llama(bool directed_graph, uint64_t){
+std::unique_ptr<Interface> generate_llama(bool directed_graph){
     return unique_ptr<Interface>{ new LLAMAClass(directed_graph) };
 }
 #endif
 
 #if defined(HAVE_STINGER)
-std::unique_ptr<Interface> generate_stinger(bool directed_graph, uint64_t num_dense_vertices){
-    return unique_ptr<Interface>{ new Stinger(directed_graph, num_dense_vertices) };
+std::unique_ptr<Interface> generate_stinger(bool directed_graph){
+    return unique_ptr<Interface>{ new Stinger(directed_graph) };
 }
 #endif
 

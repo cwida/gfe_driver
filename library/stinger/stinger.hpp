@@ -36,7 +36,6 @@ class Stinger : public virtual UpdateInterface, public virtual GraphalyticsInter
 protected:
     void* m_stinger_graph {nullptr}; // opaque object, container of the handle to the stinger graph
     const bool m_directed; // is the graph directed
-    const bool m_dense_vertices; // whether to use a dictionary to translate between external and internal vertex ids
     mutable common::SpinLock m_spin_lock; // sync vertex creations and removals
     uint64_t m_num_vertices = 0; // number of vertices
     uint64_t m_timeout = 0; // available time, in seconds, to complete the computation
@@ -84,10 +83,6 @@ protected:
      */
     void compute_shortest_paths(uint64_t source_vertex, bool weighted, const char* dump2file = nullptr);
 
-    // Implementation of the LCC
-    void lcc_main_sparse_domain(const char* dump2file);
-    void lcc_main_dense_domain(); // dump2file not supported
-
     // Compute the number of triangles for the given logical vertex id
     uint64_t lcc_count_triangles(int64_t internal_vertex_id);
     uint64_t lcc_count_intersections (int64_t vertex1, int64_t vertex2, int64_t* vertex1_neighbours, int64_t vertex1_neighbours_sz);
@@ -96,14 +91,14 @@ protected:
     int64_t cdlp_propagate(int64_t vertex_id, int64_t* __restrict labels);
 
 
+
 public:
 
     /**
      * Initialise the graph instance
-     * @param directed is the graph directed?
-     * @param num_vertices if it's a positive value, then the vertices are a contiguous sequence in [0, num_vertices)
+     * @param is the graph directed?
      */
-    Stinger(bool directed, uint64_t num_vertices = 0);
+    Stinger(bool directed);
 
     /**
      * Destructor

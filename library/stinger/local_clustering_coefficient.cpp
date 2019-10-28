@@ -93,15 +93,6 @@ namespace library {
 // Implementation based on stinger_alg/src/clustering.c
 
 void Stinger::lcc(const char* dump2file){
-    if(m_dense_vertices){
-        if(dump2file != nullptr) ERROR("dump2file != nullptr not supported yet with dense vertices");
-        lcc_main_dense_domain();
-    } else {
-        lcc_main_sparse_domain(dump2file);
-    }
-}
-
-void Stinger::lcc_main_sparse_domain(const char* dump2file){
     auto tcheck = make_unique<utility::TimeoutService>( chrono::seconds{ m_timeout } );
     common::Timer timer; timer.start();
     cuckoohash_map<uint64_t, double> result;
@@ -132,38 +123,6 @@ void Stinger::lcc_main_sparse_domain(const char* dump2file){
 
     save(result, dump2file);
 }
-
-void Stinger::lcc_main_dense_domain(){
-    auto tcheck = make_unique<utility::TimeoutService>( chrono::seconds{ m_timeout } );
-    common::Timer timer; timer.start();
-//    uint64_t nv = stinger_max_active_vertex(STINGER); // it doesn't register the coefficient if the last vertices are isolated
-    uint64_t nv = get_max_num_mappings(); // number of mappings
-    unique_ptr<double[]> result_ptr { new double[nv]() };
-    double* __restrict result = result_ptr.get();
-
-    #pragma omp parallel for
-    for(uint64_t v = 0; v < nv; v++){
-        // timeout check
-        if(tcheck->is_timeout()) continue; // do not do any additional processing
-        if(stinger_vtype_get(STINGER, v) == 1) continue; // node marked for deletion
-
-        double coeff = 0.0; // by definition, if the vertex has less than two neighbours, its clustering coefficient is zero
-        uint64_t degree = stinger_degree_get(STINGER, v);
-        if(degree >= 2){
-            uint64_t num_triangles = lcc_count_triangles(v);
-            uint64_t max_num_edges = degree * (degree -1);
-            coeff = static_cast<double>(num_triangles) / max_num_edges;
-        }
-
-        result[v] = coeff;
-    }
-
-    timer.stop();
-    if(tcheck->is_timeout()){
-        RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-    }
-}
-
 
 uint64_t Stinger::lcc_count_triangles(int64_t vertex_id){
     assert(stinger_vtype_get(STINGER, vertex_id) == 0 && "Node marked for deletion");

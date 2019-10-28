@@ -58,14 +58,10 @@ extern mutex _log_mutex [[maybe_unused]];
  *****************************************************************************/
 namespace library {
 
-Stinger::Stinger(bool directed, uint64_t num_vertices) : m_directed(directed), m_dense_vertices(num_vertices > 0){
-#if !defined(STINGER_USE_INTERNAL_MAPPING)
-    if(m_dense_vertices) { INVALID_ARGUMENT("num_vertices > 0 not supported, compile with -DSTINGER_USE_INTERNAL_MAPPING"); }
-#endif
-
+Stinger::Stinger(bool directed) : m_directed(directed){
     struct stinger_config_t config;
     memset(&config, 0, sizeof(config)); // init
-    config.nv = m_dense_vertices ? num_vertices : (1ll<<32); // max number of vertices, 4G
+    config.nv = 1ll<<32; // max number of vertices, 4G
     config.nebs = 0; // max number of edge blocks, 0=auto
     config.netypes = 1; // number of edge types, we are not going to use this feature, 1
 #if defined(STINGER_USE_INTERNAL_MAPPING)
@@ -79,16 +75,6 @@ Stinger::Stinger(bool directed, uint64_t num_vertices) : m_directed(directed), m
     m_stinger_graph = stinger_new_full(&config);
     assert(m_stinger_graph != nullptr && "Stinger allocation");
     if(m_stinger_graph == nullptr) ERROR("Cannot allocate stinger graph");
-
-
-#if defined(STINGER_USE_INTERNAL_MAPPING)
-    if(m_dense_vertices){ // initially set all vertices as inactive (deleted)
-        #pragma omp parallel for
-        for(uint64_t v = 0; v < num_vertices; v++){
-            stinger_vtype_set(STINGER, v, 1);
-        }
-    }
-#endif
 }
 
 Stinger::~Stinger(){
@@ -110,30 +96,21 @@ static int64_t convert_external2stinger(struct stinger* graph, uint64_t external
 }
 
 int64_t Stinger::get_internal_id(uint64_t vertex_id) const{
-    if(m_dense_vertices){
-        return (int64_t) vertex_id;
-    } else {
-        return convert_external2stinger(STINGER, vertex_id);
-    }
+    return convert_external2stinger(STINGER, vertex_id);
 }
 
 uint64_t Stinger::get_external_id(int64_t internal_vertex_id) const{
-    if(m_dense_vertices){
-        assert(internal_vertex_id >= 0);
-        return (uint64_t) internal_vertex_id;
-    } else {
-        uint64_t result = numeric_limits<uint64_t>::max();
+    uint64_t result = numeric_limits<uint64_t>::max();
 
-        char* vertex_id_name = nullptr; uint64_t vertex_id_name_length = 0;
-        int rc = stinger_mapping_physid_get(STINGER, internal_vertex_id, &vertex_id_name, &vertex_id_name_length);
-        if( rc == 0 && vertex_id_name_length > 0 ){ // mapping found
-            result = stoull(vertex_id_name);
-        }
-
-        free(vertex_id_name); vertex_id_name = nullptr;
-
-        return result;
+    char* vertex_id_name = nullptr; uint64_t vertex_id_name_length = 0;
+    int rc = stinger_mapping_physid_get(STINGER, internal_vertex_id, &vertex_id_name, &vertex_id_name_length);
+    if( rc == 0 && vertex_id_name_length > 0 ){ // mapping found
+        result = stoull(vertex_id_name);
     }
+
+    free(vertex_id_name); vertex_id_name = nullptr;
+
+    return result;
 }
 
 uint64_t Stinger::get_max_num_mappings() const {
@@ -267,20 +244,16 @@ void Stinger::set_timeout(uint64_t seconds) {
 #if defined(STINGER_USE_INTERNAL_MAPPING)
 bool Stinger::add_vertex(uint64_t vertex_id){
     COUT_DEBUG("vertex_id: " << vertex_id);
-    int rc = 0;
-    int64_t internal_vertex_id { - 1 }; // output
 
-    if(!m_dense_vertices) {
-        // Stinger has an internal dictionary where the vertex_id from the external are mapped
-        // into internal indices for the internal adjacency list. Here, we simply register
-        // the mapping to the dictionary.
-        char buffer[65];
-        sprintf (buffer, "%" PRIu64, vertex_id);
-        // @return 0 on existing mapping found. 1 on new mapping created. -1 on failure (STINGER is full).
-        rc = stinger_mapping_create(STINGER, buffer, sizeof(buffer), &internal_vertex_id);
-    } else {
-        internal_vertex_id = (int64_t) vertex_id;
-    }
+    // Stinger has an internal dictionary where the vertex_id from the external are mapped
+    // into internal indices for the internal adjacency list. Here, we simply register
+    // the mapping to the dictionary.
+
+    char buffer[65];
+    sprintf (buffer, "%" PRIu64, vertex_id);
+    int64_t internal_vertex_id { -1 }; // output
+    // @return 0 on existing mapping found. 1 on new mapping created. -1 on failure (STINGER is full).
+    int rc = stinger_mapping_create(STINGER, buffer, sizeof(buffer), &internal_vertex_id);
 
     switch(rc){
     case -1:
@@ -446,12 +419,12 @@ static string dump_edge_type(struct stinger* graph, int64_t edge_type){
 void Stinger::dump_ostream(ostream& out) const {
     struct stinger* graph = STINGER;
 
-    out << "[STINGER] Vertices: " << num_vertices() << ", edges: " << num_edges() << ", directed: " << std::boolalpha << is_directed() << ", dense vertices: " << m_dense_vertices << ", size: " << stinger_graph_size(graph) << " bytes" << "\n";
+    out << "[STINGER] Vertices: " << num_vertices() << ", edges: " << num_edges() << ", directed: " << std::boolalpha << is_directed() << ", size: " << stinger_graph_size(graph) << " bytes" << "\n";
     for(int64_t internal_vertex_id = 0, vertex_max = stinger_max_active_vertex(graph); internal_vertex_id <= vertex_max; internal_vertex_id++){
         if(stinger_vtype_get(graph, internal_vertex_id) == 1) continue; // vertex flagged as inactive
 
         uint64_t external_vertex_id = get_external_id(internal_vertex_id);
-        if(!m_dense_vertices || (external_vertex_id != numeric_limits<uint64_t>::max())){
+        if(external_vertex_id != numeric_limits<uint64_t>::max()){
             out << "[" << external_vertex_id << " (internal ID: " << internal_vertex_id << ")] ";
         } else {
             out << "[" << internal_vertex_id << "] ";
@@ -467,7 +440,7 @@ void Stinger::dump_ostream(ostream& out) const {
                 out << "  ";
 
                 uint64_t vertex_id_name = get_external_id(STINGER_EDGE_DEST);
-                if(!m_dense_vertices || (vertex_id_name != numeric_limits<uint64_t>::max())){
+                if(vertex_id_name != numeric_limits<uint64_t>::max()){
                     out << vertex_id_name << ", internal ID: " << STINGER_EDGE_DEST;
                 } else {
                     out << STINGER_EDGE_DEST;
