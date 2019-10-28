@@ -208,6 +208,7 @@ void InsertOnly::save() {
     db.add("scheduler", is_static_scheduler() ? "static" : "round_robin");
     db.add("insertion_time", m_time_insert); // microseconds
     db.add("build_time", m_time_build); // microseconds
+    db.add("num_edges", m_stream->num_edges());
 }
 
 } // namespace experiment

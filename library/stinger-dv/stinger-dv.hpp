@@ -17,59 +17,18 @@
 
 #pragma once
 
-#include "common/spinlock.hpp"
 #include "library/interface.hpp"
-#include "third-party/libcuckoo/cuckoohash_map.hh"
 
 namespace library {
 
-// Stinger has its own mapping impl~ to translate uint64_t to int64_t and viceversa. Problem is does not support deletions.
-// If the macro is defined, use the stinger mapping to perform the translations external vertex id -> internal vertex id
-// Otherwise, use libcuckoo
-#define STINGER_USE_INTERNAL_MAPPING
-    
-class Stinger : public virtual UpdateInterface, public virtual GraphalyticsInterface {
+/**
+ * Stinger implementation with the vertices in the dense domain [0, num_total_vertices)
+ */
+class StingerDV : public virtual UpdateInterface, public virtual GraphalyticsInterface {
 protected:
     void* m_stinger_graph {nullptr}; // opaque object, container of the handle to the stinger graph
     const bool m_directed; // is the graph directed
-    mutable common::SpinLock m_spin_lock; // sync vertex creations and removals
-    uint64_t m_num_vertices = 0; // number of vertices
     uint64_t m_timeout = 0; // available time, in seconds, to complete the computation
-#if !defined(STINGER_USE_INTERNAL_MAPPING)
-    cuckoohash_map<uint64_t, int64_t> m_vertex_mappings_e2i; // name mappings (external to internal)
-    cuckoohash_map<uint64_t, int64_t> m_vertex_mappings_i2e; // name mappings (internal to external)
-    std::vector<int64_t> m_reuse_vertices; // deleted vertices IDs that can be reused
-    int64_t m_next_vertex_id = 0;
-#endif
-
-    /**
-     * Get the internal vertex id for the given external vertex id
-     * @return the internal vertex id (index in the adjacency list) if the vertex exists, or -1 otherwise
-     */
-    int64_t get_internal_id(uint64_t vertex_id) const;
-
-
-    /**
-     * Retrieve the external vertex id for the given internal ID
-     * @return the external vertex id if the mapping exists, or std::numeric_limit<uint64>::max() otherwise
-     */
-    uint64_t get_external_id(int64_t vertex_id) const;
-
-    /**
-     * Retrieve the maximum number of name mappings (from external vertex id to internal vertex id) active so far
-     *  @return the max internal ID (+1) used for the mappings
-     */
-    uint64_t get_max_num_mappings() const;
-
-    /**
-     * Convert the array internal_ids[value] into
-     * @param internal_ids [input] an array, where each entry is logical_id -> value
-     * @param out_external_ids [output] a hash table, where each entry is external_id -> value
-     */
-    template<typename T>
-    void to_external_ids(const std::vector<T>& internal_ids, cuckoohash_map<uint64_t, T>* out_external_ids);
-    template<typename T>
-    void to_external_ids(const T* __restrict internal_ids, size_t internal_ids_sz, cuckoohash_map<uint64_t, T>* out_external_ids);
 
     /**
      * Compute the shortest paths from source to any vertex
@@ -86,7 +45,9 @@ protected:
     // Single pass of the CDLP algorithm
     int64_t cdlp_propagate(int64_t vertex_id, int64_t* __restrict labels);
 
-
+    // Save the content of the given vector to file
+    template<typename T>
+    void save(const T& data, uint64_t size, const char* dump2file);
 
 public:
 
@@ -94,12 +55,12 @@ public:
      * Initialise the graph instance
      * @param is the graph directed?
      */
-    Stinger(bool directed);
+    StingerDV(bool directed);
 
     /**
      * Destructor
      */
-    ~Stinger();
+    ~StingerDV();
 
     /**
      * Get the number of edges contained in the graph

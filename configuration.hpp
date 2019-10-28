@@ -144,7 +144,7 @@ public:
 private:
     bool m_graph_directed = true; // whether the graph is undirected or directed
     std::string m_library_name; // the library to test
-    std::unique_ptr<library::Interface> (*m_library_factory)(bool directed, uint64_t) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
+    std::unique_ptr<library::Interface> (*m_library_factory)(bool directed) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
     uint32_t m_port = DEFAULT_PORT; // the port to wait for new connections
 
 protected:
@@ -329,11 +329,10 @@ class StandaloneConfiguration : public DriverConfiguration {
     StandaloneConfiguration& operator=(const StandaloneConfiguration& ) = delete;
 
     // properties
-    bool m_dense_vertices = false; // whether the vertices in the input graph are in the domain [0, N), N = #total vertices
     bool m_graph_directed = true; // whether the graph is undirected or directed
     std::string m_library_name; // the library to test
     std::string m_update_log; // aging experiment through the log file
-    std::unique_ptr<library::Interface> (*m_library_factory)(bool directed, uint64_t) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
+    std::unique_ptr<library::Interface> (*m_library_factory)(bool directed) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
     bool m_validate_output = false; // whether to validate the execution results of the Graphalytics algorithms
 
     // Do not explicitly initialise the configuration, use the method ::initialise();
@@ -364,9 +363,6 @@ public:
 
     // Generate an instance of the graph library to evaluate
     std::unique_ptr<library::Interface> generate_graph_library();
-
-    // Whether the vertices in the input graph are in the domain [0, N), N = #total vertices
-    bool has_dense_vertices() const { return m_dense_vertices; }
 
     // Whether the graph is directed or undirected
     bool is_graph_directed() const { return m_graph_directed; }

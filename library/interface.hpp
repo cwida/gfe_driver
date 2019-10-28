@@ -42,9 +42,9 @@ class ImplementationManifest {
 public:
     std::string m_name; // unique id
     std::string m_description; // description of the instance, showed in the help screen ( -h )
-    std::unique_ptr<Interface> (*m_factory)(bool is_graph_directed, uint64_t num_dense_vertices); // factory method to generate an instance of this implementation
+    std::unique_ptr<Interface> (*m_factory)(bool is_graph_directed); // factory method to generate an instance of this implementation
 
-    ImplementationManifest(const std::string& name, const std::string& description, std::unique_ptr<Interface> (*factory)(bool is_graph_directed, uint64_t num_dense_vertices));
+    ImplementationManifest(const std::string& name, const std::string& description, std::unique_ptr<Interface> (*factory)(bool is_graph_directed));
 };
 std::vector<ImplementationManifest> implementations();
 

@@ -31,6 +31,7 @@
 extern "C" {
 #include "stinger_alg/weakly_connected_components.h"
 }
+#include "stinger_error.hpp"
 
 using namespace std;
 
@@ -85,8 +86,6 @@ static void save(cuckoohash_map<uint64_t, int64_t>& result, const char* dump2fil
 namespace library {
 
 void Stinger::wcc(const char* dump2file) {
-    if(m_dense_vertices && dump2file != nullptr) ERROR("dump2file != nullptr not supported yet with dense_vertices");
-
     // ignore the timeout as we use the impl~ from stinger
 
     int64_t nv = stinger_max_nv(STINGER);
@@ -95,11 +94,9 @@ void Stinger::wcc(const char* dump2file) {
     parallel_shiloach_vishkin_components_of_type(STINGER, component_map, /* type, ignore */ 0); // already implemented in Stinger
 
     // store the final results (if required)
-    if(!m_dense_vertices){
-        cuckoohash_map<uint64_t, int64_t> result;
-        to_external_ids(component_map, get_max_num_mappings(), &result); // convert the internal logical IDs into the external IDs
-        save(result, dump2file);
-    }
+    cuckoohash_map<uint64_t, int64_t> result;
+    to_external_ids(component_map, get_max_num_mappings(), &result); // convert the internal logical IDs into the external IDs
+    save(result, dump2file);
 }
 
 } // namespace
