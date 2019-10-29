@@ -20,6 +20,7 @@
 #include <cassert>
 #include <mutex>
 
+#include "library/stinger/stinger_error.hpp"
 #include "stinger_core/stinger.h"
 
 using namespace common;

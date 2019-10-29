@@ -36,6 +36,7 @@
 #include "reader/reader.hpp"
 #if defined(HAVE_STINGER)
 #include "stinger/stinger.hpp"
+#include "stinger-dv/stinger-dv.hpp" // dense domain of vertices
 #endif
 
 using namespace std;
@@ -82,6 +83,9 @@ std::unique_ptr<Interface> generate_llama(bool directed_graph){
 std::unique_ptr<Interface> generate_stinger(bool directed_graph){
     return unique_ptr<Interface>{ new Stinger(directed_graph) };
 }
+std::unique_ptr<Interface> generate_stinger_dv(bool directed_graph){
+    return unique_ptr<Interface>{ new StingerDV(directed_graph) };
+}
 #endif
 
 vector<ImplementationManifest> implementations() {
@@ -96,6 +100,7 @@ vector<ImplementationManifest> implementations() {
 
 #if defined(HAVE_STINGER)
     result.emplace_back("stinger", "Stinger library", &generate_stinger);
+    result.emplace_back("stinger-dv", "Stinger with dense vertices", &generate_stinger_dv);
 #endif
 
     return result;

@@ -46,6 +46,7 @@
 #include "common/system.hpp"
 #include "stinger_core/stinger.h"
 #include "stinger_core/xmalloc.h"
+#include "stinger_error.hpp"
 
 using namespace std;
 

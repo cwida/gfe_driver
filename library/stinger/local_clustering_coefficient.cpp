@@ -30,8 +30,8 @@
 #include "common/timer.hpp"
 #include "stinger_core/stinger.h"
 #include "stinger_core/xmalloc.h"
-
 #include "utility/timeout_service.hpp"
+#include "stinger_error.hpp"
 
 using namespace std;
 

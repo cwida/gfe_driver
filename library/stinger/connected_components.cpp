@@ -31,6 +31,7 @@
 extern "C" {
 #include "stinger_alg/weakly_connected_components.h"
 }
+#include "stinger_error.hpp"
 
 using namespace std;
 
