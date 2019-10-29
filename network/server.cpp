@@ -100,7 +100,6 @@ static void signal_handler_uninstall(){
  *                                                                           *
  *****************************************************************************/
 
-Server::Server(shared_ptr<library::Interface> interface) : Server(interface, cfgserver().get_port()) { }
 Server::Server(shared_ptr<library::Interface> interface, int port) : m_interface(interface), m_port(port){
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if(fd < 0) ERROR_ERRNO("Cannot initialise the socket");
@@ -284,7 +283,7 @@ void Server::ConnectionHandler::handle_request(){
         m_instance->m_terminate_on_last_connection = true;
         break;
     case RequestType::LIBRARY_NAME:
-        response(ResponseType::OK, cfgserver().get_library_name());
+        response(ResponseType::OK, configuration().get_library_name());
         break;
     case RequestType::SET_TIMEOUT:
         interface()->set_timeout(request()->get(0));

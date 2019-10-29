@@ -38,73 +38,73 @@ using namespace std;
 
 static void run_standalone(int argc, char* argv[]){
     LOG("[driver] Init configuration ... " );
-    StandaloneConfiguration::initialise(argc, argv);
+    configuration().initialiase(argc, argv);
 
     if(configuration().has_database()){
         LOG( "[driver] Save the current configuration properties in " << configuration().get_database_path() )
         configuration().save_parameters();
     }
 
-    const std::string& path_graph = cfgdriver().get_path_graph(); // graph to use?
+    const std::string& path_graph = configuration().get_path_graph(); // graph to use?
     if(path_graph.empty()) ERROR("Path to the graph to load not set (use the parameter --graph)");
 
     // implementation to the evaluate
-    LOG("[driver] Library name: " << cfgstandalone().get_library_name() );
-    shared_ptr<library::Interface> impl { cfgstandalone().generate_graph_library() };
-    impl->set_timeout(cfgdriver().get_timeout_per_operation());
+    LOG("[driver] Library name: " << configuration().get_library_name() );
+    shared_ptr<library::Interface> impl { configuration().generate_graph_library() };
+    impl->set_timeout(configuration().get_timeout_per_operation());
 
     auto impl_upd = dynamic_pointer_cast<library::UpdateInterface>(impl);
     if(impl_upd.get() == nullptr){ ERROR("The library does not support updates"); }
 
     auto impl_ga = dynamic_pointer_cast<library::GraphalyticsInterface>(impl);
-    if(impl_ga.get() == nullptr && cfgdriver().num_repetitions() > 0){ // Shall we execute the Graphalytics suite?
+    if(impl_ga.get() == nullptr && configuration().num_repetitions() > 0){ // Shall we execute the Graphalytics suite?
         ERROR("The library does not support the Graphalytics suite of algorithms");
     }
 
-    LOG("[driver] The library is set for a directed graph: " << (cfgstandalone().is_graph_directed() ? "yes" : "no"));
+    LOG("[driver] The library is set for a directed graph: " << (configuration().is_graph_directed() ? "yes" : "no"));
 
     uint64_t random_vertex = 0;
 
-    if(cfgstandalone().get_update_log().empty()){
+    if(configuration().get_update_log().empty()){
         LOG("[driver] Loading the graph from " << path_graph);
-        auto stream = make_shared<graph::WeightedEdgeStream> ( cfgdriver().get_path_graph() );
+        auto stream = make_shared<graph::WeightedEdgeStream> ( configuration().get_path_graph() );
         stream->permute();
         if(stream->num_edges() > 0) random_vertex = stream->get(0).m_source;
 
-        LOG("[driver] Number of concurrent threads: " << cfgdriver().num_threads(THREADS_WRITE) );
+        LOG("[driver] Number of concurrent threads: " << configuration().num_threads(THREADS_WRITE) );
 
-        if(cfgdriver().coefficient_aging() == 0.0){ // insert the elements in the graph one by one
-            InsertOnly experiment { impl_upd, move(stream), cfgdriver().num_threads(THREADS_WRITE) };
+        if(configuration().coefficient_aging() == 0.0){ // insert the elements in the graph one by one
+            InsertOnly experiment { impl_upd, move(stream), configuration().num_threads(THREADS_WRITE) };
             experiment.execute();
             if(configuration().has_database()) experiment.save();
         } else { // Aging experiment, without the graphlog
-            LOG("[driver] Number of updates to perform: " << stream->num_edges() * cfgdriver().coefficient_aging());
-            Aging experiment(impl_upd, move(stream), cfgdriver().coefficient_aging(), cfgdriver().num_threads(THREADS_WRITE));
-            experiment.set_expansion_factor_vertices(cfgdriver().get_ef_vertices());
-            experiment.set_expansion_factor_edges(cfgdriver().get_ef_edges());
+            LOG("[driver] Number of updates to perform: " << stream->num_edges() * configuration().coefficient_aging());
+            Aging experiment(impl_upd, move(stream), configuration().coefficient_aging(), configuration().num_threads(THREADS_WRITE));
+            experiment.set_expansion_factor_vertices(configuration().get_ef_vertices());
+            experiment.set_expansion_factor_edges(configuration().get_ef_edges());
             experiment.set_report_progress(true);
-            experiment.set_build_frequency(chrono::milliseconds{ cfgdriver().get_build_frequency() });
+            experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
             experiment.execute();
             if(configuration().has_database()) experiment.save();
         }
 
     } else {
-        LOG("[driver] Number of concurrent threads: " << cfgdriver().num_threads(THREADS_WRITE) );
-        LOG("[driver] Aging2, path to log of updates: " << cfgstandalone().get_update_log());
+        LOG("[driver] Number of concurrent threads: " << configuration().num_threads(THREADS_WRITE) );
+        LOG("[driver] Aging2, path to log of updates: " << configuration().get_update_log());
         Aging2Experiment experiment;
         experiment.set_library(impl_upd);
-        experiment.set_log(cfgstandalone().get_update_log());
-        experiment.set_parallelism_degree(cfgdriver().num_threads(THREADS_WRITE));
+        experiment.set_log(configuration().get_update_log());
+        experiment.set_parallelism_degree(configuration().num_threads(THREADS_WRITE));
         experiment.set_report_progress(true);
-        experiment.set_build_frequency(chrono::milliseconds{ cfgdriver().get_build_frequency() });
-        experiment.set_max_weight(cfgdriver().max_weight());
+        experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
+        experiment.set_max_weight(configuration().max_weight());
 
         auto result = experiment.execute();
         if(configuration().has_database()) result.save(configuration().db());
         random_vertex = result.get_random_vertex_id();
     }
 
-    if(cfgdriver().num_repetitions() > 0){
+    if(configuration().num_repetitions() > 0){
         // run the graphalytics suite
         GraphalyticsAlgorithms properties { path_graph };
 
@@ -114,9 +114,9 @@ static void run_standalone(int argc, char* argv[]){
             properties.sssp.m_source_vertex = random_vertex;
         }
 
-        GraphalyticsSequential exp_seq { impl_ga, cfgdriver().num_repetitions(), properties };
+        GraphalyticsSequential exp_seq { impl_ga, configuration().num_repetitions(), properties };
 
-        if(cfgstandalone().validate_output()){
+        if(configuration().validate_output()){
             LOG("[driver] Enabling validation mode");
             exp_seq.set_validate_output( path_graph );
         }
@@ -144,7 +144,6 @@ int main(int argc, char* argv[]){
         rc = 1;
     }
 
-    cfgfree();
     return rc;
 }
 

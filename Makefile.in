@@ -80,9 +80,7 @@ sources := \
 	utility/graphalytics_validate.cpp \
 	utility/timeout_service.cpp \
 	configuration.cpp \
-	main_client.cpp \
-	main_driver.cpp \
-	main_server.cpp 
+	main_driver.cpp
 	
 ifneq (,$(findstring -DHAVE_STINGER,${ALL_CPPFLAGS}))
 	sources += $(addprefix library/stinger/, community_detection.cpp connected_components.cpp local_clustering_coefficient.cpp pagerank.cpp shortest_paths.cpp stinger_unsafe.cpp)
@@ -106,15 +104,10 @@ objects := $(filter-out ${objectdir}/main_%.o, ${objects_c} ${objects_cxx})
 .DEFAULT_GOAL = all
 .PHONY: all
 
-#all: Makefile ${builddir}/gfe_server ${builddir}/gfe_client ${builddir}/gfe_driver
 all: ${builddir}/gfe_driver
 
 #############################################################################
 # Artifacts to build
-${builddir}/gfe_client: ${objectdir}/main_client.o ${dependencies} | ${builddir}
-	${CXX} ${LDFLAGS} $^ -o $@
-${builddir}/gfe_server: ${objectdir}/main_server.o ${dependencies} | ${builddir}
-	${CXX} ${LDFLAGS} $^ -o $@
 ${builddir}/gfe_driver: ${objectdir}/main_driver.o ${dependencies} | ${builddir}
 	${CXX} ${LDFLAGS} $^ -o $@
 

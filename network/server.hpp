@@ -96,12 +96,6 @@ class Server {
 
 public:
     /**
-     * Initialise the server and listen for connections from the port specified in the global configuration.
-     * @param interface pass all requests to the given interface
-     */
-    Server(std::shared_ptr<library::Interface> interface);
-
-    /**
      * Initialise the server and listen for connections from the given port
      * @param interface pass all requests to the given interface
      * @param port the port to listen for TCP connections
