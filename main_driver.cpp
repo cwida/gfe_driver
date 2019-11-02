@@ -31,6 +31,9 @@
 #include "third-party/cxxopts/cxxopts.hpp"
 
 #include "configuration.hpp"
+#if defined(HAVE_OPENMP)
+#include "omp.h"
+#endif
 
 using namespace common;
 using namespace experiment;
@@ -48,6 +51,14 @@ static void run_standalone(int argc, char* argv[]){
     const std::string& path_graph = configuration().get_path_graph(); // graph to use?
     if(path_graph.empty()) ERROR("Path to the graph to load not set (use the parameter --graph)");
 
+    // OpenMP settings
+#if defined(HAVE_OPENMP)
+    if(configuration().num_threads_omp() > 0){
+        LOG("[driver] OpenMP, max number of threads: " << configuration().num_threads_omp());
+        omp_set_num_threads(configuration().num_threads_omp());
+    }
+#endif
+
     // implementation to the evaluate
     LOG("[driver] Library name: " << configuration().get_library_name() );
     shared_ptr<library::Interface> impl { configuration().generate_graph_library() };
@@ -64,7 +75,6 @@ static void run_standalone(int argc, char* argv[]){
     LOG("[driver] The library is set for a directed graph: " << (configuration().is_graph_directed() ? "yes" : "no"));
 
     uint64_t random_vertex = 0;
-
     if(configuration().get_update_log().empty()){
         LOG("[driver] Loading the graph from " << path_graph);
         auto stream = make_shared<graph::WeightedEdgeStream> ( configuration().get_path_graph() );

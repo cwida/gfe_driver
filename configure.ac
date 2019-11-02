@@ -43,10 +43,14 @@ fi
 
 #############################################################################
 # OpenMP
-m4_foreach_w([lang], [C, C++], [AC_LANG_PUSH(lang) AX_OPENMP AC_LANG_POP(lang)])
+have_openmp="yes";
+m4_foreach_w([lang], [C, C++], [AC_LANG_PUSH(lang) AX_OPENMP([], [have_openmp="no"]) AC_LANG_POP(lang)])
 CFLAGS="${CFLAGS} ${OPENMP_CFLAGS}"
 CXXFLAGS="${CXXFLAGS} ${OPENMP_CXXFLAGS}"
 LIBS="${LIBS} ${OPENMP_CXXFLAGS}"
+if test x"${have_openmp}" == x"yes"; then
+	CPPFLAGS="${CPPFLAGS} -DHAVE_OPENMP"
+fi
 
 #############################################################################
 # pthreads

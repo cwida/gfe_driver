@@ -66,6 +66,7 @@ class Configuration {
     std::string m_library_name; // the library to test
     double m_max_weight { 1.0 }; // the maximum weight that can be assigned when reading non weighted graphs
     uint64_t m_num_repetitions { 5 }; // when applicable, how many times the same experiment should be repeated
+    int m_num_threads_omp { 0 }; // if different than 0, the max number of threads used by OpenMP
     int m_num_threads_read { 1 }; // number of threads to use for the read operations
     int m_num_threads_write { 1 }; // number of threads to use for the write (insert/update/delete) operations
     std::string m_path_graph_to_load; // the file must be accessible to the server
@@ -80,8 +81,9 @@ class Configuration {
     void set_ef_vertices(double value);
     void set_ef_edges(double value);
     void set_num_repetitions(uint64_t value); // Set how many times to repeat the Graphalytics suite of algorithms
-    void set_num_thread_read(int value); // Set the number of threads to use in the read operations.
-    void set_num_thread_write(int value); // Set the number of threads to use in the write operations.
+    void set_num_threads_omp(int value); // The number of threads created by an OpenMP master
+    void set_num_threads_read(int value); // Set the number of threads to use in the read operations.
+    void set_num_threads_write(int value); // Set the number of threads to use in the write operations.
     void set_timeout(uint64_t seconds); // Set the timeout property
     void set_graph(const std::string& graph); // Set the graph to load and run the experiments
 
@@ -126,6 +128,9 @@ public:
 
     // Get the number of threads to use
     int num_threads(ThreadsType type) const;
+
+    // Get the max number of threads that an OpenMP master can create
+    int num_threads_omp() const;
 
     // The path for the graph to load
     const std::string& get_path_graph() const { return m_path_graph_to_load; }

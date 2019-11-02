@@ -101,6 +101,7 @@ void Configuration::initialiase(int argc, char* argv[]){
         ("l, library", libraries_help_screen(), value<string>())
         ("log", "Repeat the log of updates specified in the given file", value<string>())
         ("max_weight", "The maximum weight that can be assigned when reading non weighted graphs", value<double>()->default_value(to_string(max_weight())))
+        ("omp", "Maximum number of threads that can be used by OpenMP (0 = do not change)", value<int>()->default_value(to_string(num_threads_omp())))
         ("R, repetitions", "The number of repetitions of the same experiment (where applicable)", value<uint64_t>()->default_value(to_string(num_repetitions())))
         ("r, readers", "The number of client threads to use for the read operations", value<int>()->default_value(to_string(num_threads(THREADS_READ))))
         ("seed", "Random seed used in various places in the experiments", value<uint64_t>()->default_value(to_string(seed())))
@@ -163,13 +164,13 @@ void Configuration::initialiase(int argc, char* argv[]){
         if( result["threads"].count() > 0) {
             int value = result["threads"].as<int>();
 
-            set_num_thread_write(value);
+            set_num_threads_write(value);
         }
         if( result["readers"].count() > 0) {
-            set_num_thread_read( result["readers"].as<int>() );
+            set_num_threads_read( result["readers"].as<int>() );
         }
         if( result["writers"].count() > 0 ){
-            set_num_thread_write( result["writers"].as<int>() );
+            set_num_threads_write( result["writers"].as<int>() );
         }
 
         // the graph to work with
@@ -214,6 +215,10 @@ void Configuration::initialiase(int argc, char* argv[]){
 
         if( result["validate"].count() > 0 ){
             m_validate_output = true;
+        }
+
+        if ( result["omp"].count() > 0 ){
+            set_num_threads_omp( result["omp"].as<int>() );
         }
 
     } catch ( argument_incorrect_type& e){
@@ -267,12 +272,21 @@ void Configuration::set_num_repetitions(uint64_t value) {
     m_num_repetitions = value; // accept 0 as value
 }
 
-void Configuration::set_num_thread_read(int value){
+void Configuration::set_num_threads_omp(int value){
+    ASSERT( value >= 0 );
+#if !defined(HAVE_OPENMP)
+    if(value > 0) ERROR("Cannot set the maximum number of threads to use with OpenMP, the driver has not configured with the support of OpenMP");
+#endif
+
+    m_num_threads_omp = value;
+}
+
+void Configuration::set_num_threads_read(int value){
     ASSERT( value >= 0 );
     m_num_threads_read = value;
 }
 
-void Configuration::set_num_thread_write(int value){
+void Configuration::set_num_threads_write(int value){
     ASSERT( value >= 0 );
     m_num_threads_write = value;
 }
@@ -302,6 +316,10 @@ int Configuration::num_threads(ThreadsType type) const {
     }
 }
 
+int Configuration::num_threads_omp() const {
+    return m_num_threads_omp;
+}
+
 std::unique_ptr<library::Interface> Configuration::generate_graph_library() {
     return m_library_factory(is_graph_directed());
 }
@@ -328,6 +346,7 @@ void Configuration::save_parameters() {
     params.push_back(P{"ef_vertices", to_string(get_ef_vertices())});
     if(!get_path_graph().empty()){ params.push_back(P{"graph", get_path_graph()}); }
     params.push_back(P{"num_repetitions", to_string(num_repetitions())});
+    params.push_back(P{"num_threads_omp", to_string(num_threads_omp())});
     params.push_back(P{"num_threads_read", to_string(num_threads(ThreadsType::THREADS_READ))});
     params.push_back(P{"num_threads_write", to_string(num_threads(ThreadsType::THREADS_WRITE))});
     params.push_back(P{"timeout", to_string(get_timeout_per_operation())});
