@@ -98,6 +98,7 @@ void Configuration::initialiase(int argc, char* argv[]){
         ("efv", "Expansion factor for the vertices in the graph", value<double>()->default_value(to_string(get_ef_vertices())))
         ("G, graph", "The path to the graph to load", value<string>())
         ("h, help", "Show this help menu")
+        ("latency", "Measure the latency of updates, report the median, std. dev. and 90/95/97/99 percentiles")
         ("l, library", libraries_help_screen(), value<string>())
         ("log", "Repeat the log of updates specified in the given file", value<string>())
         ("max_weight", "The maximum weight that can be assigned when reading non weighted graphs", value<double>()->default_value(to_string(max_weight())))
@@ -220,6 +221,8 @@ void Configuration::initialiase(int argc, char* argv[]){
         if ( result["omp"].count() > 0 ){
             set_num_threads_omp( result["omp"].as<int>() );
         }
+
+        m_measure_latency = result["latency"].count() > 0;
 
     } catch ( argument_incorrect_type& e){
         ERROR(e.what());
@@ -345,6 +348,7 @@ void Configuration::save_parameters() {
     params.push_back(P{"ef_edges", to_string(get_ef_edges())});
     params.push_back(P{"ef_vertices", to_string(get_ef_vertices())});
     if(!get_path_graph().empty()){ params.push_back(P{"graph", get_path_graph()}); }
+    params.push_back(P{"measure_latency", to_string(measure_latency())});
     params.push_back(P{"num_repetitions", to_string(num_repetitions())});
     params.push_back(P{"num_threads_omp", to_string(num_threads_omp())});
     params.push_back(P{"num_threads_read", to_string(num_threads(ThreadsType::THREADS_READ))});

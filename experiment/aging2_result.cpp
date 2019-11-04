@@ -21,6 +21,7 @@
 
 #include "common/database.hpp"
 #include "common/error.hpp"
+#include "details/latency.hpp"
 #include "aging2_experiment.hpp"
 
 using namespace common;
@@ -57,6 +58,12 @@ void Aging2Result::save(common::Database* handle) {
         auto db = handle->add("aging_intermediate_throughput");
         db.add("aging_coeff", (int64_t) i +1); // 1, 2, 3...
         db.add("completion_time", m_reported_times[i]); // microseconds
+    }
+
+    if(m_latency_stats.get() != nullptr){
+        m_latency_stats[0].save("inserts");
+        m_latency_stats[1].save("deletes");
+        m_latency_stats[2].save("updates");
     }
 }
 

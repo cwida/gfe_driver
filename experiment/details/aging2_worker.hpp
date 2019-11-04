@@ -41,8 +41,12 @@ class Aging2Worker {
     common::CircularArray<std::vector<graph::WeightedEdge>*> m_updates; // the updates to perform
     std::mt19937_64 m_random { std::random_device{}() }; // pseudo-random generator
     std::uniform_real_distribution<double> m_uniform{ 0., 1. }; // uniform distribution in [0, 1]
+    uint64_t* m_latency_insertions {nullptr};
+    uint64_t m_num_edge_insertions {0}; // counter, total number of edge insertions to perform, as contained in the array m_updates
+    uint64_t* m_latency_deletions {nullptr};
+    uint64_t m_num_edge_deletions {0}; // counter, total number of edge deletions to perform, as contained in the array m_updates
 
-    enum class TaskOp { IDLE, START, STOP, LOAD_EDGES, EXECUTE_UPDATES, REMOVE_VERTICES };
+    enum class TaskOp { IDLE, START, STOP, LOAD_EDGES, EXECUTE_UPDATES, REMOVE_VERTICES, SET_ARRAY_LATENCIES };
     struct Task { TaskOp m_type; uint64_t* m_payload; uint64_t m_payload_sz; };
     Task m_task; // current task being executed
 
@@ -74,13 +78,18 @@ class Aging2Worker {
     // Execute a batch of updates
     void graph_execute_batch_updates(graph::WeightedEdge* __restrict updates, uint64_t num_updates);
 
+    template<bool with_latency>
+    void graph_execute_batch_updates0(graph::WeightedEdge* __restrict updates, uint64_t num_updates);
+
     // Insert a single vertex in the graph system/library, if it's not already present
     void graph_insert_vertex(uint64_t vertex_id);
 
     // Insert the given edge in the graph
+    template<bool with_latency>
     void graph_insert_edge(graph::WeightedEdge edge);
 
     // Remove the given edge from the graph
+    template<bool with_latency>
     void graph_remove_edge(graph::Edge edge, bool force = true);
 
     // Remove the temporary edge at the head of the queue m_edges2remove
@@ -101,6 +110,9 @@ public:
     // Load a batch of edges
     void load_edges(uint64_t* edges, uint64_t num_edges);
 
+    // Set the latency arrays for insertions and deletions
+    void set_latencies(uint64_t* array_insertions, uint64_t* array_deletions);
+
     // Request the thread to execute all updates
     void execute_updates();
 
@@ -109,6 +121,12 @@ public:
 
     // Wait for the last operation issued to complete
     void wait();
+
+    // Number of edge insertions scheduled to perform
+    uint64_t num_insertions() const;
+
+    // Number of edge deletions scheduled to perform
+    uint64_t num_deletions() const;
 };
 
 } // namespace

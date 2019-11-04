@@ -115,6 +115,10 @@ void Aging2Worker::remove_vertices(uint64_t* vertices, uint64_t num_vertices){
     set_task_async(TaskOp::REMOVE_VERTICES, vertices, num_vertices);
 }
 
+void Aging2Worker::set_latencies(uint64_t* array_insertions, uint64_t* array_deletions){
+    set_task_async(TaskOp::SET_ARRAY_LATENCIES, array_insertions, /* hack */ reinterpret_cast<uint64_t>(array_deletions));
+}
+
 void Aging2Worker::set_task_async(TaskOp type, uint64_t* payload, uint64_t payload_sz){
     { // restrict the scope
         scoped_lock<mutex> lock(m_mutex);
@@ -163,6 +167,10 @@ void Aging2Worker::main_thread(){
             break;
         case TaskOp::STOP:
             terminate = true;
+            break;
+        case TaskOp::SET_ARRAY_LATENCIES:
+            m_latency_insertions = task.m_payload;
+            m_latency_deletions = reinterpret_cast<uint64_t*>(task.m_payload_sz); // hack
             break;
         case TaskOp::LOAD_EDGES:
             main_load_edges(task.m_payload, task.m_payload_sz);
@@ -252,12 +260,20 @@ void Aging2Worker::main_load_edges(uint64_t* edges, uint64_t num_edges){
                 m_updates.append(last);
             }
 
-            // generate a random weight
+            // counters
             double weight = weights[i];
+            if(weight >= 0){
+                m_num_edge_insertions++;
+            } else {
+                m_num_edge_deletions++;
+            }
+
+            // generate a random weight
             if(weight == 0.0){
                 weight = rndweight(m_random); // in [0, max_weight)
                 if(weight == 0.0) weight = m_master.parameters().m_max_weight; // in (0, max_weight]
             }
+
 
             last->emplace_back(sources[i], destinations[i], weight);
         }
@@ -282,11 +298,25 @@ void Aging2Worker::main_remove_vertices(uint64_t* vertices, uint64_t num_vertice
  *****************************************************************************/
 
 void Aging2Worker::graph_execute_batch_updates(graph::WeightedEdge* __restrict updates, uint64_t num_updates){
+    if(m_latency_insertions == nullptr){
+        assert(m_master.parameters().m_measure_latency == false);
+        assert(m_latency_deletions == nullptr);
+        graph_execute_batch_updates0</* measure latency ? */ false>(updates, num_updates);
+    } else {
+        assert(m_master.parameters().m_measure_latency == true);
+        assert(m_latency_deletions != nullptr);
+
+        graph_execute_batch_updates0</* measure latency ? */ true>(updates, num_updates);
+    }
+}
+
+template<bool with_latency>
+void Aging2Worker::graph_execute_batch_updates0(graph::WeightedEdge* __restrict updates, uint64_t num_updates){
     for(uint64_t i = 0; i < num_updates; i++){
         if(updates[i].m_weight >= 0){ // insertion
-            graph_insert_edge(updates[i]);
+            graph_insert_edge<with_latency>(updates[i]);
         } else { // deletion
-            graph_remove_edge(updates[i].edge());
+            graph_remove_edge<with_latency>(updates[i].edge());
         }
     }
 }
@@ -298,6 +328,7 @@ void Aging2Worker::graph_insert_vertex(uint64_t vertex_id){
     }
 }
 
+template<bool with_latency>
 void Aging2Worker::graph_insert_edge(graph::WeightedEdge edge){
     // be sure that the vertices source & destination are already present
     graph_insert_vertex(edge.source());
@@ -306,23 +337,65 @@ void Aging2Worker::graph_insert_edge(graph::WeightedEdge edge){
     if(!m_master.is_directed() && m_uniform(m_random) < 0.5) edge.swap_src_dst(); // noise
     COUT_DEBUG("edge: " << edge);
 
-    // the function returns true if the edge has been inserted. Repeat the loop if it cannot insert the edge as one of
-    // the vertices is still being inserted by another thread
-    while ( ! m_library->add_edge(edge) ) { /* nop */ };
+
+    if(with_latency == false){
+        // the function returns true if the edge has been inserted. Repeat the loop if it cannot insert the edge as one of
+        // the vertices is still being inserted by another thread
+        while ( ! m_library->add_edge(edge) ) { /* nop */ };
+
+    } else { // measure the latency of the insertion
+        chrono::steady_clock::time_point t0, t1;
+        do {
+            t0 = chrono::steady_clock::now();
+        } while ( ! m_library->add_edge(edge) );
+        t1 = chrono::steady_clock::now();
+
+        m_latency_insertions[0] = chrono::duration_cast<chrono::nanoseconds>(t1 - t0).count();
+        m_latency_insertions++;
+    }
+
 }
 
+template<bool with_latency>
 void Aging2Worker::graph_remove_edge(graph::Edge edge, bool force){
     if(!m_master.is_directed() && m_uniform(m_random) < 0.5) edge.swap_src_dst(); // noise
     COUT_DEBUG("edge: " << edge);
-    if(!force){
-        m_library->remove_edge(edge);
-    } else { // force = true
-        while( ! m_library->remove_edge(edge) ) /* nop */ ;
+
+    if(with_latency == false){
+
+        if(!force){
+            m_library->remove_edge(edge);
+        } else { // force = true
+            while( ! m_library->remove_edge(edge) ) /* nop */ ;
+        }
+
+    } else { // measure the latency of the deletion
+        chrono::steady_clock::time_point t0, t1;
+
+        t0 = chrono::steady_clock::now();
+        if(!force){
+            m_library->remove_edge(edge);
+        } else { // force = true
+            while( ! m_library->remove_edge(edge) ) /* nop */;
+        }
+        t1 = chrono::steady_clock::now();
+
+        m_latency_deletions[0] = chrono::duration_cast<chrono::nanoseconds>(t1 - t0).count();
+        m_latency_deletions++;
     }
+
 }
 
 uint64_t Aging2Worker::granularity() const{
     return m_master.parameters().m_worker_granularity;
+}
+
+uint64_t Aging2Worker::num_insertions() const{
+    return m_num_edge_insertions;
+}
+
+uint64_t Aging2Worker::num_deletions() const {
+    return m_num_edge_deletions;
 }
 
 } // namespace

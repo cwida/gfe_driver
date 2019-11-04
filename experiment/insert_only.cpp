@@ -34,7 +34,8 @@ using namespace std;
 
 namespace experiment {
 
-InsertOnly::InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> graph, int64_t num_threads) : m_interface(interface), m_stream(graph), m_num_threads(num_threads){
+InsertOnly::InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> graph, int64_t num_threads, bool measure_latency) :
+        m_interface(interface), m_stream(graph), m_num_threads(num_threads), m_measure_latency(measure_latency) {
     if(m_num_threads == 0) ERROR("Invalid number of threads: " << m_num_threads);
 }
 
@@ -52,6 +53,7 @@ void InsertOnly::set_static_scheduler(){
 }
 
 void InsertOnly::set_batch_size(uint64_t batch_size){
+    if(m_measure_latency) ERROR("Batch size not supported when measuring the latency");
     m_batch_size = batch_size;
 }
 
@@ -66,6 +68,28 @@ static void run_one_by_one(library::UpdateInterface* interface, graph::WeightedE
         // the function returns true if the edge has been inserted. Repeat the loop if it cannot insert the edge as one of
         // the vertices is still being inserted by another thread
         while( ! interface->add_edge(edge) ) { /* nop */ } ;
+    }
+}
+
+// Execute an update at the time, measure the latency of each insertion
+static void run_one_by_one(library::UpdateInterface* interface, graph::WeightedEdgeStream* graph, cuckoohash_map<uint64_t, bool>& vertices, uint64_t start, uint64_t end, uint64_t* __restrict latencies){
+    for(uint64_t pos = start; pos < end; pos++){
+        auto edge = graph->get(pos);
+
+        if(vertices.insert(edge.source(), true)) interface->add_vertex(edge.source());
+        if(vertices.insert(edge.destination(), true)) interface->add_vertex(edge.destination());
+
+        // the function returns true if the edge has been inserted. Repeat the loop if it cannot insert the edge as one of
+        // the vertices is still being inserted by another thread
+        auto t0 = chrono::steady_clock::now();
+        while( ! interface->add_edge(edge) ) {
+            t0 = chrono::steady_clock::now();
+        };
+
+
+        common::compiler_barrier();
+        auto t1 = chrono::steady_clock::now();
+        latencies[pos] = chrono::duration_cast<chrono::nanoseconds>(t1 - t0).count();
     }
 }
 
@@ -99,17 +123,23 @@ static void run_batched(library::UpdateInterface* interface, graph::WeightedEdge
 }
 
 // this wasn't well thought, I know
-static void run_sequential(library::UpdateInterface* interface, graph::WeightedEdgeStream* graph, cuckoohash_map<uint64_t, bool>& vertices, uint64_t start, uint64_t end, uint64_t batch_size){
+static void run_sequential(library::UpdateInterface* interface, graph::WeightedEdgeStream* graph, cuckoohash_map<uint64_t, bool>& vertices, uint64_t start, uint64_t end, uint64_t batch_size, uint64_t* latencies = nullptr){
     if(batch_size <= 0){ // send one update at the time
-        run_one_by_one(interface, graph, vertices, start, end);
+        if(latencies == nullptr){ // do not measure the latency of each insertion
+            run_one_by_one(interface, graph, vertices, start, end);
+        } else { // measure the latency of each insertion
+            run_one_by_one(interface, graph, vertices, start, end, latencies);
+        }
     } else { // send updates in batches
+        assert(latencies == nullptr && "Cannot measure the latency of insertions in batch mode");
         run_batched(interface, graph, vertices, start, end, batch_size);
     }
 }
 
-void InsertOnly::execute_static(void* cb){
+void InsertOnly::execute_static(void* cb, uint64_t* latencies){
     auto graph = m_stream.get();
     auto& vertices = *( reinterpret_cast<cuckoohash_map<uint64_t, bool>*>(cb) );
+
 
     int64_t edges_per_threads = graph->num_edges() / m_num_threads;
     int64_t odd_threads = graph->num_edges() % m_num_threads;
@@ -120,10 +150,10 @@ void InsertOnly::execute_static(void* cb){
     for(int64_t i = 0; i < m_num_threads; i++){
         int64_t length = edges_per_threads + (i < odd_threads);
 
-        threads.emplace_back([this, graph, &vertices](int64_t start, int64_t length, int thread_id){
+        threads.emplace_back([this, graph, &vertices, latencies](int64_t start, int64_t length, int thread_id){
             auto interface = m_interface.get();
             interface->on_thread_init(thread_id);
-            run_sequential(interface, graph, vertices, start, start + length, m_batch_size);
+            run_sequential(interface, graph, vertices, start, start + length, m_batch_size, latencies /* do not shift */);
             interface->on_thread_destroy(thread_id);
 
         }, start, length, static_cast<int>(i));
@@ -135,7 +165,7 @@ void InsertOnly::execute_static(void* cb){
     for(auto& t : threads) t.join();
 }
 
-void InsertOnly::execute_round_robin(void* cb){
+void InsertOnly::execute_round_robin(void* cb, uint64_t* latencies){
     auto& vertices = *( reinterpret_cast<cuckoohash_map<uint64_t, bool>*>(cb) );
     ASSERT(m_schedule_chunks > 0 && "Chunk size == 0");
 
@@ -144,7 +174,7 @@ void InsertOnly::execute_round_robin(void* cb){
     atomic<uint64_t> start_chunk_next = 0;
 
     for(int64_t i = 0; i < m_num_threads; i++){
-        threads.emplace_back([this, &vertices, &start_chunk_next](int thread_id){
+        threads.emplace_back([this, &vertices, &start_chunk_next, latencies](int thread_id){
             auto interface = m_interface.get();
             auto graph = m_stream.get();
             uint64_t start;
@@ -154,7 +184,7 @@ void InsertOnly::execute_round_robin(void* cb){
 
             while( (start = start_chunk_next.fetch_add(m_schedule_chunks)) < size ){
                 uint64_t end = std::min<uint64_t>(start + m_schedule_chunks, size);
-                run_sequential(interface, graph, vertices, start, end, m_batch_size);
+                run_sequential(interface, graph, vertices, start, end, m_batch_size, latencies /* do not shift */);
             }
 
             interface->on_thread_destroy(thread_id);
@@ -170,6 +200,8 @@ chrono::microseconds InsertOnly::execute() {
     // check which vertices have been already inserted
     cuckoohash_map<uint64_t, bool> vertices;
     vertices.max_num_worker_threads(thread::hardware_concurrency());
+    std::unique_ptr<uint64_t[]> ptr_latencies { m_measure_latency ? new uint64_t[m_stream->num_edges()] : nullptr };
+    uint64_t* latencies = ptr_latencies.get();
 
     m_interface->on_main_init(m_num_threads);
 
@@ -177,9 +209,9 @@ chrono::microseconds InsertOnly::execute() {
     timer.start();
 
     if(is_static_scheduler()){
-        execute_static(&vertices);
+        execute_static(&vertices, latencies);
     } else {
-        execute_round_robin(&vertices);
+        execute_round_robin(&vertices, latencies);
     }
     timer.stop();
     LOG("Insertions performed with " << m_num_threads << " threads in " << timer);
@@ -199,6 +231,12 @@ chrono::microseconds InsertOnly::execute() {
 
     LOG("Edge stream size: " << m_stream->num_edges() << ", num edges stored in the graph: " << m_interface->num_edges() << ", match: " << (m_stream->num_edges() == m_interface->num_edges() ? "yes" : "no"));
 
+    if(m_measure_latency){
+        LOG("Computing the measured latencies...");
+        m_latencies = details::LatencyStatistics::compute_statistics(latencies, m_stream->num_edges());
+        LOG("Measured latencies: " << m_latencies);
+    }
+
     return chrono::microseconds{ m_time_insert + m_time_build };
 }
 
@@ -209,6 +247,8 @@ void InsertOnly::save() {
     db.add("insertion_time", m_time_insert); // microseconds
     db.add("build_time", m_time_build); // microseconds
     db.add("num_edges", m_stream->num_edges());
+
+    if(m_measure_latency) m_latencies.save("inserts");
 }
 
 } // namespace experiment

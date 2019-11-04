@@ -49,6 +49,7 @@ class Aging2Experiment {
     double m_max_weight = 1.0; // set the max weight for the edges to create
     std::chrono::milliseconds m_build_frequency {0}; // the frequency to create a new delta/snapshot, that is invoking the method #build()
     bool m_report_progress = false; // whether to report the current progress
+    bool m_measure_latency = false; // whether to measure the latency of updates
 
 public:
     // Instantiate the factory class
@@ -71,6 +72,9 @@ public:
 
     // Whether to print to stdout the current progress of the experiment
     void set_report_progress(bool value);
+
+    // Measure the latency of updates?
+    void set_measure_latency(bool value);
 
     // [Internal parameter]
     // Set the granularity of a task for a worker thread. This is the number of contiguos operations (inserts/deletes) done

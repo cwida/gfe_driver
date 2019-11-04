@@ -79,6 +79,10 @@ void Aging2Experiment::set_report_progress(bool value){
     m_report_progress = value;
 }
 
+void Aging2Experiment::set_measure_latency(bool value){
+    m_measure_latency = value;
+}
+
 void Aging2Experiment::set_worker_granularity(uint64_t value){
     if(value < 1){ INVALID_ARGUMENT("value < 1: " << value); }
     m_worker_granularity = value;

@@ -21,6 +21,7 @@
 #include <cinttypes>
 #include <memory>
 
+#include "details/latency.hpp"
 #include "graph/edge.hpp"
 #include "graph/edge_stream.hpp"
 #include "library/interface.hpp"
@@ -31,21 +32,23 @@ class InsertOnly {
     std::shared_ptr<library::UpdateInterface> m_interface; // the library where vertices and edges will be inserted
     std::shared_ptr<graph::WeightedEdgeStream> m_stream; // the graph to insert
     const int64_t m_num_threads; // the number of threads to use
+    const bool m_measure_latency; // whether to measure and report the latency of each insertion
     uint64_t m_schedule_chunks = 0; // if >0, schedule the edges to insert in round robin fashion, in chunks of the given size
     uint64_t m_time_insert = 0; // the amount of time to insert all elements in the database, in microseconds
     uint64_t m_time_build = 0; // the amount of time to build the snapshot/delta/level in the library, in microseconds
     uint64_t m_batch_size = 0; // send the updates in batches
+    details::LatencyStatistics m_latencies; // the latencies measured in the experiment
 
     // Execute the experiment with the static scheduler
-    void execute_static(void* /* opaque */ cb);
+    void execute_static(void* /* opaque */ cb, uint64_t* latencies);
 
     // Execute the experiment with the round robin scheduler
-    void execute_round_robin(void* /* opaque */ cb);
+    void execute_round_robin(void* /* opaque */ cb, uint64_t* latencies);
 
     // Send the the updates one by one
 
 public:
-    InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, int64_t num_threads);
+    InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, int64_t num_threads, bool measure_latency = false);
 
     // Check whether to use a round robin or a static scheduler
     bool is_static_scheduler() const;

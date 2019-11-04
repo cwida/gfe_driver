@@ -84,10 +84,12 @@ static void run_standalone(int argc, char* argv[]){
         LOG("[driver] Number of concurrent threads: " << configuration().num_threads(THREADS_WRITE) );
 
         if(configuration().coefficient_aging() == 0.0){ // insert the elements in the graph one by one
-            InsertOnly experiment { impl_upd, move(stream), configuration().num_threads(THREADS_WRITE) };
+            InsertOnly experiment { impl_upd, move(stream), configuration().num_threads(THREADS_WRITE), configuration().measure_latency() };
             experiment.execute();
             if(configuration().has_database()) experiment.save();
         } else { // Aging experiment, without the graphlog
+            if(configuration().measure_latency()) ERROR("[driver] Aging1, latency measurements not implemented");
+
             LOG("[driver] Number of updates to perform: " << stream->num_edges() * configuration().coefficient_aging());
             Aging experiment(impl_upd, move(stream), configuration().coefficient_aging(), configuration().num_threads(THREADS_WRITE));
             experiment.set_expansion_factor_vertices(configuration().get_ef_vertices());
@@ -108,6 +110,7 @@ static void run_standalone(int argc, char* argv[]){
         experiment.set_report_progress(true);
         experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
         experiment.set_max_weight(configuration().max_weight());
+        experiment.set_measure_latency(configuration().measure_latency());
 
         auto result = experiment.execute();
         if(configuration().has_database()) result.save(configuration().db());

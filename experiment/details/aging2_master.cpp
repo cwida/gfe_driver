@@ -26,6 +26,7 @@
 #include <utility>
 
 #include "common/error.hpp"
+#include "common/quantity.hpp"
 #include "common/system.hpp"
 #include "common/timer.hpp"
 #include "experiment/aging2_experiment.hpp"
@@ -35,6 +36,7 @@
 #include "aging2_worker.hpp"
 #include "build_thread.hpp"
 #include "configuration.hpp"
+#include "latency.hpp"
 
 using namespace common;
 using namespace std;
@@ -88,6 +90,8 @@ Aging2Master::~Aging2Master(){
     m_parameters.m_library->on_main_destroy();
 
     delete[] m_reported_times; m_reported_times = nullptr;
+
+    delete[] m_latencies; m_latencies = nullptr;
 }
 
 void Aging2Master::init_workers() {
@@ -142,6 +146,34 @@ void Aging2Master::load_edges(){
 }
 
 
+void Aging2Master::prepare_latencies(){
+    LOG("[Aging2] Allocating space to record the latency of each update ...");
+    Timer timer; timer.start();
+
+    for(auto w: m_workers){
+        m_latencies_num_insertions += w->num_insertions();
+        m_latencies_num_deletions += w->num_deletions();
+    }
+    assert(m_latencies_num_insertions + m_latencies_num_deletions == m_results.m_num_operations_total && "Counting mismatch");
+
+    m_latencies = new uint64_t[m_results.m_num_operations_total];
+
+    uint64_t* latency_insertions = m_latencies;
+    uint64_t* latency_deletions = m_latencies + m_latencies_num_insertions;
+    for(auto w: m_workers){
+        w->set_latencies(latency_insertions, latency_deletions);
+
+        // next offset
+        latency_insertions += w->num_insertions();
+        latency_deletions += w->num_deletions();
+    }
+
+    for(auto w: m_workers){ w->wait(); }
+
+    timer.stop();
+    LOG("[Aging2] Latency allocations done in " << timer);
+}
+
 void Aging2Master::do_run_experiment(){
     LOG("[Aging2] Experiment started ...");
     m_last_progress_reported = 0;
@@ -181,7 +213,6 @@ void Aging2Master::remove_vertices(){
     for(auto w: m_workers) w->wait();
     m_parameters.m_library->build();
 
-
     LOG("[Aging2] Number of extra vertices: " << m_results.m_num_artificial_vertices << ", "
             "expansion factor: " << static_cast<double>(m_results.m_num_artificial_vertices +  m_results.m_num_vertices_final_graph) / m_results.m_num_vertices_final_graph);
     timer.stop();
@@ -190,6 +221,7 @@ void Aging2Master::remove_vertices(){
 
 Aging2Result Aging2Master::execute(){
     load_edges();
+    if(parameters().m_measure_latency) prepare_latencies();
     do_run_experiment();
     remove_vertices();
 
@@ -218,6 +250,23 @@ void Aging2Master::store_results(){
     m_results.m_reported_times.reserve(m_last_time_reported);
     for(size_t i = 0, sz = m_last_time_reported; i < sz; i++){
         m_results.m_reported_times.push_back( m_reported_times[i] );
+    }
+
+    if(parameters().m_measure_latency){
+        assert(m_latencies != nullptr);
+        LOG("[Aging2] Computing the statistics for the measured latencies ...");
+        Timer timer; timer.start();
+
+        m_results.m_latency_stats.reset( new LatencyStatistics[3] );
+        m_results.m_latency_stats[0] = LatencyStatistics::compute_statistics(m_latencies, m_latencies_num_insertions); // insertions
+        m_results.m_latency_stats[1] = LatencyStatistics::compute_statistics(m_latencies + m_latencies_num_insertions, m_latencies_num_deletions); // deletions
+        m_results.m_latency_stats[2] = LatencyStatistics::compute_statistics(m_latencies, m_latencies_num_insertions + m_latencies_num_deletions); // both insertions & deletions
+
+        timer.stop();
+        LOG("[Aging2] Statistics computed in " << timer);
+        LOG("[Aging2] Average latency of updates: " << DurationQuantity(m_results.m_latency_stats[2].mean()) << ", 99th percentile: " << DurationQuantity(m_results.m_latency_stats[2].percentile99()));
+
+        delete[] m_latencies; m_latencies = nullptr; // free some memory
     }
 }
 

@@ -28,6 +28,7 @@
 // forward declarations
 namespace experiment { class Aging2Experiment; }
 namespace experiment::details { class Aging2Worker; }
+namespace experiment::details { class LatencyStatistics; }
 
 namespace experiment::details {
 
@@ -45,6 +46,11 @@ class Aging2Master {
     uint64_t* m_reported_times = nullptr; // microsecs
     std::atomic<int> m_last_time_reported = 0;
 
+    // latencies of each update
+    uint64_t* m_latencies = nullptr; // nanosecs
+    uint64_t m_latencies_num_insertions = 0; // total number of operations that are insertions
+    uint64_t m_latencies_num_deletions = 0; // total number of operations that are deletions
+
     cuckoohash_map<uint64_t, bool> m_vertices_present; // current list of vertices present in the graph
 
     Aging2Result m_results; // final results of the experiment
@@ -54,6 +60,9 @@ class Aging2Master {
 
     // Load & partition the edges to insert/remove in the available workers
     void load_edges();
+
+    // Prepare the array to record the latency of all updates
+    void prepare_latencies();
 
     // Execute the main part of the experiment, that is the insertions/deletions in the graph with the worker threads
     void do_run_experiment();
