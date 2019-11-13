@@ -109,7 +109,7 @@ public:
             return LL_NIL_NODE;
         } else if(!src_iter_reverse_edge){
             while(G.out_iter_has_next(src_iter)){
-                edge_t e = G.out_iter_next(src_iter);
+                [[maybe_unused]] edge_t e = G.out_iter_next(src_iter);
                 assert(e != LL_NIL_EDGE);
                 node_t t = LL_ITER_OUT_NEXT_NODE(G, src_iter, e);
                 assert(t != LL_NIL_NODE);
@@ -123,7 +123,7 @@ public:
             return get_next();
         } else {
             while(G.in_iter_has_next_fast(src_iter)){
-                edge_t e = G.in_iter_next_fast(src_iter);
+                [[maybe_unused]] edge_t e = G.in_iter_next_fast(src_iter);
                 assert(e != LL_NIL_EDGE);
                 node_t t = LL_ITER_OUT_NEXT_NODE(G, src_iter, e);
                 assert(t != LL_NIL_NODE);
@@ -143,7 +143,7 @@ private:
 
         do {
             while(G.out_iter_has_next(dst_iter)){
-                edge_t e = G.out_iter_next(dst_iter);
+                [[maybe_unused]] edge_t e = G.out_iter_next(dst_iter);
                 assert(e != LL_NIL_EDGE);
                 candidate = LL_ITER_OUT_NEXT_NODE(G, dst_iter, e);
                 assert(candidate != LL_NIL_NODE);
@@ -273,7 +273,7 @@ public:
     node_t get_next() {
         if(!src_iter_reverse_edge){
             while(G.out_iter_has_next(src_iter)){
-                edge_t e = G.out_iter_next(src_iter);
+                [[maybe_unused]] edge_t e = G.out_iter_next(src_iter);
                 assert(e != LL_NIL_EDGE);
                 node_t t = LL_ITER_OUT_NEXT_NODE(G, src_iter, e);
                 assert(t != LL_NIL_NODE);
@@ -286,7 +286,7 @@ public:
             return get_next();
         } else {
             while(G.in_iter_has_next_fast(src_iter)){
-                edge_t e = G.in_iter_next_fast(src_iter);
+                [[maybe_unused]] edge_t e = G.in_iter_next_fast(src_iter);
                 assert(e != LL_NIL_EDGE);
                 node_t t = LL_ITER_OUT_NEXT_NODE(G, src_iter, e);
                 assert(t != LL_NIL_NODE);
@@ -307,7 +307,7 @@ private:
         do {
             if(mode_reverse_edge == false){ // outgoing edges
                 while(G.out_iter_has_next(dst_iter)){
-                    edge_t e = G.out_iter_next(dst_iter);
+                    [[maybe_unused]] edge_t e = G.out_iter_next(dst_iter);
                     assert(e != LL_NIL_EDGE);
                     candidate = LL_ITER_OUT_NEXT_NODE(G, dst_iter, e);
                     assert(candidate != LL_NIL_NODE);
@@ -327,7 +327,7 @@ private:
                 mode_reverse_edge = true;
             } else {
                 while(G.in_iter_has_next_fast(dst_iter)){
-                    edge_t e = G.in_iter_next_fast(dst_iter);
+                    [[maybe_unused]] edge_t e = G.in_iter_next_fast(dst_iter);
                     assert(e != LL_NIL_EDGE);
                     candidate = LL_ITER_OUT_NEXT_NODE(G, dst_iter, e);
                     assert(candidate != LL_NIL_NODE);

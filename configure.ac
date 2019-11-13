@@ -361,6 +361,8 @@ if ( test x"${with_llama}" != x"no" ); then
             #define LL_DELETIONS
             #define register /* disable the usage of register */
             @%:@include "llama.h"
+            
+            ll_memory_pool __w_pool; /* required global */
         ]], [[
             ll_database llama{"/tmp/llama"};
         ]])

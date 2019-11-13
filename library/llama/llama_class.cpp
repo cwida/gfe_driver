@@ -45,10 +45,6 @@ extern mutex _log_mutex [[maybe_unused]];
  *  Helpers                                                                  *
  *                                                                           *
  *****************************************************************************/
-// sometimes I'm referring them as singular, sometimes as plural. Let's use a const for peace of mind
-char const * const g_llama_property_names = "names";
-char const * const g_llama_property_weights = "weights";
-
 // Get the weight associated to an _outgoing_ edge_id
 template<typename Graph>
 static double get_out_edge_weight(Graph& graph, edge_t edge_id){
@@ -294,7 +290,8 @@ bool LLAMAClass::add_edge(graph::WeightedEdge e){
 
     // thread unsafe, this should really still be under the same latch of add_edge_if_not_exists
     if(inserted){
-        m_db->graph()->get_edge_property_64(g_llama_property_weights)->add(edge_id, *reinterpret_cast<uint64_t*>(&(e.m_weight)));
+//        m_db->graph()->get_edge_property_64(g_llama_property_weights)->add(edge_id, *reinterpret_cast<uint64_t*>(&(e.m_weight)));
+        m_db->graph()->get_edge_property_64(g_llama_property_weights)->set(edge_id, *reinterpret_cast<uint64_t*>(&(e.m_weight)));
     }
 
     return inserted;
@@ -320,6 +317,8 @@ bool LLAMAClass::remove_edge(graph::Edge e){
     } catch(std::out_of_range& e){
         return false; // either source or destination do not exist
     }
+
+
 
     return m_db->graph()->delete_edge_if_exists(llama_source_id, llama_destination_id);
 

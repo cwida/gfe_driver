@@ -32,6 +32,7 @@
 #include "baseline/dummy.hpp"
 #if defined(HAVE_LLAMA)
 #include "llama/llama_class.hpp"
+#include "llama-dv/llama-dv.hpp"
 #endif
 #include "reader/reader.hpp"
 #if defined(HAVE_STINGER)
@@ -77,6 +78,9 @@ std::unique_ptr<Interface> generate_dummy(bool directed_graph){
 std::unique_ptr<Interface> generate_llama(bool directed_graph){
     return unique_ptr<Interface>{ new LLAMAClass(directed_graph) };
 }
+std::unique_ptr<Interface> generate_llama_dv(bool directed_graph){
+    return unique_ptr<Interface>{ new LLAMA_DV(directed_graph) };
+}
 #endif
 
 #if defined(HAVE_STINGER)
@@ -96,6 +100,7 @@ vector<ImplementationManifest> implementations() {
 
 #if defined(HAVE_LLAMA)
     result.emplace_back("llama", "LLAMA library", &generate_llama);
+    result.emplace_back("llama-dv", "LLAMA with dense vertices", &generate_llama_dv);
 #endif
 
 #if defined(HAVE_STINGER)
