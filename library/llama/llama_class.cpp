@@ -312,23 +312,11 @@ bool LLAMAClass::remove_edge(graph::Edge e){
                 std::swap(llama_source_id, llama_destination_id);
             }
         }
-
-//        llama_edge_id = m_db->graph()->find(llama_source_id, llama_destination_id);
     } catch(std::out_of_range& e){
         return false; // either source or destination do not exist
     }
 
-
-
     return m_db->graph()->delete_edge_if_exists(llama_source_id, llama_destination_id);
-
-//    if(llama_edge_id != LL_NIL_EDGE){
-////        m_db->graph()->delete_edge(llama_source_id, llama_edge_id);
-//        m_db-
-//        return true;
-//    } else {
-//        return false;
-//    }
 }
 
 void LLAMAClass::build(){

@@ -187,6 +187,8 @@ bool LLAMA_DV::has_vertex(uint64_t vertex_id) const {
 }
 
 double LLAMA_DV::get_weight(uint64_t source, uint64_t destination) const {
+    if(!m_is_directed && source > destination){ swap(source, destination); }
+
     edge_t edge_id = m_db->graph()->find(source, source);
     if(edge_id == LL_NIL_EDGE) return numeric_limits<double>::quiet_NaN(); // the edge does not exist
     return get_out_edge_weight(* (m_db->graph()), edge_id);
@@ -243,20 +245,36 @@ bool LLAMA_DV::add_edge(graph::WeightedEdge e){
     COUT_DEBUG("edge: " << e);
     shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
 
-    edge_t edge_id;
-    bool inserted = m_db->graph()->add_edge_if_not_exists(e.source(), e.destination(), &edge_id);
-
-    // thread unsafe, this should really still be under the same latch of add_edge_if_not_exists
-    if(inserted){
-        m_db->graph()->get_edge_property_64(g_llama_property_weights)->add(edge_id, *reinterpret_cast<uint64_t*>(&(e.m_weight)));
+    uint64_t source = e.source();
+    uint64_t destination = e.destination();
+    if(!m_is_directed && source > destination){
+        std::swap(source, destination);
     }
 
-    return inserted;
+    // blind write, assume that an edge source -> destination does not already exist
+    edge_t edge_id = m_db->graph()->add_edge(source, destination);
+    m_db->graph()->get_edge_property_64(g_llama_property_weights)->add(edge_id, *reinterpret_cast<uint64_t*>(&(e.m_weight)));
+
+    return true;
 }
 
 bool LLAMA_DV::remove_edge(graph::Edge e){
+    COUT_DEBUG("edge: " << e);
     shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
-    return m_db->graph()->delete_edge_if_exists(e.source(), e.destination());
+
+    uint64_t source = e.source();
+    uint64_t destination = e.destination();
+    if(!m_is_directed && source > destination){
+        std::swap(source, destination);
+    }
+
+    /*
+     * m_db->graph()->delete_edge(source, edge_id) requires the id of the edge to remove, which we don't know. The
+     * sequence m_db->graph()->delete_edge( source, m_db->graph()->find(source, destination) ) is not thread safe, it
+     * would still demand a lock to be correct. Therefore use m_db->graph()->delete_edge_if_exists(...)
+     */
+
+    return m_db->graph()->delete_edge_if_exists(source, destination);
 }
 
 void LLAMA_DV::build(){

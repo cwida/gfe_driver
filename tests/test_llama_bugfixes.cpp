@@ -103,6 +103,17 @@ TEST(LLAMA, RewriteEdgeInWriteStore) {
     ASSERT_EQ( (int) llama.get_weight(20, 30), 3020 );
 }
 
+TEST(LLAMA_DV, RemoveEdge) {
+    LLAMA_DV llama { /* directed = */ false };
+
+    ASSERT_TRUE( llama.add_vertex(1) );
+    ASSERT_TRUE( llama.add_vertex(2) );
+    ASSERT_TRUE( llama.add_vertex(3) );
+    ASSERT_TRUE( llama.add_edge(WeightedEdge{1, 2, 1020}));
+    ASSERT_TRUE( llama.remove_edge(Edge{1, 2}));
+
+}
+
 #else
 #include <iostream>
 TEST(LLAMA, Disabled) {
