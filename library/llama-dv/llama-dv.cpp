@@ -229,21 +229,23 @@ ll_mlcsr_ro_graph LLAMA_DV::get_snapshot() const {
  *                                                                            *
  *****************************************************************************/
 bool LLAMA_DV::add_vertex(uint64_t vertex_id){
-    COUT_DEBUG("vertex_id: " << vertex_id);
     shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    COUT_DEBUG("vertex_id: " << vertex_id);
+
     return m_db->graph()->add_node(vertex_id);
 }
 
 bool LLAMA_DV::remove_vertex(uint64_t vertex_id){
-    COUT_DEBUG("vertex_id: " << vertex_id);
     shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    COUT_DEBUG("vertex_id: " << vertex_id);
+
     m_db->graph()->delete_node(vertex_id);
     return true; // lie
 }
 
 bool LLAMA_DV::add_edge(graph::WeightedEdge e){
-    COUT_DEBUG("edge: " << e);
     shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    COUT_DEBUG("edge: " << e);
 
     uint64_t source = e.source();
     uint64_t destination = e.destination();
@@ -278,15 +280,14 @@ bool LLAMA_DV::remove_edge(graph::Edge e){
 }
 
 void LLAMA_DV::build(){
-    COUT_DEBUG("build");
     scoped_lock<shared_mutex> xlock(m_lock_checkpoint);
+    COUT_DEBUG("build");
 
     assert((static_cast<int64_t>(m_num_edges) + m_db->graph()->get_num_edges_diff() >= 0) && "Underflow");
     m_num_edges += m_db->graph()->get_num_edges_diff();
 
     // finally, create the new delta
     m_db->graph()->checkpoint();
-    m_db->graph()->callback_ro_changed();
 }
 
 /*****************************************************************************

@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "common/database.hpp"
+#include "common/system.hpp"
 #include "common/timer.hpp"
 #include "configuration.hpp"
 #include "library/interface.hpp"
@@ -151,6 +152,8 @@ void InsertOnly::execute_static(void* cb, uint64_t* latencies){
         int64_t length = edges_per_threads + (i < odd_threads);
 
         threads.emplace_back([this, graph, &vertices, latencies](int64_t start, int64_t length, int thread_id){
+            concurrency::set_thread_name("Worker #" + to_string(thread_id));
+
             auto interface = m_interface.get();
             interface->on_thread_init(thread_id);
             run_sequential(interface, graph, vertices, start, start + length, m_batch_size, latencies /* do not shift */);
@@ -175,6 +178,8 @@ void InsertOnly::execute_round_robin(void* cb, uint64_t* latencies){
 
     for(int64_t i = 0; i < m_num_threads; i++){
         threads.emplace_back([this, &vertices, &start_chunk_next, latencies](int thread_id){
+            concurrency::set_thread_name("Worker #" + to_string(thread_id));
+
             auto interface = m_interface.get();
             auto graph = m_stream.get();
             uint64_t start;

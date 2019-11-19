@@ -116,6 +116,7 @@ void AgingThread::main_thread(){
 
         switch(m_current_operation){
         case AgingOperation::START:
+            concurrency::set_thread_name("Worker #" + to_string(m_worker_id));
             m_interface->on_thread_init(m_worker_id);
             break;
         case AgingOperation::COMPUTE_FINAL_EDGES: {

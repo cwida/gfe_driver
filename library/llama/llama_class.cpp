@@ -206,8 +206,8 @@ ll_mlcsr_ro_graph LLAMAClass::get_snapshot() const {
  *****************************************************************************/
 
 bool LLAMAClass::add_vertex(uint64_t vertex_id_ext){
-    COUT_DEBUG("vertex_id: " << vertex_id_ext);
     shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    COUT_DEBUG("vertex_id: " << vertex_id_ext);
 
     m_lock_vertex_map.lock();
     if(!vmap_write_store_contains(vertex_id_ext)){
@@ -238,8 +238,8 @@ bool LLAMAClass::add_vertex(uint64_t vertex_id_ext){
 }
 
 bool LLAMAClass::remove_vertex(uint64_t vertex_id_ext){
-    COUT_DEBUG("vertex_id: " << vertex_id_ext);
     shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    COUT_DEBUG("vertex_id: " << vertex_id_ext);
 
     bool is_removed = false;
     int64_t llama_vertex_id = -1;
@@ -267,8 +267,8 @@ bool LLAMAClass::remove_vertex(uint64_t vertex_id_ext){
 }
 
 bool LLAMAClass::add_edge(graph::WeightedEdge e){
-    COUT_DEBUG("edge: " << e);
     shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    COUT_DEBUG("edge: " << e);
 
     node_t llama_source_id { -1 }, llama_destination_id { -1 };
     try {
@@ -287,10 +287,10 @@ bool LLAMAClass::add_edge(graph::WeightedEdge e){
 
     edge_t edge_id;
     bool inserted = m_db->graph()->add_edge_if_not_exists(llama_source_id, llama_destination_id, &edge_id);
+    assert( m_db->graph()->find(llama_source_id, llama_destination_id) == edge_id );
 
     // thread unsafe, this should really still be under the same latch of add_edge_if_not_exists
     if(inserted){
-//        m_db->graph()->get_edge_property_64(g_llama_property_weights)->add(edge_id, *reinterpret_cast<uint64_t*>(&(e.m_weight)));
         m_db->graph()->get_edge_property_64(g_llama_property_weights)->set(edge_id, *reinterpret_cast<uint64_t*>(&(e.m_weight)));
     }
 
@@ -298,8 +298,8 @@ bool LLAMAClass::add_edge(graph::WeightedEdge e){
 }
 
 bool LLAMAClass::remove_edge(graph::Edge e){
-    COUT_DEBUG("edge: " << e);
     shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    COUT_DEBUG("edge: " << e);
 
     node_t llama_source_id { -1 }, llama_destination_id { -1 };
     try {
@@ -312,16 +312,19 @@ bool LLAMAClass::remove_edge(graph::Edge e){
                 std::swap(llama_source_id, llama_destination_id);
             }
         }
+
     } catch(std::out_of_range& e){
         return false; // either source or destination do not exist
     }
 
-    return m_db->graph()->delete_edge_if_exists(llama_source_id, llama_destination_id);
+    bool removed = m_db->graph()->delete_edge_if_exists(llama_source_id, llama_destination_id);
+    assert(removed == true);
+    return removed;
 }
 
 void LLAMAClass::build(){
-    COUT_DEBUG("build");
     scoped_lock<shared_mutex> xlock(m_lock_checkpoint);
+    COUT_DEBUG("build");
 
     // merge the changes to the vertex ids into m_vmap_read_only
     auto changeset_removed = m_vmap_removed.lock_table();
@@ -344,7 +347,6 @@ void LLAMAClass::build(){
 
     // finally, create the new delta
     m_db->graph()->checkpoint();
-    m_db->graph()->callback_ro_changed();
 }
 
 

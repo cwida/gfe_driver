@@ -142,6 +142,7 @@ void Aging2Worker::wait(){
 
 void Aging2Worker::main_thread(){
     COUT_DEBUG("Worker started");
+    concurrency::set_thread_name("Worker #" + to_string(m_worker_id));
 
     m_library->on_thread_init(m_worker_id);
 
