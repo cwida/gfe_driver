@@ -275,7 +275,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
                 if(m_validate_output_enabled){
                     string path_reference = get_validation_path("SSSP");
                     if(filesystem::exists(path_reference)){
-                        GraphalyticsValidate::pagerank(path_tmp, path_reference, max_num_errors);
+                        GraphalyticsValidate::sssp(path_tmp, path_reference, max_num_errors);
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("sssp", ValidationResult::SUCCEEDED);
                     } else if (i == 0) { // report it only the first time
@@ -307,7 +307,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
                 if(m_validate_output_enabled){
                     string path_reference = get_validation_path("WCC");
                     if(filesystem::exists(path_reference)){
-                        GraphalyticsValidate::pagerank(path_tmp, path_reference, max_num_errors);
+                        GraphalyticsValidate::wcc(path_tmp, path_reference, max_num_errors);
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("wcc", ValidationResult::SUCCEEDED);
                     } else if (i == 0) { // report it only the first time

@@ -131,7 +131,7 @@ static vector<Tuple<T>> read_results(const std::string& path_to_file){
  *                                                                           *
  *****************************************************************************/
 void GraphalyticsValidate::exact_match(const std::string& path_result, const std::string& path_expected, uint64_t max_num_errors){
-	ERROR_INIT
+    ERROR_INIT
 
     fstream handle_expected(path_expected, ios_base::in);
     if(!handle_expected.good()) FATAL("The reference file does not exist or is not accessible. Path: `" << path_expected << "'");
@@ -184,7 +184,7 @@ void GraphalyticsValidate::cdlp(const std::string& result, const std::string& ex
  *                                                                           *
  *****************************************************************************/
 void GraphalyticsValidate::epsilon_match(const std::string& path_result, const std::string& path_expected, double epsilon, uint64_t max_num_errors){
-	ERROR_INIT
+    ERROR_INIT
 
     fstream handle_expected(path_expected, ios_base::in);
     if(!handle_expected.good()) FATAL("The reference file does not exist or is not accessible. Path: `" << path_expected << "'");
@@ -248,7 +248,7 @@ void GraphalyticsValidate::sssp(const std::string& result, const std::string& ex
  *****************************************************************************/
 
 void GraphalyticsValidate::equivalence_match(const std::string& result, const std::string& expected, uint64_t max_num_errors){
-	ERROR_INIT
+    ERROR_INIT
 
     fstream handle_result(result, ios_base::in);
     if(!handle_result.good()) FATAL("The result file does not exist or is not accessible. Path: `"  << result << "'");
