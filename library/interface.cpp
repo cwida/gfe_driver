@@ -99,7 +99,8 @@ vector<ImplementationManifest> implementations() {
     result.emplace_back("dummy", "Dummy implementation of the interface, all operations are nop", &generate_dummy);
 
 #if defined(HAVE_LLAMA)
-    result.emplace_back("llama", "LLAMA library", &generate_llama);
+    // v2 25/11/2019: better scalability for the llama dictionary
+    result.emplace_back("llama2", "LLAMA library", &generate_llama);
     result.emplace_back("llama-dv", "LLAMA with dense vertices", &generate_llama_dv);
 #endif
 

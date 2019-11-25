@@ -57,7 +57,8 @@ class LLAMAClass : public virtual UpdateInterface, public virtual GraphalyticsIn
     cuckoohash_map<uint64_t, int64_t> m_vmap_removed;
     cuckoohash_map<uint64_t, int64_t> m_vmap_read_only;
 
-    mutable common::SpinLock m_lock_vertex_map; // need to sync m_vertex_mappings and operations in m_db
+    mutable common::SpinLock* m_vmap_locks {nullptr}; // array of locks, to sync m_vertex_mappings and operations in m_db
+    const uint64_t m_num_vmap_locks = /* arbitrary number */ 4096 ; // size of the array `m_vmap_locks'
     mutable std::shared_mutex m_lock_checkpoint; // invoking #build(), that is creating a new snapshot, must be done without any other interference from other writers
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
 

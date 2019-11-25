@@ -82,10 +82,13 @@ LLAMAClass::LLAMAClass(bool is_directed) : m_is_directed(is_directed) {
     auto& csr = m_db->graph()->ro_graph();
     csr.create_uninitialized_node_property_64(g_llama_property_names, LL_T_INT64); // translate a logical id (e.g. node_id = 4) into an external node id (e.g. user_id = 21084718954)
     csr.create_uninitialized_edge_property_64(g_llama_property_weights, LL_T_DOUBLE);
+
+    m_vmap_locks = new SpinLock[m_num_vmap_locks];
 }
 
 
 LLAMAClass::~LLAMAClass(){
+    delete[] m_vmap_locks; m_vmap_locks = nullptr;
     delete m_db; m_db = nullptr;
 }
 
@@ -111,6 +114,8 @@ bool LLAMAClass::is_directed() const {
 }
 
 bool LLAMAClass::has_vertex(uint64_t vertex_id) const {
+    scoped_lock<SpinLock> vlock(m_vmap_locks[vertex_id % m_num_vmap_locks]);
+
     try {
         vmap_write_store_find(vertex_id); // exception -> vertex not present
         return true;
@@ -124,7 +129,11 @@ double LLAMAClass::get_weight(uint64_t ext_source_id, uint64_t ext_destination_i
 
     uint64_t int_source_id, int_destination_id;
     try {
-        scoped_lock<SpinLock> lock(m_lock_vertex_map);
+        uint64_t vtx_lock_1 = min(ext_source_id % m_num_vmap_locks, ext_destination_id % m_num_vmap_locks);
+        uint64_t vtx_lock_2 = max(ext_source_id % m_num_vmap_locks, ext_destination_id % m_num_vmap_locks);
+        scoped_lock<SpinLock> vlock1(m_vmap_locks[vtx_lock_1]);
+        scoped_lock<SpinLock> vlock2(m_vmap_locks[vtx_lock_2]);
+
         int_source_id = vmap_write_store_find(ext_source_id); // throws std::out_of_range if ext_source_id is not present
         int_destination_id = vmap_write_store_find(ext_destination_id); // as above
 
@@ -209,9 +218,10 @@ bool LLAMAClass::add_vertex(uint64_t vertex_id_ext){
     shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("vertex_id: " << vertex_id_ext);
 
-    m_lock_vertex_map.lock();
+    auto& mutex = m_vmap_locks[vertex_id_ext % m_num_vmap_locks];
+    mutex.lock();
     if(!vmap_write_store_contains(vertex_id_ext)){
-        m_lock_vertex_map.unlock();
+        mutex.unlock();
 
         node_t node_id = m_db->graph()->add_node();
         m_db->graph()->get_node_property_64(g_llama_property_names)->set(node_id, vertex_id_ext); // register the mapping internal -> external
@@ -232,7 +242,7 @@ bool LLAMAClass::add_vertex(uint64_t vertex_id_ext){
         return inserted;
     } else {
         // the mapping already exists
-        m_lock_vertex_map.unlock();
+        mutex.unlock();
         return false;
     }
 }
@@ -244,7 +254,8 @@ bool LLAMAClass::remove_vertex(uint64_t vertex_id_ext){
     bool is_removed = false;
     int64_t llama_vertex_id = -1;
 
-    m_lock_vertex_map.lock();
+    auto& mutex = m_vmap_locks[vertex_id_ext % m_num_vmap_locks];
+    mutex.lock();
     if(m_vmap_read_only.find(vertex_id_ext, llama_vertex_id)){
         m_vmap_removed.insert(vertex_id_ext, true);
         is_removed = true;
@@ -256,7 +267,7 @@ bool LLAMAClass::remove_vertex(uint64_t vertex_id_ext){
     });
 
 
-    m_lock_vertex_map.unlock();
+    mutex.unlock();
 
     if(is_removed){
         assert(llama_vertex_id != -1);
@@ -271,12 +282,19 @@ bool LLAMAClass::add_edge(graph::WeightedEdge e){
     COUT_DEBUG("edge: " << e);
 
     node_t llama_source_id { -1 }, llama_destination_id { -1 };
+
     try {
-        scoped_lock<SpinLock> lock(m_lock_vertex_map);
+        scoped_lock<SpinLock> vlock(m_vmap_locks[e.m_source % m_num_vmap_locks]);
         llama_source_id = vmap_write_store_find(e.m_source); // throws std::out_of_range if ext_source_id is not present
-        llama_destination_id = vmap_write_store_find(e.m_destination); // as above
     } catch( std::out_of_range& e ){
-        return false; // either the source or the destination does not exist
+        return false; // the source does not exist
+    }
+
+    try {
+        scoped_lock<SpinLock> vlock(m_vmap_locks[e.m_destination % m_num_vmap_locks]);
+        llama_destination_id = vmap_write_store_find(e.m_destination); // throws std::out_of_range if ext_source_id is not present
+    } catch( std::out_of_range& e ){
+        return false; // the destination does not exist
     }
 
     if(!m_is_directed){ // for undirected graphs, ensure llama_source_id < llama_destination_id
@@ -302,24 +320,30 @@ bool LLAMAClass::remove_edge(graph::Edge e){
     COUT_DEBUG("edge: " << e);
 
     node_t llama_source_id { -1 }, llama_destination_id { -1 };
+
     try {
-        scoped_lock<SpinLock> lock(m_lock_vertex_map);
+        scoped_lock<SpinLock> vlock(m_vmap_locks[e.m_source % m_num_vmap_locks]);
         llama_source_id = vmap_write_store_find(e.m_source); // throws std::out_of_range if ext_source_id is not present
-        llama_destination_id = vmap_write_store_find(e.m_destination); // as above
-
-        if(!m_is_directed){ // for undirected graphs, ensure llama_source_id < llama_destination_id
-            if(llama_source_id > llama_destination_id){
-                std::swap(llama_source_id, llama_destination_id);
-            }
-        }
-
-    } catch(std::out_of_range& e){
-        return false; // either source or destination do not exist
+    } catch( std::out_of_range& e ){
+        return false; // the source does not exist
     }
 
-    bool removed = m_db->graph()->delete_edge_if_exists(llama_source_id, llama_destination_id);
-    assert(removed == true);
-    return removed;
+    try {
+        scoped_lock<SpinLock> vlock(m_vmap_locks[e.m_destination % m_num_vmap_locks]);
+        llama_destination_id = vmap_write_store_find(e.m_destination); // throws std::out_of_range if ext_source_id is not present
+    } catch( std::out_of_range& e ){
+        return false; // the destination does not exist
+    }
+
+    // Again, this cannot be strictly correct, a race condition can still occur where a vertex is removed in the meanwhile we are
+    // changing an edge
+    if(!m_is_directed){ // for undirected graphs, ensure llama_source_id < llama_destination_id
+        if(llama_source_id > llama_destination_id){
+            std::swap(llama_source_id, llama_destination_id);
+        }
+    }
+
+    return m_db->graph()->delete_edge_if_exists(llama_source_id, llama_destination_id);
 }
 
 void LLAMAClass::build(){
