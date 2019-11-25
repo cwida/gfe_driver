@@ -85,6 +85,7 @@ static void run_standalone(int argc, char* argv[]){
 
         if(configuration().coefficient_aging() == 0.0){ // insert the elements in the graph one by one
             InsertOnly experiment { impl_upd, move(stream), configuration().num_threads(THREADS_WRITE), configuration().measure_latency() };
+            experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
             experiment.execute();
             if(configuration().has_database()) experiment.save();
         } else { // Aging experiment, without the graphlog

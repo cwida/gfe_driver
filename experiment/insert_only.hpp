@@ -33,14 +33,12 @@ class InsertOnly {
     std::shared_ptr<graph::WeightedEdgeStream> m_stream; // the graph to insert
     const int64_t m_num_threads; // the number of threads to use
     const bool m_measure_latency; // whether to measure and report the latency of each insertion
-    uint64_t m_schedule_chunks = 0; // if >0, schedule the edges to insert in round robin fashion, in chunks of the given size
+    std::chrono::milliseconds m_build_frequency {0}; // Continuously create a new snapshot each `m_build_frequency' millisecs (0 = feature disabled)
+    uint64_t m_scheduler_granularity = 1ull << 20; // if >0, granularity for the scheduler
     uint64_t m_time_insert = 0; // the amount of time to insert all elements in the database, in microseconds
-    uint64_t m_time_build = 0; // the amount of time to build the snapshot/delta/level in the library, in microseconds
-    uint64_t m_batch_size = 0; // send the updates in batches
+    uint64_t m_time_build = 0; // the amount of time to build the last snapshot/delta/level in the library, in microseconds
+    uint64_t m_num_build_invocations = 0; // number of times the method #build() has been invoked
     details::LatencyStatistics m_latencies; // the latencies measured in the experiment
-
-    // Execute the experiment with the static scheduler
-    void execute_static(void* /* opaque */ cb, uint64_t* latencies);
 
     // Execute the experiment with the round robin scheduler
     void execute_round_robin(void* /* opaque */ cb, uint64_t* latencies);
@@ -50,17 +48,12 @@ class InsertOnly {
 public:
     InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, int64_t num_threads, bool measure_latency = false);
 
-    // Check whether to use a round robin or a static scheduler
-    bool is_static_scheduler() const;
+    // Advanced and/or internal parameter, set the granularity of chunks sent by the internal scheduler to the worker threads. The granularity
+    // here is given by the number of edge insertions in each chunk.
+    void set_scheduler_granularity(uint64_t granularity);
 
-    // Whether to schedule the edges to the different threads in chunks, with the given granularity of a chunk size
-    void set_round_robin_scheduler(uint64_t granularity);
-
-    // Static scheduler, each thread inserts a fixed amount of edges
-    void set_static_scheduler();
-
-    // Request to send edge updates in batches of the given size. Vertex insertions will continue to be sent one at the time
-    void set_batch_size(uint64_t size);
+    // Set how frequently create a new snapshot/delta in the library (0 = do not create new snapshots)
+    void set_build_frequency(std::chrono::milliseconds millisecs);
 
     // Execute the experiment
     std::chrono::microseconds execute();

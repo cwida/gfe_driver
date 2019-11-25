@@ -26,11 +26,13 @@
 #include "common/database.hpp"
 #include "common/system.hpp"
 #include "common/timer.hpp"
+#include "details/build_thread.hpp"
 #include "configuration.hpp"
 #include "library/interface.hpp"
 #include "third-party/libcuckoo/cuckoohash_map.hh"
 
 using namespace common;
+using namespace experiment::details;
 using namespace std;
 
 namespace experiment {
@@ -40,22 +42,13 @@ InsertOnly::InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std:
     if(m_num_threads == 0) ERROR("Invalid number of threads: " << m_num_threads);
 }
 
-bool InsertOnly::is_static_scheduler() const {
-    return m_schedule_chunks == 0;
-}
-
-void InsertOnly::set_round_robin_scheduler(uint64_t granularity) {
+void InsertOnly::set_scheduler_granularity(uint64_t granularity) {
     if(granularity == 0) INVALID_ARGUMENT("The granularity of a chunk size cannot be zero");
-    m_schedule_chunks = granularity;
+    m_scheduler_granularity = granularity;
 }
 
-void InsertOnly::set_static_scheduler(){
-    m_schedule_chunks = 0;
-}
-
-void InsertOnly::set_batch_size(uint64_t batch_size){
-    if(m_measure_latency) ERROR("Batch size not supported when measuring the latency");
-    m_batch_size = batch_size;
+void InsertOnly::set_build_frequency(std::chrono::milliseconds millisecs){
+    m_build_frequency = millisecs;
 }
 
 // Execute an update at the time
@@ -73,7 +66,7 @@ static void run_one_by_one(library::UpdateInterface* interface, graph::WeightedE
 }
 
 // Execute an update at the time, measure the latency of each insertion
-static void run_one_by_one(library::UpdateInterface* interface, graph::WeightedEdgeStream* graph, cuckoohash_map<uint64_t, bool>& vertices, uint64_t start, uint64_t end, uint64_t* __restrict latencies){
+static void run_one_by_one_with_latency(library::UpdateInterface* interface, graph::WeightedEdgeStream* graph, cuckoohash_map<uint64_t, bool>& vertices, uint64_t start, uint64_t end, uint64_t* __restrict latencies){
     for(uint64_t pos = start; pos < end; pos++){
         auto edge = graph->get(pos);
 
@@ -87,90 +80,23 @@ static void run_one_by_one(library::UpdateInterface* interface, graph::WeightedE
             t0 = chrono::steady_clock::now();
         };
 
-
         common::compiler_barrier();
         auto t1 = chrono::steady_clock::now();
         latencies[pos] = chrono::duration_cast<chrono::nanoseconds>(t1 - t0).count();
     }
 }
 
-// Send batches of updates
-static void run_batched(library::UpdateInterface* interface, graph::WeightedEdgeStream* graph, cuckoohash_map<uint64_t, bool>& vertices, uint64_t start, uint64_t end, uint64_t batch_size){
-    unique_ptr<library::UpdateInterface::SingleUpdate[]> ptr_batch { new library::UpdateInterface::SingleUpdate[batch_size] };
-    library::UpdateInterface::SingleUpdate* __restrict batch = ptr_batch.get();
-    uint64_t batch_index = 0;
-
-    for(uint64_t pos = start; pos < end; pos++){
-        auto edge = graph->get(pos);
-
-        if(vertices.insert(edge.source(), true)) interface->add_vertex(edge.source());
-        if(vertices.insert(edge.destination(), true)) interface->add_vertex(edge.destination());
-
-        if(batch_index == batch_size){
-            interface->batch(batch, batch_index);
-            batch_index = 0; // reset
-        }
-
-        library::UpdateInterface::SingleUpdate* __restrict update = batch + batch_index;
-        update->m_source = edge.m_source;
-        update->m_destination = edge.m_destination;
-        assert(edge.m_weight >= 0 && "Weights can only be non-negative");
-        update->m_weight = edge.m_weight;
-        batch_index++;
-    }
-
-    // flush
-    interface->batch(batch, batch_index);
-}
-
 // this wasn't well thought, I know
-static void run_sequential(library::UpdateInterface* interface, graph::WeightedEdgeStream* graph, cuckoohash_map<uint64_t, bool>& vertices, uint64_t start, uint64_t end, uint64_t batch_size, uint64_t* latencies = nullptr){
-    if(batch_size <= 0){ // send one update at the time
-        if(latencies == nullptr){ // do not measure the latency of each insertion
-            run_one_by_one(interface, graph, vertices, start, end);
-        } else { // measure the latency of each insertion
-            run_one_by_one(interface, graph, vertices, start, end, latencies);
-        }
-    } else { // send updates in batches
-        assert(latencies == nullptr && "Cannot measure the latency of insertions in batch mode");
-        run_batched(interface, graph, vertices, start, end, batch_size);
+static void run_sequential(library::UpdateInterface* interface, graph::WeightedEdgeStream* graph, cuckoohash_map<uint64_t, bool>& vertices, uint64_t start, uint64_t end, uint64_t* latencies = nullptr){
+    if(latencies == nullptr){ // do not measure the latency of each insertion
+        run_one_by_one(interface, graph, vertices, start, end);
+    } else { // measure the latency of each insertion
+        run_one_by_one_with_latency(interface, graph, vertices, start, end, latencies);
     }
-}
-
-void InsertOnly::execute_static(void* cb, uint64_t* latencies){
-    auto graph = m_stream.get();
-    auto& vertices = *( reinterpret_cast<cuckoohash_map<uint64_t, bool>*>(cb) );
-
-
-    int64_t edges_per_threads = graph->num_edges() / m_num_threads;
-    int64_t odd_threads = graph->num_edges() % m_num_threads;
-    int64_t start = 0;
-
-    vector<thread> threads;
-
-    for(int64_t i = 0; i < m_num_threads; i++){
-        int64_t length = edges_per_threads + (i < odd_threads);
-
-        threads.emplace_back([this, graph, &vertices, latencies](int64_t start, int64_t length, int thread_id){
-            concurrency::set_thread_name("Worker #" + to_string(thread_id));
-
-            auto interface = m_interface.get();
-            interface->on_thread_init(thread_id);
-            run_sequential(interface, graph, vertices, start, start + length, m_batch_size, latencies /* do not shift */);
-            interface->on_thread_destroy(thread_id);
-
-        }, start, length, static_cast<int>(i));
-
-        start += length;
-    }
-
-    // wait for all threads to complete
-    for(auto& t : threads) t.join();
 }
 
 void InsertOnly::execute_round_robin(void* cb, uint64_t* latencies){
     auto& vertices = *( reinterpret_cast<cuckoohash_map<uint64_t, bool>*>(cb) );
-    ASSERT(m_schedule_chunks > 0 && "Chunk size == 0");
 
     vector<thread> threads;
 
@@ -187,9 +113,9 @@ void InsertOnly::execute_round_robin(void* cb, uint64_t* latencies){
 
             interface->on_thread_init(thread_id);
 
-            while( (start = start_chunk_next.fetch_add(m_schedule_chunks)) < size ){
-                uint64_t end = std::min<uint64_t>(start + m_schedule_chunks, size);
-                run_sequential(interface, graph, vertices, start, end, m_batch_size, latencies /* do not shift */);
+            while( (start = start_chunk_next.fetch_add(m_scheduler_granularity)) < size ){
+                uint64_t end = std::min<uint64_t>(start + m_scheduler_granularity, size);
+                run_sequential(interface, graph, vertices, start, end, latencies /* do not shift */);
             }
 
             interface->on_thread_destroy(thread_id);
@@ -208,20 +134,26 @@ chrono::microseconds InsertOnly::execute() {
     std::unique_ptr<uint64_t[]> ptr_latencies { m_measure_latency ? new uint64_t[m_stream->num_edges()] : nullptr };
     uint64_t* latencies = ptr_latencies.get();
 
-    m_interface->on_main_init(m_num_threads);
+    // re-adjust the scheduler granularity if there are too few insertions to perform
+    if(m_stream->num_edges() / m_num_threads < m_scheduler_granularity){
+        m_scheduler_granularity = m_stream->num_edges() / m_num_threads;
+        if(m_scheduler_granularity == 0) m_scheduler_granularity = 1; // corner case
+        LOG("InsertOnly: reset the scheduler granularity to " << m_scheduler_granularity << " edge insertions per thread");
+    }
 
+    // Execute the insertions
+    m_interface->on_main_init(m_num_threads /* build thread */ +1);
     Timer timer;
     timer.start();
-
-    if(is_static_scheduler()){
-        execute_static(&vertices, latencies);
-    } else {
-        execute_round_robin(&vertices, latencies);
-    }
+    BuildThread build_service { m_interface , static_cast<int>(m_num_threads), m_build_frequency };
+    execute_round_robin(&vertices, latencies);
+    build_service.stop();
     timer.stop();
     LOG("Insertions performed with " << m_num_threads << " threads in " << timer);
     m_time_insert = timer.microseconds();
+    m_num_build_invocations = build_service.num_invocations();
 
+    // A final invocation of the method #build()
     m_interface->on_thread_init(0);
     timer.start();
     m_interface->build();
@@ -231,6 +163,7 @@ chrono::microseconds InsertOnly::execute() {
     if(m_time_build > 0){
         LOG("Build time: " << timer);
     }
+    m_num_build_invocations++;
 
     m_interface->on_main_destroy();
 
@@ -248,10 +181,15 @@ chrono::microseconds InsertOnly::execute() {
 void InsertOnly::save() {
     assert(configuration().db() != nullptr);
     auto db = configuration().db()->add("insert_only");
-    db.add("scheduler", is_static_scheduler() ? "static" : "round_robin");
+    db.add("scheduler", "round_robin"); // backwards compatibility
+    db.add("scheduler_granularity", m_scheduler_granularity); // the number of insertions performed by each thread
     db.add("insertion_time", m_time_insert); // microseconds
     db.add("build_time", m_time_build); // microseconds
     db.add("num_edges", m_stream->num_edges());
+    db.add("num_snapshots_created", m_num_build_invocations);
+    // missing revision: until 25/Nov/2019
+    // version 20191125: build thread, build frequency taken into account, scheduler set to round_robin, removed batch updates
+    db.add("revision", "20191125");
 
     if(m_measure_latency) m_latencies.save("inserts");
 }
