@@ -26,7 +26,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace library {
+namespace gfe::library {
 
 // Generic exception thrown by this class
 DEFINE_EXCEPTION(AdjacencyListError);

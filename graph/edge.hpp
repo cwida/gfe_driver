@@ -22,7 +22,7 @@
 #include <ostream>
 #include <utility> // std::swap
 
-namespace graph {
+namespace gfe::graph {
 
 // Simple  representation of an edge as a pair <source, destination>
 class Edge {
@@ -63,10 +63,10 @@ public:
 
 std::ostream& operator<<(std::ostream& out, const Edge& e);
 std::ostream& operator<<(std::ostream& out, const WeightedEdge& e);
-} // namespace graph
+} // namespace gfe::graph
 
 namespace std {
-template<> struct hash<graph::Edge>{ // hash function for graph::Edge
+template<> struct hash<gfe::graph::Edge>{ // hash function for graph::Edge
 private:
     // Adapted from the General Purpose Hash Function Algorithms Library
     // Author: Arash Partow - 2002
@@ -87,7 +87,7 @@ private:
     }
 
 public:
-    size_t operator()(const graph::Edge& e) const {
+    size_t operator()(const gfe::graph::Edge& e) const {
         return APHash( (e.source() << 32) + (e.destination() & 0xFFFFFFFF) );
     }
 };

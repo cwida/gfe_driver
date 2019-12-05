@@ -51,8 +51,8 @@
 #include "utility/timeout_service.hpp"
 
 using namespace common;
+using namespace gfe::utility;
 using namespace std;
-using namespace utility;
 
 /*****************************************************************************
  *                                                                           *
@@ -407,7 +407,7 @@ void llama_execute_lcc_undirected(TimeoutService& timer, ll_mlcsr_ro_graph& grap
  *  Wrapper                                                                  *
  *                                                                           *
  *****************************************************************************/
-namespace library {
+namespace gfe::library {
 
 void LLAMAClass::lcc(const char* dump2file){
     TimeoutService timeout { m_timeout };

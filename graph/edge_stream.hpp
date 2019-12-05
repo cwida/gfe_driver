@@ -25,12 +25,14 @@
 #include "third-party/libcuckoo/cuckoohash_map.hh"
 
 
-namespace graph {
+namespace gfe::graph {
 
 class CByteArray; // forward decl.
 class VertexList; // forward decl.
 
-// Load in memory a stream of edges with
+/**
+ * Container to load in memory a sequence of edges, and permute their order randomly
+ */
 class WeightedEdgeStream {
     WeightedEdgeStream(const WeightedEdgeStream&) = delete;
     WeightedEdgeStream& operator=(const WeightedEdgeStream&) = delete;
@@ -89,5 +91,5 @@ public:
     double max_weight() const { return m_max_weight; }
 };
 
-} // namespace graph
+} // namespace
 

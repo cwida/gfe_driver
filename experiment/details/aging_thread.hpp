@@ -33,27 +33,27 @@
 #include "graph/edge.hpp"
 
 // forward declarations
-namespace experiment { class Aging; }
-namespace experiment::details { class AsyncBatch; }
-namespace library { class UpdateInterface; }
+namespace gfe::experiment { class Aging; }
+namespace gfe::experiment::details { class AsyncBatch; }
+namespace gfe::library { class UpdateInterface; }
 
-namespace experiment::details {
+namespace gfe::experiment::details {
 
 // A single worker thread in the aging experiment
 class AgingThread {
     Aging* m_instance; // aging instance
-    library::UpdateInterface* m_interface; // the graph library we are operating on
+    gfe::library::UpdateInterface* m_interface; // the graph library we are operating on
     const int m_worker_id; // the id of this thread
     const bool m_is_undirected; // is the graph undirected?
 
     std::vector<AgingPartition> m_partitions;
     uint64_t m_num_src_vertices_in_partitions {0};
 
-    std::vector<graph::WeightedEdge> m_edges; // primary edges to insert in the final graph
+    std::vector<gfe::graph::WeightedEdge> m_edges; // primary edges to insert in the final graph
     uint64_t m_final_edges_current_position { 0 }; // index to keep track up to where which edges have been inserted
 
-    std::unordered_map<graph::Edge, bool> m_edges_already_inserted; // keep track of which edges have already been inserted
-    common::CircularArray<graph::Edge> m_edges2remove; // edges that have been inserted but do not belong to the final graph
+    std::unordered_map<gfe::graph::Edge, bool> m_edges_already_inserted; // keep track of which edges have already been inserted
+    common::CircularArray<gfe::graph::Edge> m_edges2remove; // edges that have been inserted but do not belong to the final graph
 
     AsyncBatch* m_batch; // send the edge updates in batches
 
@@ -78,10 +78,10 @@ class AgingThread {
     int64_t missing_edges_final() const;
 
     // Insert the given edge
-    void insert_edge(graph::WeightedEdge edge);
+    void insert_edge(gfe::graph::WeightedEdge edge);
 
     // Remove the given edge
-    void remove_edge(graph::Edge edge);
+    void remove_edge(gfe::graph::Edge edge);
 
     // Remove the temporary edge at the head of the queue m_edges2remove
     void remove_temporary_edge();

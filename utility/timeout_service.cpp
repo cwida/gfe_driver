@@ -23,7 +23,7 @@
 
 using namespace std;
 
-namespace utility {
+namespace gfe::utility {
 
 /*****************************************************************************
  *                                                                           *

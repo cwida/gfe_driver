@@ -29,9 +29,9 @@
 #include "library/baseline/adjacency_list.hpp"
 
 using namespace common;
-using namespace experiment;
+using namespace gfe::experiment;
+using namespace gfe::library;
 using namespace std;
-using namespace library;
 
 extern char** environ;
 
@@ -57,7 +57,7 @@ TEST(Performance, InsertOnly) {
 
     cout << "[Performance::InsertOnly] Loading the graph from `" << path_graph << "' ... \n";
     timer.start();
-    auto stream = make_shared<graph::WeightedEdgeStream>(path_graph);
+    auto stream = make_shared<gfe::graph::WeightedEdgeStream>(path_graph);
     timer.stop();
     cout << "Graph loaded in " << timer << "\n";
     stream->permute(1910);
@@ -79,7 +79,7 @@ TEST(Performance, LCC) {
 
     cout << "[Performance::LCC] Loading the graph from `" << path_graph << "' ... \n";
     timer.start();
-    auto stream = make_shared<graph::WeightedEdgeStream>(path_graph);
+    auto stream = make_shared<gfe::graph::WeightedEdgeStream>(path_graph);
     timer.stop();
     cout << "Graph loaded in " << timer << "\n";
     stream->permute(1910);

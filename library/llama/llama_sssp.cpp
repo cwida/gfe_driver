@@ -49,8 +49,8 @@
 #include <iostream>
 
 using namespace common;
+using namespace gfe::utility;
 using namespace std;
-using namespace utility;
 
 /*****************************************************************************
  *                                                                           *
@@ -185,7 +185,7 @@ static void llama_execute_sssp(TimeoutService& timer, ll_mlcsr_ro_graph& graph, 
  *                                                                           *
  *****************************************************************************/
 
-namespace library {
+namespace gfe::library {
 void LLAMAClass::sssp(uint64_t external_source_vertex_id, const char* dump2file){
     utility::TimeoutService timeout_srv { m_timeout };
     Timer timer; timer.start();
@@ -250,4 +250,3 @@ void LLAMAClass::sssp(uint64_t external_source_vertex_id, const char* dump2file)
 }
 
 } // namespace
-

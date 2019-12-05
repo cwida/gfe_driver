@@ -20,7 +20,7 @@
 
 #include "library/interface.hpp"
 
-namespace library {
+namespace gfe::library {
 
 /**
  * This is a dummy instance of the interface. All operations are *nop*. It is used simply

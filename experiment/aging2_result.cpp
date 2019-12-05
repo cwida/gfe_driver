@@ -27,7 +27,7 @@
 using namespace common;
 using namespace std;
 
-namespace experiment {
+namespace gfe::experiment {
 
 Aging2Result::Aging2Result(const Aging2Experiment& parameters) : m_num_threads(parameters.m_num_threads), m_worker_granularity(parameters.m_worker_granularity){
 

@@ -34,7 +34,7 @@ using namespace std;
 // Macros
 #define STINGER reinterpret_cast<struct stinger*>(m_stinger_graph)
 #undef CURRENT_ERROR_TYPE
-#define CURRENT_ERROR_TYPE ::library::StingerError
+#define CURRENT_ERROR_TYPE ::gfe::library::StingerError
 #define TIMER_INIT auto time_start = chrono::steady_clock::now();
 #define CHECK_TIMEOUT if(m_timeout > 0 && (chrono::steady_clock::now() - time_start) > chrono::seconds(m_timeout)) { \
         RAISE_EXCEPTION(TimeoutError, "Timeout occurred after: " << chrono::duration_cast<chrono::seconds>(chrono::steady_clock::now() - time_start).count() << " seconds") };
@@ -82,7 +82,7 @@ static void save(cuckoohash_map<uint64_t, double>& result, const char* dump2file
  *  Pagerank                                                                  *
  *                                                                            *
  ******************************************************************************/
-namespace library {
+namespace gfe::library {
 
 // Implementation based on stinger_alg/src/page_rank.c
 void Stinger::pagerank(uint64_t num_iterations, double damping_factor, const char* dump2file){

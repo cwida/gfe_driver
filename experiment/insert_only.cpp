@@ -32,12 +32,12 @@
 #include "third-party/libcuckoo/cuckoohash_map.hh"
 
 using namespace common;
-using namespace experiment::details;
+using namespace gfe::experiment::details;
 using namespace std;
 
-namespace experiment {
+namespace gfe::experiment {
 
-InsertOnly::InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> graph, int64_t num_threads, bool measure_latency) :
+InsertOnly::InsertOnly(std::shared_ptr<gfe::library::UpdateInterface> interface, std::shared_ptr<gfe::graph::WeightedEdgeStream> graph, int64_t num_threads, bool measure_latency) :
         m_interface(interface), m_stream(graph), m_num_threads(num_threads), m_measure_latency(measure_latency) {
     if(m_num_threads == 0) ERROR("Invalid number of threads: " << m_num_threads);
 }
@@ -194,4 +194,4 @@ void InsertOnly::save() {
     if(m_measure_latency) m_latencies.save("inserts");
 }
 
-} // namespace experiment
+} // namespace

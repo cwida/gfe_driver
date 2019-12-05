@@ -23,8 +23,8 @@
 #include "graph/edge.hpp"
 #include "graph/edge_stream.hpp"
 
+using namespace gfe::graph;
 using namespace std;
-using namespace graph;
 
 TEST(EdgeStream, Sanity) {
     WeightedEdgeStream stream(common::filesystem::directory_executable() + "/graphs/weighted_no_comments.wel");

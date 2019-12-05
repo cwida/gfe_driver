@@ -21,7 +21,7 @@
 #include <strings.h>
 #include "common/filesystem.hpp"
 
-namespace reader {
+namespace gfe::reader {
 
 Format get_graph_format(const char* path) {
     const char* extension = strrchr(path, '.');
@@ -49,5 +49,4 @@ Format get_graph_format(const std::string& path) {
     return get_graph_format(path.c_str());
 }
 
-
-} // namespace reader
+} // namespace

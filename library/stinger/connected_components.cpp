@@ -38,7 +38,7 @@ using namespace std;
 // Macros
 #define STINGER reinterpret_cast<struct stinger*>(m_stinger_graph)
 #undef CURRENT_ERROR_TYPE
-#define CURRENT_ERROR_TYPE ::library::StingerError
+#define CURRENT_ERROR_TYPE ::gfe::library::StingerError
 
 /******************************************************************************
  *                                                                            *
@@ -83,7 +83,7 @@ static void save(cuckoohash_map<uint64_t, int64_t>& result, const char* dump2fil
  *  Weakly connected components                                               *
  *                                                                            *
  *****************************************************************************/
-namespace library {
+namespace gfe::library {
 
 void Stinger::wcc(const char* dump2file) {
     // ignore the timeout as we use the impl~ from stinger

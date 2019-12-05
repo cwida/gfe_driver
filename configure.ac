@@ -53,10 +53,28 @@ if test x"${have_openmp}" == x"yes"; then
 fi
 
 #############################################################################
+# Intel TBB
+have_tbb="unknown"; # Perform the check only once when invoking MY_INTEL_TBB()
+AC_DEFUN([MY_INTEL_TBB], [
+	if test x"${have_tbb}" == x"unknown"; then
+		have_tbb="yes" # assume so
+		AC_CHECK_HEADER([tbb/tbb.h], [
+			AC_SEARCH_LIBS([TBB_runtime_interface_version], [tbb], 
+			[CPPFLAGS="${CPPFLAGS} -DHAVE_TBB"], 
+			[have_tbb="no"])
+		], [have_tbb="no"], [ [/* avoid default includes */] ])
+	fi
+	
+	if test x"${have_tbb}" == x"no"; then
+		AC_MSG_ERROR(["The dependency library Intel TBB is not available in this machine"]);
+	fi
+])
+
+#############################################################################
 # pthreads
 AC_SEARCH_LIBS([pthread_create], [pthread], [],
     [ AC_MSG_ERROR([missing prerequisite: this program requires pthreads to work (dependency for sqlite3)]) ])
-
+    
 #############################################################################
 # libnuma
 have_libnuma="yes"
@@ -331,25 +349,13 @@ elif ( test x"${with_llama}" != x"yes" && test x"${with_llama}" != x"auto" ); th
 fi
     
 dnl check whether we can compile & link a program that makes usage of omp.h
-if ( test x"${with_llama}" != x"no" ); then
-    AC_MSG_CHECKING([whether the llama library can include <omp.h>, the OpenMP runtime library])
-    AC_LINK_IFELSE([
-        AC_LANG_PROGRAM([[
-            @%:@include <omp.h>
-        ]], [[
-            /* nop */
-        ]])
-    ], [
-        AC_MSG_RESULT([yes])
-    ], [
-        AC_MSG_RESULT([no])
-        if ( test x"${with_llama}" = x"auto" ); then
-            AC_MSG_NOTICE([llama support disabled: the OpenMP header omp.h is missing.])
-            with_llama="no";
-        else
-            AC_MSG_FAILURE([llama: missing prerequisite header omp.h (OpenMP runtime library)])
-        fi
-    ])
+if ( test "${have_openmp}" == "no" ); then
+    if ( test x"${with_llama}" = x"auto" ); then
+        AC_MSG_NOTICE([llama support disabled: the OpenMP header omp.h is missing.])
+        with_llama="no";
+    else
+        AC_MSG_FAILURE([llama: missing prerequisite header omp.h (OpenMP runtime library)])
+    fi
 fi
     
 dnl check whether we can compile & link a simple program invoking functions from the llama library
@@ -379,10 +385,79 @@ if ( test x"${with_llama}" != x"no" ); then
     ])
 fi
 
-dnl add the definition HAVE_STINGER into the list of preprocessor variables $CPPFLAGS
+dnl add the definition HAVE_LLAMA into the list of preprocessor variables $CPPFLAGS
 if( test x"${with_llama}" != x"no" ); then
     AC_MSG_NOTICE([llama support enabled])
     AS_VAR_APPEND([CPPFLAGS], [" -DHAVE_LLAMA"])
+fi
+
+#############################################################################
+# Support for the GraphOne framework
+# Usage:
+# --with-graphone=/path/to/graphone/build
+#
+AC_ARG_WITH([graphone], [AS_HELP_STRING([--with-graphone@<:@=ARG@:>@], [
+    Link to the GraphOne library. The argument needs to be the path where the library has been built.
+])], [])
+
+if ( test x"${with_graphone}" != x"" && test x"${with_graphone}" != "no" ); then
+	dnl check whether we can compile & link a program that makes usage of omp.h
+	if ( test "${have_openmp}" == "no" ); then
+        AC_MSG_FAILURE([GraphOne: missing prerequisite header omp.h (OpenMP runtime library)])
+	fi
+	
+	AC_MSG_NOTICE([GraphOne: checking whether Intel TBB is present in the machine...])
+	MY_INTEL_TBB()
+	
+	if( test x"${with_graphone}" == x"yes" ); then
+		AC_MSG_ERROR(["the full path to the GraphOne build needs to be specified, e.g. --with-graphone=/path/to/graphone/build"]);
+	fi
+	
+	path_onedata=$(realpath "${with_graphone}/onedata/libonedata64.a")
+		AC_CHECK_FILE([${path_onedata}], 
+		[ LIBS="${path_onedata} ${LIBS}" ], 
+		[ AC_MSG_ERROR(["file not found: ${path_onedata}"]) ]
+	)
+		
+	path_graphone_library=$(realpath "${with_graphone}/src/libsrc64.a")
+	AC_CHECK_FILE([${path_graphone_library}], 
+		[ LIBS="${path_graphone_library} ${LIBS}" ], 
+		[ AC_MSG_ERROR(["file not found: ${path_graphone_library}"]) ]
+	)
+
+	path_graphone_cmakecache=$(realpath "${with_graphone}/CMakeCache.txt")
+	AC_CHECK_FILE([${path_graphone_cmakecache}], [], [AC_MSG_ERROR(["file not found: ${path_graphone_cmakecache}. This file is used to infer the path to the source directory of GraphOne"])])
+	path_graphone_srcdir=$(awk -F= '$1 ~ /CMAKE_HOME_DIRECTORY/ {print $2}' ${path_graphone_cmakecache})
+	AC_MSG_NOTICE([GraphOne source directory: ${path_graphone_srcdir}])
+    AS_VAR_APPEND([CPPFLAGS], [" -I${path_graphone_srcdir}/src -I${path_graphone_srcdir}/include -I${path_graphone_srcdir}/include -I${path_graphone_srcdir}/gview -I${path_graphone_srcdir}/gview -I${path_graphone_srcdir}/analytics -I${path_graphone_srcdir}/onedata"])
+    
+	dnl check whether we can compile & link a simple program invoking functions from the graphone library
+    AC_MSG_CHECKING([whether we can compile and link against the GraphOne library])
+    AC_LINK_IFELSE([
+        AC_LANG_PROGRAM([[
+            #define OVER_COMMIT 
+            #define TBB
+           	#define PLAIN_GRAPH
+           	#define B64
+           	#define DEL
+        	@%:@include <omp.h>
+            @%:@include "graph.h"
+			
+            /* required globals */
+            graph* g = new graph; 
+			int THD_COUNT = omp_get_max_threads() -1;
+        ]], [[
+            /* empty main, it uses the global variable g as a global */
+        ]])
+    ], [
+        AC_MSG_RESULT([yes])
+    ], [
+        AC_MSG_RESULT([no])
+        AC_MSG_FAILURE([unable to compile and link an executable with GraphOne])
+    ])
+    
+    AC_MSG_NOTICE([GraphOne support enabled])
+    AS_VAR_APPEND([CPPFLAGS], [" -DHAVE_GRAPHONE"])
 fi
 
 #############################################################################

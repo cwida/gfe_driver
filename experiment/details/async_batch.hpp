@@ -24,14 +24,14 @@
 #include <mutex>
 #include <thread>
 
-namespace experiment::details {
+namespace gfe::experiment::details {
 
 /**
  * This class is not thread safe.
  */
 class AsyncBatch {
-    library::UpdateInterface* m_interface;
-    library::UpdateInterface::SingleUpdate** m_batches = nullptr; // array of batches
+    gfe::library::UpdateInterface* m_interface;
+    gfe::library::UpdateInterface::SingleUpdate** m_batches = nullptr; // array of batches
     size_t* m_batches_num_entries = nullptr; // number of filled entries in each batch
     const int m_batches_sz; // number of batches
     const int m_batch_sz; // the size of each batch, as multiples of library::UpdateInterface::SingleUpdate
@@ -55,7 +55,7 @@ public:
      * @param num_batches the number of batches that can be asynchronously processed
      * @param batch_sz the size of each batch
      */
-    AsyncBatch(library::UpdateInterface* interface, int thread_id, int num_batches, int batch_sz);
+    AsyncBatch(gfe::library::UpdateInterface* interface, int thread_id, int num_batches, int batch_sz);
 
     /**
      * Destructor. It implicitly flushes any pending updates and stops the service.
@@ -65,13 +65,13 @@ public:
     /**
      * Add the given edge to the graph
      */
-    void add_edge(graph::WeightedEdge edge);
+    void add_edge(gfe::graph::WeightedEdge edge);
 
 
     /**
      * Remove the given edge from the graph
      */
-    void remove_edge(graph::Edge edge);
+    void remove_edge(gfe::graph::Edge edge);
 
     /**
      * Prepare the next batch

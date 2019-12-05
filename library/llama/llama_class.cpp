@@ -74,7 +74,7 @@ static double get_in_edge_weight(ll_writable_graph& graph, edge_t edge_id){
  *                                                                           *
  *****************************************************************************/
 
-namespace library {
+namespace gfe::library {
 
 LLAMAClass::LLAMAClass(bool is_directed) : m_is_directed(is_directed) {
     m_db = new ll_database();

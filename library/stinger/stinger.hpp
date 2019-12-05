@@ -21,7 +21,7 @@
 #include "library/interface.hpp"
 #include "third-party/libcuckoo/cuckoohash_map.hh"
 
-namespace library {
+namespace gfe::library {
 
 // Stinger has its own mapping impl~ to translate uint64_t to int64_t and viceversa. Problem is does not support deletions.
 // If the macro is defined, use the stinger mapping to perform the translations external vertex id -> internal vertex id

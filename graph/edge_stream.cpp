@@ -33,7 +33,7 @@
 using namespace common;
 using namespace std;
 
-namespace graph {
+namespace gfe::graph {
 
 WeightedEdgeStream::WeightedEdgeStream(const std::string& path){
     m_sources = new CByteArray(/* bytes per element */ 8, /* capacity */ 8);
@@ -228,6 +228,6 @@ unique_ptr<cuckoohash_map<uint64_t, uint64_t>> WeightedEdgeStream::vertex_table(
     return ptr_vertex_table;
 }
 
-}
+} // namespace
 
 

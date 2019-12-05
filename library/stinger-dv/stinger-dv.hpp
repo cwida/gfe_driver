@@ -19,7 +19,7 @@
 
 #include "library/interface.hpp"
 
-namespace library {
+namespace gfe::library {
 
 /**
  * Stinger implementation with the vertices in the dense domain [0, num_total_vertices)

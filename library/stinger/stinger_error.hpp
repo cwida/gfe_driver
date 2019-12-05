@@ -19,7 +19,7 @@
 
 #include "common/error.hpp"
 
-namespace library {
+namespace gfe::library {
 
 // Generic exception thrown by the Stinger wrapper
 DEFINE_EXCEPTION(StingerError);

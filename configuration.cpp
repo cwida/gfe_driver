@@ -38,7 +38,9 @@ using namespace common;
 using namespace std;
 
 #undef CURRENT_ERROR_TYPE
-#define CURRENT_ERROR_TYPE ConfigurationError
+#define CURRENT_ERROR_TYPE ::gfe::ConfigurationError
+
+namespace gfe {
 
 /*****************************************************************************
  *                                                                           *
@@ -239,7 +241,7 @@ bool Configuration::has_database() const {
     return !m_database_path.empty();
 }
 
-common::Database* Configuration::db(){
+::common::Database* Configuration::db(){
     if(m_database == nullptr && has_database()){
         m_database = new Database{m_database_path};
         auto params = m_database->create_execution();
@@ -366,3 +368,5 @@ void Configuration::save_parameters() {
     sort(begin(params), end(params));
     db()->store_parameters(params);
 }
+
+} // namespace

@@ -24,9 +24,9 @@
 #include <string>
 #include <vector>
 
-namespace library { class GraphalyticsInterface; } // forward decl.
+namespace gfe::library { class GraphalyticsInterface; } // forward decl.
 
-namespace experiment {
+namespace gfe::experiment {
 
 /**
  * The properties of the algorithm to run in the Graphalytics suite
@@ -66,7 +66,7 @@ std::ostream& operator<<(std::ostream& out, const GraphalyticsAlgorithms& props)
 
 
 /**
- * Execute one by one the algorithms of the graphalytics suite, up to N times
+ * Execute one by one the algorithms of the Graphalytics suite, up to N times
  */
 class GraphalyticsSequential{
     std::shared_ptr<library::GraphalyticsInterface> m_interface; // the library to evaluate
@@ -106,7 +106,7 @@ public:
      * @param num_repetitions how many times to repeat the execution of the same algorithm
      * @param properties which algorithms to evaluate and what are their parameters
      */
-    GraphalyticsSequential(std::shared_ptr<library::GraphalyticsInterface> interface, uint64_t num_repetitions, const GraphalyticsAlgorithms& properties);
+    GraphalyticsSequential(std::shared_ptr<gfe::library::GraphalyticsInterface> interface, uint64_t num_repetitions, const GraphalyticsAlgorithms& properties);
 
     /**
      * Require to validate the output of the graphalytics algorithms.

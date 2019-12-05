@@ -139,7 +139,7 @@ static double get_in_edge_weight(ll_writable_graph& graph, edge_t edge_id){
     }
 }
 
-namespace library {
+namespace gfe::library {
 /*****************************************************************************
  *                                                                           *
  *  Initialisation                                                           *

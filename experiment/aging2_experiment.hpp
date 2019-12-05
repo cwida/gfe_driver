@@ -24,13 +24,13 @@
 #include "aging2_result.hpp"
 
 // forward declarations
-namespace graph { class WeightedEdgeStream; }
-namespace experiment { class Aging2Experiment; }
-namespace experiment::details { class Aging2Master; }
-namespace experiment::details { class Aging2Worker; }
-namespace library { class UpdateInterface; }
+namespace gfe::graph { class WeightedEdgeStream; }
+namespace gfe::experiment { class Aging2Experiment; }
+namespace gfe::experiment::details { class Aging2Master; }
+namespace gfe::experiment::details { class Aging2Worker; }
+namespace gfe::library { class UpdateInterface; }
 
-namespace experiment {
+namespace gfe::experiment {
 
 /**
  * Builder/factory class to create & execute instances of the Aging experiment.
@@ -42,7 +42,7 @@ class Aging2Experiment {
     friend class details::Aging2Master;
     friend class details::Aging2Worker;
 
-    std::shared_ptr<library::UpdateInterface> m_library; // the library to evaluate
+    std::shared_ptr<gfe::library::UpdateInterface> m_library; // the library to evaluate
     std::string m_path_log; // the path to the log file [graphlog] with the sequence of updates to perform
     uint64_t m_num_threads = 1; // set the number of threads to use
     uint64_t m_worker_granularity = 1024; // the granularity of a task for a worker, that is the number of contiguous operations (inserts/deletes) performed inside the threads between each invocation to the scheduler.
@@ -56,7 +56,7 @@ public:
     Aging2Experiment();
 
     // Set the library to evaluate
-    void set_library(std::shared_ptr<library::UpdateInterface> library);
+    void set_library(std::shared_ptr<gfe::library::UpdateInterface> library);
 
     // Set the path to the log file with all updates
     void set_log(const std::string& path_log);

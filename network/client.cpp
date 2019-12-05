@@ -30,7 +30,7 @@
 
 using namespace std;
 
-namespace network {
+namespace gfe::network {
 
 #define RPC_ERROR(message) RAISE_EXCEPTION(RPCError, "Error propagated by the remote server:\n" << message)
 #define TIMEOUT_ERROR RAISE_EXCEPTION(library::TimeoutError, "The operation requested timed out");
@@ -471,4 +471,4 @@ void Client::sssp(uint64_t source_vertex_id, const char* dump2file){
     }
 }
 
-} // namespace network
+} // namespace

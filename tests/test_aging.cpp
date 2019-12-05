@@ -26,9 +26,9 @@
 #include "graph/edge_stream.hpp"
 #include "library/baseline/adjacency_list.hpp"
 
-using namespace experiment;
-using namespace graph;
-using namespace library;
+using namespace gfe::experiment;
+using namespace gfe::graph;
+using namespace gfe::library;
 using namespace std;
 
 static

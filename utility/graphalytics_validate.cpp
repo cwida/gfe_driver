@@ -31,7 +31,7 @@
 
 using namespace std;
 
-namespace utility {
+namespace gfe::utility {
 
 /*****************************************************************************
  *                                                                           *
@@ -52,7 +52,7 @@ namespace utility {
  *                                                                           *
  *****************************************************************************/
 #undef CURRENT_ERROR_TYPE
-#define CURRENT_ERROR_TYPE ::utility::GraphalyticsValidateError
+#define CURRENT_ERROR_TYPE ::gfe::utility::GraphalyticsValidateError
 #define FATAL ERROR
 #define ERROR_INIT uint64_t error_count = 0;
 #define ERROR_COUNT(msg) if(max_num_errors == 1){ FATAL(msg); } else { \
@@ -318,4 +318,3 @@ void GraphalyticsValidate::wcc(const std::string& result, const std::string& exp
 }
 
 } // namespace
-

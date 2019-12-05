@@ -15,10 +15,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
- /*
- * An array container to store integers, by using a fixed number of bytes.
- */
-
 #pragma once
 
 #include <algorithm>
@@ -28,7 +24,10 @@
 #include <memory>
 #include <utility>
 
-namespace graph {
+/*
+ * This header defines CByteArray, an array container to store integers, by using a fixed number of bytes.
+ */
+namespace gfe::graph {
 
 class CByteArray; // forward decl.
 class CByteReference;
@@ -79,6 +78,9 @@ public:
      */
     CByteIterator();
 
+    /**
+     * Create a new iterator associated to the given CByteArray, starting from the given offset (position) in the array.
+     */
     CByteIterator(CByteArray* array, size_t position);
 
     /**
@@ -118,6 +120,9 @@ public:
     std::ptrdiff_t operator-(const CByteIterator& it) const; // d = x - y
 };
 
+/**
+ * An array with fixed capacity to store items with a given number of bytes (e.g. 3)
+ */
 class CByteArray {
     /*const*/ size_t m_bytes_per_element; // it can be changed in a move assignment
     size_t m_capacity; // the capacity of this array
@@ -163,7 +168,6 @@ public:
      */
     void set_value_at(size_t index, uint64_t value);
 
-
     /**
      * Array operator. Get/Set the element at the given position.
      */
@@ -175,8 +179,14 @@ public:
      */
     size_t capacity() const;
 
+    /**
+     * Return a C++ stdlib like iterator, positioned at the start of the array
+     */
     CByteIterator begin();
 
+    /**
+     * Return a C++ stdlib like iterator, positioned at the end of the array
+     */
     CByteIterator end();
 
     /**
@@ -205,4 +215,4 @@ public:
     size_t get_bytes_per_element() const;
 };
 
-} // namespace graph
+} // namespace

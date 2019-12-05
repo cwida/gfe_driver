@@ -54,14 +54,14 @@ using namespace std;
  *                                                                           *
  *****************************************************************************/
 
-namespace experiment::details {
+namespace gfe::experiment::details {
 
 AgingThread::AgingThread(Aging* instance, const std::vector<AgingPartition>& partitions, int worker_id) : m_instance(instance),
         m_interface(instance->m_interface.get()), m_worker_id(worker_id), m_is_undirected(!m_instance->is_directed()),
         m_partitions(partitions), m_batch(nullptr) {
 
     if(m_instance->m_batch_size > 0){ // execute updates in batches
-        m_batch = new details::AsyncBatch(m_interface, worker_id +1, 4, m_instance->m_batch_size);
+        m_batch = new AsyncBatch(m_interface, worker_id +1, 4, m_instance->m_batch_size);
     }
 
     // compute the number of vertices we are responsible to handle
@@ -184,7 +184,7 @@ void AgingThread::main_experiment(){
                 if(report_progress && static_cast<int>(100.0 * num_ops_done/num_total_ops) > m_instance->m_last_progress_reported){
                     m_instance->m_last_progress_reported = 100.0 * num_ops_done/num_total_ops;
 #if defined(DEBUG)
-                    LOG("[thread: " << common::concurrency::get_thread_id() << "] "
+                    LOG("[thread: " << ::common::concurrency::get_thread_id() << "] "
                             "Progress: " << num_ops_done << "/" << num_total_ops << " (" << 100.0 * num_ops_done/num_total_ops << "%), "
                             "edges final graph: " <<  m_final_edges_current_position << "/" << m_edges.size() << " (" << (100.0 * m_final_edges_current_position/m_edges.size()) << " %)"
                     );

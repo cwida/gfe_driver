@@ -20,9 +20,9 @@
 #include <fstream>
 #include "reader.hpp"
 
-namespace graph { class WeightedEdge; } // forward decl.
+namespace gfe::graph { class WeightedEdge; } // forward decl.
 
-namespace reader {
+namespace gfe::reader {
 
 /**
  * Loader for the DIMACS challenge #9 file format, year 2005/06, spec: http://users.diag.uniroma1.it/challenge9/format.shtml#graph

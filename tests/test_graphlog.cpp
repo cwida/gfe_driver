@@ -24,9 +24,9 @@
 #include "reader/graphlog_reader.hpp"
 
 using namespace std;
-using namespace graph;
-using namespace reader;
-using namespace reader::graphlog;
+using namespace gfe::graph;
+using namespace gfe::reader;
+using namespace gfe::reader::graphlog;
 
 const std::string path_graph = common::filesystem::directory_executable() + "/graphs/ldbc_graphalytics/example-undirected.graphlog" ;
 
@@ -171,7 +171,7 @@ TEST(Graphlog, EdgeLoader){
 }
 
 static void validate_edge(EdgeReader& reader, uint64_t expected_source_id, uint64_t expected_destination_id, double expected_weight){
-    graph::WeightedEdge edge;
+    gfe::graph::WeightedEdge edge;
     bool has_read_edge = reader.read_edge(edge);
     ASSERT_TRUE(has_read_edge);
     ASSERT_EQ(edge.source(), expected_source_id);
@@ -326,7 +326,7 @@ TEST(Graphlog, EdgeReader){
     validate_edge(reader, 4, 6, 0);
     validate_edge(reader, 4, 6, -1);
     { // stream depleted
-        graph::WeightedEdge edge;
+        gfe::graph::WeightedEdge edge;
         ASSERT_FALSE( reader.read_edge(edge) );
         ASSERT_FALSE( reader.read_edge(edge) );
     }
@@ -460,7 +460,7 @@ TEST(Graphlog, DenseVertices){
     validate_edge(reader, 1, 7, -1);
 
     { // stream depleted
-        graph::WeightedEdge edge;
+        gfe::graph::WeightedEdge edge;
         ASSERT_FALSE( reader.read_edge(edge) );
         ASSERT_FALSE( reader.read_edge(edge) );
     }

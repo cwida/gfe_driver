@@ -27,9 +27,9 @@
 #include "reader/metis_reader.hpp"
 #include "reader/plain_reader.hpp"
 
+using namespace gfe::graph;
+using namespace gfe::reader;
 using namespace std;
-using namespace graph;
-using namespace reader;
 
 static void validate_read(Reader& reader, uint64_t source, uint64_t dest, double weight = numeric_limits<double>::infinity()){
     WeightedEdge edge;
@@ -44,7 +44,7 @@ static void validate_read(Reader& reader, uint64_t source, uint64_t dest, double
 }
 
 TEST(PlainWeighted, WithoutComments) {
-    graph::WeightedEdgeStream stream{  common::filesystem::directory_executable() + "/graphs/weighted_no_comments.wel" };
+    gfe::graph::WeightedEdgeStream stream{  common::filesystem::directory_executable() + "/graphs/weighted_no_comments.wel" };
     stream.permute();
 
 }

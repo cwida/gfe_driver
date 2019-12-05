@@ -26,11 +26,11 @@
 #include "third-party/libcuckoo/cuckoohash_map.hh"
 
 // forward declarations
-namespace experiment { class Aging2Experiment; }
-namespace experiment::details { class Aging2Worker; }
-namespace experiment::details { class LatencyStatistics; }
+namespace gfe::experiment { class Aging2Experiment; }
+namespace gfe::experiment::details { class Aging2Worker; }
+namespace gfe::experiment::details { class LatencyStatistics; }
 
-namespace experiment::details {
+namespace gfe::experiment::details {
 
 class Aging2Master {
     friend class Aging2Worker;
@@ -102,4 +102,3 @@ public:
 };
 
 }
-

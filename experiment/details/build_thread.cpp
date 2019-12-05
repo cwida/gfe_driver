@@ -43,9 +43,9 @@ extern mutex _log_mutex [[maybe_unused]];
  * BuildThread impl                                                          *
  *                                                                           *
  *****************************************************************************/
-namespace experiment::details {
+namespace gfe::experiment::details {
 
-BuildThread::BuildThread(std::shared_ptr<library::UpdateInterface> interface, int thread_id, std::chrono::milliseconds frequency) :
+BuildThread::BuildThread(std::shared_ptr<gfe::library::UpdateInterface> interface, int thread_id, std::chrono::milliseconds frequency) :
     m_interface(interface), m_thread_id(thread_id), m_frequency(frequency){
     m_terminate = true; // reset by the background thread
     if(m_frequency > 0ms){ // otherwise, never invoke #build()
@@ -110,6 +110,4 @@ void BuildThread::main_thread(){
     COUT_DEBUG("service terminated");
 }
 
-
 } // namespace
-

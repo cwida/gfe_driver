@@ -27,12 +27,14 @@
 
 class ll_database; // forward declaration
 class ll_mlcsr_ro_graph; // forward declaration
-namespace utility { class TimeoutService; } // forward declaration
+namespace gfe::utility { class TimeoutService; } // forward declaration
 
-namespace library {
+namespace gfe::library {
 
 /**
- * Adaptor for the LLAMA library. It implements the library::Interface.
+ * Adaptor for the LLAMA library.
+ *
+ * All methods except dump() & family are thread safe.
  */
 class LLAMAClass : public virtual UpdateInterface, public virtual GraphalyticsInterface {
     LLAMAClass(const LLAMAClass&) = delete;
@@ -226,6 +228,5 @@ public:
      */
     virtual void sssp(uint64_t source_vertex_id, const char* dump2file = nullptr);
 };
-
 
 } // namespace

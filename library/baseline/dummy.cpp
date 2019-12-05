@@ -9,7 +9,7 @@
 
 using namespace std;
 
-namespace library {
+namespace gfe::library {
 
 Dummy::Dummy(bool is_directed) : m_is_directed(is_directed) { }
 Dummy::~Dummy() { }

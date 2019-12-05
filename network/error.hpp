@@ -19,7 +19,7 @@
 
 #include "common/error.hpp"
 
-namespace network {
+namespace gfe::network {
 
 // Base exception thrown by the network module
 DEFINE_EXCEPTION(NetworkError);
@@ -27,7 +27,7 @@ DEFINE_EXCEPTION(NetworkError);
 // An error propagated by the remote server to client
 DEFINE_EXCEPTION_SUBCLASS(RPCError, NetworkError);
 
-} // namespace network
+} // namespace
 
 
 

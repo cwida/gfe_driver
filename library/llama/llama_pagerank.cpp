@@ -25,8 +25,8 @@
 #include "utility/timeout_service.hpp"
 
 using namespace common;
+using namespace gfe::utility;
 using namespace std;
-using namespace utility;
 
 /*****************************************************************************
  *                                                                           *
@@ -42,7 +42,7 @@ extern mutex _log_mutex [[maybe_unused]];
     #define COUT_DEBUG(msg)
 #endif
 
-namespace library {
+namespace gfe::library {
 
 /*****************************************************************************
  *                                                                           *

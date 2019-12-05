@@ -28,15 +28,12 @@
 using namespace common;
 using namespace std;
 
-namespace experiment::details {
+namespace gfe::experiment::details {
 
 static uint64_t get_percentile(uint64_t* __restrict A, uint64_t A_sz, uint64_t index){
     uint64_t pos = (index * A_sz) / 100; // i : 100 = pos : num_operations
     return A[pos > 0 ? (pos -1) : 0];
 }
-
-
-
 
 LatencyStatistics LatencyStatistics::compute_statistics(uint64_t* arr_latencies_nanosecs, uint64_t arr_latencies_sz){
     LatencyStatistics instance;

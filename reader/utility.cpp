@@ -24,9 +24,9 @@
 using namespace std;
 
 #undef CURRENT_ERROR_TYPE
-#define CURRENT_ERROR_TYPE reader::ReaderError
+#define CURRENT_ERROR_TYPE ::gfe::reader::ReaderError
 
-namespace reader {
+namespace gfe::reader {
 
 fstream init_fstream(const string& path){
     fstream handle(path.c_str(), ios_base::in);

@@ -26,11 +26,17 @@
 #include "graph/edge_stream.hpp"
 #include "library/interface.hpp"
 
-namespace experiment {
+namespace gfe::experiment {
 
+/**
+ * This experiment simulates only insertions (and no deletions) in a given graph system. It assumes that the system
+ * to evaluate has already been created, and it is empty, that is, it should not already contain any vertices or edges.
+ * The experiment inserts all vertices and edges, stored in a given edge stream, in parallel, into the system, and
+ * measures the overall throughput.
+ */
 class InsertOnly {
-    std::shared_ptr<library::UpdateInterface> m_interface; // the library where vertices and edges will be inserted
-    std::shared_ptr<graph::WeightedEdgeStream> m_stream; // the graph to insert
+    std::shared_ptr<gfe::library::UpdateInterface> m_interface; // the library where vertices and edges will be inserted
+    std::shared_ptr<gfe::graph::WeightedEdgeStream> m_stream; // the graph to insert
     const int64_t m_num_threads; // the number of threads to use
     const bool m_measure_latency; // whether to measure and report the latency of each insertion
     std::chrono::milliseconds m_build_frequency {0}; // Continuously create a new snapshot each `m_build_frequency' millisecs (0 = feature disabled)
@@ -43,10 +49,14 @@ class InsertOnly {
     // Execute the experiment with the round robin scheduler
     void execute_round_robin(void* /* opaque */ cb, uint64_t* latencies);
 
-    // Send the the updates one by one
-
 public:
-    InsertOnly(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, int64_t num_threads, bool measure_latency = false);
+    // Initialise the experiment
+    // @param interface the system to evaluate, already instantiated
+    // @param stream the list of edges to insert in the system, possibly already permuted
+    // @param num_threads the parallelism degree, that is the number of threads to employ to insert concurrently all edges from the stream
+    // @param measure_latency if requested, report the median/min/max/percentiles measured latencies in insertions. Measuring the latency
+    //        could introduce additional overhead and decrease the measure for the overall throughput
+    InsertOnly(std::shared_ptr<gfe::library::UpdateInterface> interface, std::shared_ptr<gfe::graph::WeightedEdgeStream> stream, int64_t num_threads, bool measure_latency = false);
 
     // Advanced and/or internal parameter, set the granularity of chunks sent by the internal scheduler to the worker threads. The granularity
     // here is given by the number of edge insertions in each chunk.

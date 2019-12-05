@@ -41,17 +41,17 @@
 #include "library/stinger/stinger.hpp"
 #endif
 
-using namespace library;
+using namespace gfe::library;
 using namespace std;
 
-static std::unique_ptr<graph::WeightedEdgeStream> generate_edge_stream(uint64_t max_vector_id = 64){
-    vector<graph::WeightedEdge> edges;
+static std::unique_ptr<gfe::graph::WeightedEdgeStream> generate_edge_stream(uint64_t max_vector_id = 64){
+    vector<gfe::graph::WeightedEdge> edges;
     for(uint64_t i = 1; i < max_vector_id; i++){
         for(uint64_t j = i + 2; j < max_vector_id; j+=2){
-            edges.push_back(graph::WeightedEdge{i, j, static_cast<double>(j * 1000 + i)});
+            edges.push_back(gfe::graph::WeightedEdge{i, j, static_cast<double>(j * 1000 + i)});
         }
     }
-    return make_unique<graph::WeightedEdgeStream>(edges);
+    return make_unique<gfe::graph::WeightedEdgeStream>(edges);
 }
 
 static void sequential(shared_ptr<UpdateInterface> interface, bool deletions = true) {
@@ -90,7 +90,7 @@ static void sequential(shared_ptr<UpdateInterface> interface, bool deletions = t
 
     int64_t num_edges = edge_list->num_edges();
     if(deletions){ // remove all edges from the graph
-        edge_list->permute(configuration().seed() + 99942341);
+        edge_list->permute(gfe::configuration().seed() + 99942341);
         for(uint64_t i =0, sz = edge_list->num_edges(); i < sz; i++){
             auto w_edge = edge_list->get(i);
 
@@ -121,7 +121,7 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
 
     // insert all edges
     cuckoohash_map<uint64_t, bool> vertices;
-    shared_ptr<graph::WeightedEdgeStream> edge_list = generate_edge_stream(num_vertices);
+    shared_ptr<gfe::graph::WeightedEdgeStream> edge_list = generate_edge_stream(num_vertices);
     edge_list->permute();
 
 //    cout << "num edges: " << edge_list->num_edges() << endl;
@@ -176,7 +176,7 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
 
 
     if(deletions){ // remove all edges from the graph
-        edge_list->permute(configuration().seed() + 99942341);
+        edge_list->permute(gfe::configuration().seed() + 99942341);
 
         auto routine_remove_edges = [interface, edge_list](int thread_id, uint64_t start, uint64_t length){
             interface->on_thread_init(thread_id);

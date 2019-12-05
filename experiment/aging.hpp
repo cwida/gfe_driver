@@ -32,12 +32,12 @@
 #include "third-party/libcuckoo/cuckoohash_map.hh"
 
 // forward declarations
-namespace graph { class WeightedEdgeStream; }
-namespace experiment::details { class AgingThread; }
-namespace experiment::details { class AsyncBatch; }
-namespace library { class UpdateInterface; }
+namespace gfe::graph { class WeightedEdgeStream; }
+namespace gfe::experiment::details { class AgingThread; }
+namespace gfe::experiment::details { class AsyncBatch; }
+namespace gfe::library { class UpdateInterface; }
 
-namespace experiment {
+namespace gfe::experiment {
 
 class Aging {
     friend class details::AgingThread;
@@ -45,8 +45,8 @@ class Aging {
     Aging(const Aging&) = delete;
     Aging& operator=(const Aging&) = delete;
 
-    std::shared_ptr<library::UpdateInterface> m_interface; // the library where vertices and edges will be inserted
-    std::shared_ptr<graph::WeightedEdgeStream> m_stream; // the final graph to insert
+    std::shared_ptr<gfe::library::UpdateInterface> m_interface; // the library where vertices and edges will be inserted
+    std::shared_ptr<gfe::graph::WeightedEdgeStream> m_stream; // the final graph to insert
 
     cuckoohash_map<uint64_t, bool> m_vertices_present; // current list of vertices present
     const cuckoohash_map<uint64_t, uint64_t> m_vertices_final; // list of vertices in the final graph
@@ -106,10 +106,10 @@ public:
      * @param mult_num_operations coefficient for the total number of operations to perform, the final amount is given by mult_num_operations * stream->num_edges()
      * @param num_threads number of threads to use
      */
-    Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, double mult_num_operations, int64_t num_threads);
+    Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<gfe::graph::WeightedEdgeStream> stream, double mult_num_operations, int64_t num_threads);
 
 
-    Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads, bool is_directed, double max_weight);
+    Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<gfe::graph::WeightedEdgeStream> stream, uint64_t num_operations, int64_t num_threads, bool is_directed, double max_weight);
 
     // destructor
     ~Aging();

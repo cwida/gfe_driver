@@ -26,10 +26,10 @@
 #include "graph/edge.hpp"
 
 // forward declarations
-namespace experiment::details { class Aging2Master; }
-namespace library { class UpdateInterface; }
+namespace gfe::experiment::details { class Aging2Master; }
+namespace gfe::library { class UpdateInterface; }
 
-namespace experiment::details {
+namespace gfe::experiment::details {
 
 class Aging2Worker {
     Aging2Worker(const Aging2Worker&) = delete;
@@ -38,7 +38,7 @@ class Aging2Worker {
     Aging2Master& m_master; // pointer to the master thread
     library::UpdateInterface* m_library; // the library being evaluated
     const int m_worker_id; // this id is passed to the interface #on_worker_init and #on_worker_destroy
-    common::CircularArray<std::vector<graph::WeightedEdge>*> m_updates; // the updates to perform
+    common::CircularArray<std::vector<gfe::graph::WeightedEdge>*> m_updates; // the updates to perform
     std::mt19937_64 m_random { std::random_device{}() }; // pseudo-random generator
     std::uniform_real_distribution<double> m_uniform{ 0., 1. }; // uniform distribution in [0, 1]
     uint64_t* m_latency_insertions {nullptr};

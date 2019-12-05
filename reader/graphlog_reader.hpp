@@ -28,9 +28,9 @@
 #include <random>
 #include <unordered_map>
 
-namespace graph { class WeightedEdge; } // forward decl.
+namespace gfe::graph { class WeightedEdge; } // forward decl.
 
-namespace reader::graphlog {
+namespace gfe::reader::graphlog {
 
 /**
  * A graphlog file consists of multiple sections of content:
@@ -186,7 +186,7 @@ public:
 };
 
 // Read one edge at the time
-class EdgeReader : public ::reader::Reader {
+class EdgeReader : public ::gfe::reader::Reader {
     EdgeReader(const EdgeReader&) = delete;
     EdgeReader& operator=(const EdgeReader&) = delete;
 

@@ -24,9 +24,9 @@
 #include <mutex>
 #include <thread>
 
-namespace library { class UpdateInterface; } // forward decl.
+namespace gfe::library { class UpdateInterface; } // forward decl.
 
-namespace experiment::details {
+namespace gfe::experiment::details {
 
 /**
  * This service continuously invoke the library's method #build() every tot seconds.
@@ -38,7 +38,7 @@ class BuildThread {
     BuildThread(const BuildThread&) = delete;
     BuildThread& operator=(const BuildThread&) = delete;
 
-    std::shared_ptr<library::UpdateInterface> m_interface; // the library where to invoke the method #build
+    std::shared_ptr<gfe::library::UpdateInterface> m_interface; // the library where to invoke the method #build
     const int m_thread_id; // the internal thread_id to use with #on_thread_init and #on_thread_exit
     const std::chrono::milliseconds m_frequency; // how frequently the service shall invoke #build()
     std::atomic<uint64_t> m_num_invocations = 0; // the total number of calls to #build() by the service, so far
@@ -61,7 +61,7 @@ public:
      * @param thread_id the thread_id passed to the library and used by the service/background thread
      * @param frequency how frequently the method #build() shall be invoked
      */
-    BuildThread(std::shared_ptr<library::UpdateInterface> interface, int thread_id, std::chrono::milliseconds frequency);
+    BuildThread(std::shared_ptr<gfe::library::UpdateInterface> interface, int thread_id, std::chrono::milliseconds frequency);
 
     /**
      * Destructor. It implicitly stops the service.

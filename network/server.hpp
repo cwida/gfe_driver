@@ -22,9 +22,9 @@
 
 #include "message.hpp"
 
-namespace library { class Interface; } // forward decl.
+namespace gfe::library { class Interface; } // forward decl.
 
-namespace network {
+namespace gfe::network {
 
 /**
  * This class bridges the remote requests (made by a client) and forwards them to a given library instance (library::Interface).

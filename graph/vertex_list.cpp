@@ -26,7 +26,7 @@
 using namespace common;
 using namespace std;
 
-namespace graph {
+namespace gfe::graph {
 
 VertexList::VertexList(CByteArray* vertices) : m_vertices(vertices) {
     ASSERT(vertices != nullptr && "The given argument is a nullptr");
@@ -67,4 +67,4 @@ void VertexList::permute(uint64_t seed){
     delete m_vertices; m_vertices = new_vertices.release();
 }
 
-} // namespace graph
+} // namespace

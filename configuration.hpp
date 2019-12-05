@@ -27,9 +27,11 @@
 
 #include "common/error.hpp"
 
-class Configuration; // forward declaration
 namespace common { class Database; } // forward declaration
-namespace library { class Interface; } // forward declaration
+namespace gfe { class Configuration; } // forward declaration
+namespace gfe::library { class Interface; } // forward declaration
+
+namespace gfe {
 
 // Singleton interface
 Configuration& configuration(); // retrieve the current singleton (client, server or standalone)
@@ -155,7 +157,7 @@ public:
     bool has_database() const;
 
     // Retrieve the handle to the database connection, where the final results of the experiments are stored
-    common::Database* db();
+    ::common::Database* db();
 
     // Save the configuration properties into the database
     void save_parameters();
@@ -169,4 +171,6 @@ public:
     // Retrieve the path to the database
     const std::string& get_database_path() const { return m_database_path; }
 };
+
+} // namespace
 

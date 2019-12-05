@@ -22,7 +22,7 @@
 #include <mutex>
 #include <thread>
 
-namespace utility {
+namespace gfe::utility {
     
 /**
  * This service keeps track sets the flag is_timeout() after a certain given of time has passed

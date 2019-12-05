@@ -38,8 +38,8 @@
 #define LOG(message) { std::cout << "\033[0;32m" << "[          ] " << "\033[0;0m" << message << std::endl; }
 
 using namespace common::concurrency;
-using namespace graph;
-using namespace library;
+using namespace gfe::graph;
+using namespace gfe::library;
 using namespace std;
 
 TEST(LLAMA, RemoveInsertEdge) {

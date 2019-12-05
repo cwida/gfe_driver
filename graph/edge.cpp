@@ -21,7 +21,7 @@
 
 using namespace std;
 
-namespace graph {
+namespace gfe::graph {
 
 bool Edge::operator==(const Edge& e) const noexcept {
     return source() == e.source() && destination() == e.destination();
@@ -55,4 +55,4 @@ std::ostream& operator<<(std::ostream& out, const WeightedEdge& e){
     return out;
 }
 
-} // namespace graph
+} // namespace

@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-namespace experiment {
+namespace gfe::experiment {
 
 /**
  * Compute a set of basic statistics (mean, median, and so on) from a sequence of results.
@@ -53,11 +53,12 @@ public:
     ExecStatistics(const std::vector<int64_t>& trials);
 
     /**
-     * Save in the database
+     * Save the computed statistics in the database
      */
     void save(const std::string& name);
 };
 
+// Print the statistics into the given output stream, for reporting or debugging purposes
 std::ostream& operator<<(std::ostream& out, const ExecStatistics& stats);
 
 } // namespace

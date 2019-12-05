@@ -37,7 +37,7 @@
 
 using namespace std;
 
-namespace network {
+namespace gfe::network {
 
 /*****************************************************************************
  *                                                                           *

@@ -23,7 +23,7 @@
 #include <ostream>
 #include <string>
 
-namespace experiment::details {
+namespace gfe::experiment::details {
 
 class LatencyStatistics {
     friend std::ostream& operator<<(std::ostream& out, const LatencyStatistics& stats);

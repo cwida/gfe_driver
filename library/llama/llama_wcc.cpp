@@ -91,8 +91,8 @@
 #include "utility/timeout_service.hpp"
 
 using namespace common;
+using namespace gfe::utility;
 using namespace std;
-using namespace utility;
 
 /*****************************************************************************
  *                                                                           *
@@ -119,7 +119,7 @@ namespace { // anonymous
 template<class Graph, bool has_pre_visit, bool has_post_visit, bool has_navigator>
 class ll_dfs_template {
 protected:
-    utility::TimeoutService& timeout_srv;
+    gfe::utility::TimeoutService& timeout_srv;
     node_t root;
     Graph& G;
 
@@ -144,7 +144,7 @@ protected:
     virtual bool check_navigator(node_t t, edge_t idx) { return true; };
 
 public:
-    ll_dfs_template(utility::TimeoutService& timeout_srv, Graph& _G) : timeout_srv(timeout_srv), G(_G) {
+    ll_dfs_template(gfe::utility::TimeoutService& timeout_srv, Graph& _G) : timeout_srv(timeout_srv), G(_G) {
         visited_bitmap = NULL; // bitmap
     }
 
@@ -326,7 +326,7 @@ void llama_execute_wcc(TimeoutService& timeout_srv, ll_mlcsr_ro_graph& graph, /*
  *  Wrapper                                                                  *
  *                                                                           *
  *****************************************************************************/
-namespace library {
+namespace gfe::library {
 
 void LLAMAClass::wcc(const char* dump2file){
     utility::TimeoutService timeout_srv { m_timeout };

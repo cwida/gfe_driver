@@ -17,7 +17,7 @@
 
 #pragma once
 
-namespace experiment::details {
+namespace gfe::experiment::details {
 
 // The single operations that can be performed by a single AgingThread instance
 enum class AgingOperation { NONE, START, STOP, COMPUTE_FINAL_EDGES, EXECUTE_EXPERIMENT, INTERNAL_CLEANUP, REMOVE_VERTICES };

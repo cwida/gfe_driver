@@ -19,8 +19,9 @@
 //#include <cctype>
 //#include <cstdlib>
 #include <iostream>
-//
+
 #include "common/error.hpp"
+#include "common/system.hpp"
 //#include "common/timer.hpp"
 #include "experiment/aging.hpp"
 #include "experiment/aging2_experiment.hpp"
@@ -36,7 +37,8 @@
 #endif
 
 using namespace common;
-using namespace experiment;
+using namespace gfe;
+using namespace gfe::experiment;
 using namespace std;
 
 static void run_standalone(int argc, char* argv[]){

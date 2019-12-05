@@ -17,7 +17,7 @@
 
 #include "message.hpp"
 
-namespace network {
+namespace gfe::network {
 
 std::ostream& operator<<(std::ostream& out, RequestType type){
     switch(type){
@@ -140,4 +140,4 @@ std::ostream& operator<<(std::ostream& out, const Response* response){
     return out;
 }
 
-} // namespace network
+} // namespace

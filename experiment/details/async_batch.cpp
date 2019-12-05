@@ -24,7 +24,7 @@
 
 using namespace std;
 
-namespace experiment::details {
+namespace gfe::experiment::details {
 
 /*****************************************************************************
  *                                                                           *
@@ -45,14 +45,14 @@ namespace experiment::details {
  *                                                                           *
  *****************************************************************************/
 
-AsyncBatch::AsyncBatch(library::UpdateInterface* interface, int thread_id, int num_batches, int batch_sz) : m_interface(interface), m_batches_sz(num_batches), m_batch_sz(batch_sz), m_thread_id(thread_id) {
+AsyncBatch::AsyncBatch(gfe::library::UpdateInterface* interface, int thread_id, int num_batches, int batch_sz) : m_interface(interface), m_batches_sz(num_batches), m_batch_sz(batch_sz), m_thread_id(thread_id) {
     if(num_batches < 1){ throw std::invalid_argument("num_batches < 1"); }
     if(batch_sz < 1){ throw std::invalid_argument("batch_sz < 1"); }
 
-    m_batches = new library::UpdateInterface::SingleUpdate*[m_batches_sz];
+    m_batches = new gfe::library::UpdateInterface::SingleUpdate*[m_batches_sz];
     m_batches_num_entries = new size_t[m_batches_sz]();
     for(int batch_index = 0; batch_index < m_batches_sz; batch_index++){
-        m_batches[batch_index] = new library::UpdateInterface::SingleUpdate[m_batch_sz];
+        m_batches[batch_index] = new gfe::library::UpdateInterface::SingleUpdate[m_batch_sz];
     }
 
     // start the thread
@@ -166,29 +166,26 @@ void AsyncBatch::flush(bool synchronise){
  *                                                                           *
  *****************************************************************************/
 
-void AsyncBatch::add_edge(graph::WeightedEdge edge) {
+void AsyncBatch::add_edge(gfe::graph::WeightedEdge edge) {
     if(m_batch_pos == m_batch_sz) flush(false); // send all pending updates in the batch, reset m_batch_pos to 0
     assert(m_batch_pos < m_batch_sz && "Overflow");
 
-    library::UpdateInterface::SingleUpdate* __restrict update = m_batches[m_batch_index] + m_batch_pos;
+    gfe::library::UpdateInterface::SingleUpdate* __restrict update = m_batches[m_batch_index] + m_batch_pos;
     update->m_source = edge.m_source;
     update->m_destination = edge.m_destination;
     update->m_weight = edge.m_weight;
     m_batch_pos++;
 }
 
-void AsyncBatch::remove_edge(graph::Edge edge) {
+void AsyncBatch::remove_edge(gfe::graph::Edge edge) {
     if(m_batch_pos == m_batch_sz) flush(false); // send all pending updates in the batch, reset m_batch_pos to 0
     assert(m_batch_pos < m_batch_sz && "Overflow");
 
-    library::UpdateInterface::SingleUpdate* __restrict update = m_batches[m_batch_index] + m_batch_pos;
+    gfe::library::UpdateInterface::SingleUpdate* __restrict update = m_batches[m_batch_index] + m_batch_pos;
     update->m_source = edge.m_source;
     update->m_destination = edge.m_destination;
     update->m_weight = -1;
     m_batch_pos++;
 }
 
-
 } // namespace
-
-

@@ -25,12 +25,12 @@
 
 // Handy macro to throw a network error with ERROR( message )
 #undef CURRENT_ERROR_TYPE
-#define CURRENT_ERROR_TYPE ::network::NetworkError
+#define CURRENT_ERROR_TYPE ::gfe::network::NetworkError
 
 // Macro to report an error with the content of errno
 #define ERROR_ERRNO(message) ERROR(message << ". Low level description: " << strerror(errno) << " (errno: " << errno << ")")
 
-namespace network {
+namespace gfe::network {
 
 // Some functions from the C library are not thread-safe, such as gethostbyname() and gethostbyaddr().
 // More details: http://man7.org/linux/man-pages/man3/gethostbyname.3.html

@@ -25,7 +25,7 @@
 #include "common/error.hpp"
 #include "graph/edge.hpp"
 
-namespace library {
+namespace gfe::library {
 
 // Forward declarations
 class Interface;
@@ -36,7 +36,9 @@ class LoaderInterface;
 DEFINE_EXCEPTION(TimeoutError);
 
 /**
- * The list of registered implementations
+ * The manifest associated the name of a system implementation, that can be evaluated, with a factory method to create an instance
+ * of the given system. A manifest is an entry in the list of all available implementations, that can be retrieved using the function
+ * gfe::library::implementations().
  */
 class ImplementationManifest {
 public:
@@ -44,8 +46,17 @@ public:
     std::string m_description; // description of the instance, showed in the help screen ( -h )
     std::unique_ptr<Interface> (*m_factory)(bool is_graph_directed); // factory method to generate an instance of this implementation
 
+    /**
+     * Creates a new manifest, that is an association between the name of a system and a factory function to create an instance of
+     * the related system.
+     * @param name: the name of the system, as invoked externally by command line and saved in the final database with the results
+     * @param description: a short description of the system, showed in the command line when the program is invoked with --help
+     * @param factory: the factory function, to actually an instance of the system, either for directed or undirected graphs
+     */
     ImplementationManifest(const std::string& name, const std::string& description, std::unique_ptr<Interface> (*factory)(bool is_graph_directed));
 };
+
+// Retrieve the list of all implementations that can be evaluated, together with the factory methods to create them
 std::vector<ImplementationManifest> implementations();
 
 /**
@@ -176,13 +187,13 @@ public:
      * Add the given edge in the graph
      * @return true if the edge has been inserted, false otherwise (e.g. this edge already exists)
      */
-    virtual bool add_edge(graph::WeightedEdge e) = 0;
+    virtual bool add_edge(gfe::graph::WeightedEdge e) = 0;
 
     /**
      * Remove the given edge from the graph
      * @return true if the given edge has been removed, false otherwise (e.g. this edge does not exist)
      */
-    virtual bool remove_edge(graph::Edge e) = 0;
+    virtual bool remove_edge(gfe::graph::Edge e) = 0;
 
     /**
      * Load the whole graph representation from the given path
@@ -264,5 +275,5 @@ public:
     virtual void sssp(uint64_t source_vertex_id, const char* dump2file = nullptr) = 0;
 };
 
-} // namespace library
+} // namespace
 

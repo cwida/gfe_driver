@@ -25,7 +25,7 @@
 #include <ostream>
 #include <type_traits>
 
-namespace network {
+namespace gfe::network {
 
 /**
  * Type of request message, sent from the client to the server
@@ -234,7 +234,7 @@ std::ostream& operator<<(std::ostream& out, const Response& response);
 std::ostream& operator<<(std::ostream& out, const Response* response);
 std::ostream& operator<<(std::ostream& out, ResponseType type);
 
-} // namespace network
+} // namespace
 
 
 

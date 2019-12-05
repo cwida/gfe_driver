@@ -38,7 +38,7 @@ using namespace std;
 // Macros
 #define STINGER reinterpret_cast<struct stinger*>(m_stinger_graph)
 #undef CURRENT_ERROR_TYPE
-#define CURRENT_ERROR_TYPE ::library::StingerError
+#define CURRENT_ERROR_TYPE ::gfe::library::StingerError
 
 /******************************************************************************
  *                                                                            *
@@ -89,7 +89,7 @@ static int compare(const void* a, const void* b){
  *  LCC                                                                       *
  *                                                                            *
  ******************************************************************************/
-namespace library {
+namespace gfe::library {
 // Implementation based on stinger_alg/src/clustering.c
 
 void Stinger::lcc(const char* dump2file){

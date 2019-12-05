@@ -61,7 +61,7 @@ extern mutex _log_mutex [[maybe_unused]];
  * Init                                                                      *
  *                                                                           *
  *****************************************************************************/
-namespace experiment::details {
+namespace gfe::experiment::details {
 
 Aging2Master::Aging2Master(const Aging2Experiment& parameters) :
     m_parameters(parameters),

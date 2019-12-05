@@ -61,9 +61,9 @@ extern mutex _log_mutex [[maybe_unused]];
  *                                                                           *
  *****************************************************************************/
 #undef CURRENT_ERROR_TYPE
-#define CURRENT_ERROR_TYPE ::library::StingerError
+#define CURRENT_ERROR_TYPE ::gfe::library::StingerError
 
-namespace library {
+namespace gfe::library {
 
 /*****************************************************************************
  *                                                                           *

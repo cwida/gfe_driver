@@ -22,9 +22,9 @@
 #include <utility>
 #include "reader.hpp"
 
-namespace graph { class WeightedEdge; } // forward decl.
+namespace gfe::graph { class WeightedEdge; } // forward decl.
 
-namespace reader {
+namespace gfe::reader {
 
 /**
  * Loader for the METIS v5.1 file format
@@ -84,10 +84,4 @@ public:
     bool is_directed() const override;
 };
 
-
-} // namespace reader
-
-
-
-
-
+} // namespace

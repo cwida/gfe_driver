@@ -25,11 +25,11 @@
 #include "plain_reader.hpp"
 
 #undef CURRENT_ERROR_TYPE
-#define CURRENT_ERROR_TYPE reader::ReaderError
+#define CURRENT_ERROR_TYPE ::gfe::reader::ReaderError
 
 using namespace std;
 
-namespace reader {
+namespace gfe::reader {
 
 Reader::Reader(){ }
 Reader::~Reader(){ }

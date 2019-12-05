@@ -44,7 +44,7 @@
 #include "configuration.hpp"
 
 using namespace common;
-using namespace experiment::details;
+using namespace gfe::experiment::details;
 using namespace std;
 
 /*****************************************************************************
@@ -66,7 +66,7 @@ extern mutex _log_mutex [[maybe_unused]];
  * Aging                                                                     *
  *                                                                           *
  *****************************************************************************/
-namespace experiment {
+namespace gfe::experiment {
 
 Aging::Aging(std::shared_ptr<library::UpdateInterface> interface, std::shared_ptr<graph::WeightedEdgeStream> stream, double mult_num_operations, int64_t num_threads) :
         Aging(interface,stream, stream->num_edges() * mult_num_operations, num_threads, interface->is_directed(), stream->max_weight()) { }
@@ -366,5 +366,4 @@ void Aging::save() {
     }
 }
 
-
-} // namespace experiment
+} // namespace

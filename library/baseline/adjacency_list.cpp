@@ -58,14 +58,14 @@ extern mutex _log_mutex;
  *                                                                           *
  *****************************************************************************/
 #undef CURRENT_ERROR_TYPE
-#define CURRENT_ERROR_TYPE ::library::AdjacencyListError
+#define CURRENT_ERROR_TYPE ::gfe::library::AdjacencyListError
 
 /*****************************************************************************
  *                                                                           *
  *  Initialisation                                                           *
  *                                                                           *
  *****************************************************************************/
-namespace library {
+namespace gfe::library {
 
 
 AdjacencyList::AdjacencyList(bool is_directed) : m_is_directed(is_directed) {

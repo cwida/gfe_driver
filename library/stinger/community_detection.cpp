@@ -53,7 +53,7 @@ using namespace std;
 // Macros
 #define STINGER reinterpret_cast<struct stinger*>(m_stinger_graph)
 #undef CURRENT_ERROR_TYPE
-#define CURRENT_ERROR_TYPE ::library::StingerError
+#define CURRENT_ERROR_TYPE ::gfe::library::StingerError
 #define TIMER_INIT auto time_start = chrono::steady_clock::now();
 #define CHECK_TIMEOUT if(m_timeout > 0 && (chrono::steady_clock::now() - time_start) > chrono::seconds(m_timeout)) { \
         RAISE_EXCEPTION(TimeoutError, "Timeout occurred after: " << chrono::duration_cast<chrono::seconds>(chrono::steady_clock::now() - time_start).count() << " seconds") };
@@ -102,7 +102,7 @@ static void save(cuckoohash_map<uint64_t, int64_t>& result, const char* dump2fil
  *  Community detection through label propagation                             *
  *                                                                            *
  ******************************************************************************/
-namespace library {
+namespace gfe::library {
 
 void Stinger::cdlp(uint64_t max_iterations, const char* dump2file){
     TIMER_INIT

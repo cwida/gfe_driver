@@ -91,6 +91,9 @@ ifneq (,$(findstring -DHAVE_LLAMA,${ALL_CPPFLAGS}))
 	sources += $(addprefix library/llama/, llama_bfs.cpp llama_class.cpp llama_cdlp.cpp llama_internal.cpp llama_lcc.cpp llama_pagerank.cpp llama_sssp.cpp llama_wcc.cpp)
 	sources += $(addprefix library/llama-dv/, llama-dv.cpp)
 endif
+ifneq (,$(findstring -DHAVE_GRAPHONE,${ALL_CPPFLAGS}))
+	sources += $(addprefix library/graphone/, graphone.cpp)
+endif
 
 
 #############################################################################
@@ -111,7 +114,7 @@ all: ${builddir}/gfe_driver
 #############################################################################
 # Artifacts to build
 ${builddir}/gfe_driver: ${objectdir}/main_driver.o ${dependencies} | ${builddir}
-	${CXX} ${LDFLAGS} $^ -o $@
+	${CXX} $^ ${LDFLAGS} -o $@
 
 #############################################################################
 # Compiling the objects
@@ -170,7 +173,7 @@ check: ${testartifacts}
 
 ${testartifacts}: ${dependencies} | ${gtestlibs}
 ${testartifacts}: % : %.cpp | ${testbindir} ${testgraphs}
-	${CXX} -I ${srcdir}/third-party/googletest/googletest/include $(ALL_CXXFLAGS) ${LDFLAGS} $< -o $@ ${dependencies} ${gtestlibs}
+	${CXX} $(ALL_CXXFLAGS) -I ${srcdir}/third-party/googletest/googletest/include $< ${dependencies} ${gtestlibs} ${LDFLAGS} -o $@
 
 ${gtestlibs}: ${gtestdir}
 ${gtestdir}:

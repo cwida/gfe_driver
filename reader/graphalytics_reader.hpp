@@ -22,10 +22,10 @@
 #include <random>
 #include <unordered_map>
 
-namespace graph { class WeightedEdge; } // forward decl.
-namespace reader::details { class GraphalyticsReaderBaseImpl; } // forward decl.
+namespace gfe::graph { class WeightedEdge; } // forward decl.
+namespace gfe::reader::details { class GraphalyticsReaderBaseImpl; } // forward decl.
 
-namespace reader {
+namespace gfe::reader {
 
 /**
  * Parser to read the property file, the vertex and the edge list provided in the datasets from graphalytics.org

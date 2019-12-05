@@ -41,7 +41,7 @@ using namespace std;
 #define CHECK_TIMEOUT if(timeout.count() > 0 && (chrono::steady_clock::now() - time_start) > timeout) { \
         RAISE_EXCEPTION(TimeoutError, "Timeout occurred after: " << chrono::duration_cast<chrono::seconds>(chrono::steady_clock::now() - time_start).count() << " seconds") };
 #undef CURRENT_ERROR_TYPE
-#define CURRENT_ERROR_TYPE ::library::StingerError
+#define CURRENT_ERROR_TYPE ::gfe::library::StingerError
 
 
 /******************************************************************************
@@ -64,7 +64,7 @@ extern mutex _log_mutex [[maybe_unused]];
  *  Library impl~                                                             *
  *                                                                            *
  *****************************************************************************/
-namespace library {
+namespace gfe::library {
 
 // copy & paste from stinger_alg/src/shortest_paths.cpp
 namespace {

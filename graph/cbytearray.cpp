@@ -19,7 +19,7 @@
 
 using namespace std;
 
-namespace graph {
+namespace gfe::graph {
 
 size_t CByteArray::compute_bytes_per_elements(size_t value){
     double bits = ceil(log2(value));
@@ -267,6 +267,4 @@ ptrdiff_t CByteIterator::operator-(const CByteIterator& it) const { // d = x - y
     return m_offset - it.m_offset;
 }
 
-
-
-} // namespace distribution
+} // namespace

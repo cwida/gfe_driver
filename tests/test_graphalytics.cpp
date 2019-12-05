@@ -34,13 +34,16 @@
 #if defined(HAVE_STINGER)
 #include "library/stinger/stinger.hpp"
 #endif
+#if defined(HAVE_GRAPHONE)
+#include "library/graphone/graphone.hpp"
+#endif
 #include "library/interface.hpp"
 #include "reader/graphalytics_reader.hpp"
 #include "utility/graphalytics_validate.hpp"
 
+using namespace gfe::library;
+using namespace gfe::utility;
 using namespace std;
-using namespace library;
-using namespace utility;
 
 const std::string path_example_directed = common::filesystem::directory_executable() + "/graphs/ldbc_graphalytics/example-directed"; // without the ext .properties at the end
 const std::string path_example_undirected = common::filesystem::directory_executable() + "/graphs/ldbc_graphalytics/example-undirected"; // without the ext .properties at the end
@@ -57,15 +60,15 @@ const std::string path_example_undirected = common::filesystem::directory_execut
 #undef LOG
 #define LOG(message) { std::cout << "\033[0;32m" << "[          ] " << "\033[0;0m" << message << std::endl; }
 
-static void load_graph(library::UpdateInterface* interface, const std::string& path_graphalytics_graph){
+static void load_graph(gfe::library::UpdateInterface* interface, const std::string& path_graphalytics_graph){
     interface->on_main_init(1);
     interface->on_thread_init(0);
 
-    reader::GraphalyticsReader reader { path_graphalytics_graph + ".properties" };
+    gfe::reader::GraphalyticsReader reader { path_graphalytics_graph + ".properties" };
     uint64_t vertex_id = 0;
     while(reader.read_vertex(vertex_id)){ interface->add_vertex(vertex_id); }
 
-    graph::WeightedEdge edge;
+    gfe::graph::WeightedEdge edge;
     while(reader.read_edge(edge)){ interface->add_edge(edge); }
 
     interface->build();
@@ -82,11 +85,11 @@ static string temp_file_path(){
     return string(pattern);
 }
 
-static void validate(library::GraphalyticsInterface* interface, const std::string& path_graphalytics_graph, int algorithms = /* all */ GA_BFS | GA_PAGERANK | GA_WCC | GA_CDLP | GA_LCC | GA_SSSP){
+static void validate(gfe::library::GraphalyticsInterface* interface, const std::string& path_graphalytics_graph, int algorithms = /* all */ GA_BFS | GA_PAGERANK | GA_WCC | GA_CDLP | GA_LCC | GA_SSSP){
     interface->on_main_init(1);
     interface->on_thread_init(0);
 
-    reader::GraphalyticsReader reader { path_graphalytics_graph + ".properties" }; // to parse the properties in the file
+    gfe::reader::GraphalyticsReader reader { path_graphalytics_graph + ".properties" }; // to parse the properties in the file
 
     if(algorithms & GA_BFS){
         string path_reference = path_graphalytics_graph + "-BFS";
@@ -174,8 +177,8 @@ TEST(AdjacencyList, GraphalyticsUndirected){
 
 TEST(AdjacencyList, Aging){
     auto adjlist = make_shared<AdjacencyList>(/* directed */ false);
-    auto edge_stream = make_shared<graph::WeightedEdgeStream>(path_example_undirected + ".properties" );
-    experiment::Aging aging(adjlist, move(edge_stream), /* coeff. operations */ 32.0, /* threads to use */ 8);
+    auto edge_stream = make_shared<gfe::graph::WeightedEdgeStream>(path_example_undirected + ".properties" );
+    gfe::experiment::Aging aging(adjlist, move(edge_stream), /* coeff. operations */ 32.0, /* threads to use */ 8);
     aging.execute();
     validate(adjlist.get(), path_example_undirected);
 }
@@ -207,3 +210,18 @@ TEST(Stinger, GraphalyticsUndirected){
     validate(graph.get(), path_example_undirected);
 }
 #endif
+
+#if defined(HAVE_GRAPHONE)
+TEST(GraphOne, GraphalyticsDirected){
+    auto graph = make_unique<GraphOne>(/* directed */ true, /* vertex dictionary */ true, /* blind writes */ true, /* max num vertices */ 32);
+    load_graph(graph.get(), path_example_directed);
+    validate(graph.get(), path_example_directed);
+}
+
+TEST(GraphOne, GraphalyticsUndirected){
+    auto graph = make_unique<GraphOne>(/* directed */ false, /* vertex dictionary */ true, /* blind writes */ true, /* max num vertices */ 32);
+    load_graph(graph.get(), path_example_undirected);
+    validate(graph.get(), path_example_undirected);
+}
+#endif
+

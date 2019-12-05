@@ -21,9 +21,9 @@
 #include <random>
 #include "reader.hpp"
 
-namespace graph { class WeightedEdge; } // forward decl.
+namespace gfe::graph { class WeightedEdge; } // forward decl.
 
-namespace reader {
+namespace gfe::reader {
 
 /**
  * Specific implementation to load the edges from a plain representation (.el or .wel). The file
@@ -75,4 +75,4 @@ public:
     bool is_directed() const override;
 };
 
-} // namespace reader
+} // namespace

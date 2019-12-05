@@ -23,7 +23,7 @@
 #include "library/interface.hpp"
 #include "message.hpp"
 
-namespace network {
+namespace gfe::network {
 
 /**
  * A Client acts as a proxy for a remote interface, reachable by a Server (gfe_server).

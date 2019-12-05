@@ -26,9 +26,9 @@
 #include "graph/edge.hpp"
 #include "library/baseline/adjacency_list.hpp"
 
-using namespace experiment::details;
-using namespace graph;
-using namespace library;
+using namespace gfe::experiment::details;
+using namespace gfe::graph;
+using namespace gfe::library;
 using namespace std;
 
 TEST(AsyncBatch, Sanity){
@@ -41,7 +41,7 @@ TEST(AsyncBatch, Sanity){
 
     for(uint64_t i = 1; i < 8; i++){
         for(uint64_t j = i +1; j <= 8; j++){
-            batch.add_edge(graph::WeightedEdge{i, j, (double) i + j});
+            batch.add_edge(WeightedEdge{i, j, (double) i + j});
         }
     }
     batch.flush(true);

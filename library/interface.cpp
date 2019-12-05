@@ -26,6 +26,8 @@
 #include <mutex>
 
 #include "common/error.hpp"
+#include "common/quantity.hpp"
+#include "common/system.hpp"
 #include "common/timer.hpp"
 
 #include "baseline/adjacency_list.hpp"
@@ -39,6 +41,9 @@
 #include "stinger/stinger.hpp"
 #include "stinger-dv/stinger-dv.hpp" // dense domain of vertices
 #endif
+#if defined(HAVE_GRAPHONE)
+#include "graphone/graphone.hpp"
+#endif
 
 using namespace std;
 
@@ -48,8 +53,8 @@ using namespace std;
  *                                                                           *
  *****************************************************************************/
 //#define DEBUG
-extern mutex _log_mutex [[maybe_unused]];
-#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{_log_mutex}; std::cout << "[Interface::" << __FUNCTION__ << "] " << msg << std::endl; }
+namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
+#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::gfe::_log_mutex}; std::cout << "[Interface::" << __FUNCTION__ << "] " << msg << std::endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
 #else
@@ -57,7 +62,7 @@ extern mutex _log_mutex [[maybe_unused]];
 #endif
 
 
-namespace library {
+namespace gfe::library {
 /*****************************************************************************
  *                                                                           *
  *  Factory                                                                  *
@@ -92,6 +97,42 @@ std::unique_ptr<Interface> generate_stinger_dv(bool directed_graph){
 }
 #endif
 
+#if defined(HAVE_GRAPHONE)
+// Heuristics to set the max number of vertices that the implementation can sustain.
+// We wish to create up to 4G vertices, but unfortunately this limit is too high for usage in a workstation machines,
+// so we decrease the value depending on the amount of available memory
+static uint64_t graphone_max_num_vertices(){
+    uint64_t ram = common::get_total_ram(); // in bytes
+    // Ensure that the vertex array does not use more than 20% of the available RAM
+    uint64_t num_vertices = std::min<uint64_t>(4ull<<30, ram/(5 * 8)); // 8 bytes per vertex, 1/5 of the total ram
+
+    { // critical section, for the output
+        std::scoped_lock<std::mutex> lock{_log_mutex};
+        cout << "GraphOne: capacity of the vertex array implicitly set to: " << common::ComputerQuantity(num_vertices) << " vertices " << endl;
+    }
+
+    return num_vertices;
+}
+
+std::unique_ptr<Interface> generate_graphone_cons_sp(bool directed_graph){
+    uint64_t N = graphone_max_num_vertices();
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ false, N) };
+}
+std::unique_ptr<Interface> generate_graphone_cons_dv(bool directed_graph){
+    uint64_t N = graphone_max_num_vertices();
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ false, /* blind writes ? */ false, N) };
+}
+std::unique_ptr<Interface> generate_graphone_bw_sp(bool directed_graph){
+    uint64_t N = graphone_max_num_vertices();
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ true, N) };
+}
+std::unique_ptr<Interface> generate_graphone_bw_dv(bool directed_graph){
+    uint64_t N = graphone_max_num_vertices();
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ false, /* blind writes ? */ true, N) };
+}
+
+#endif
+
 vector<ImplementationManifest> implementations() {
     vector<ImplementationManifest> result;
 
@@ -107,6 +148,13 @@ vector<ImplementationManifest> implementations() {
 #if defined(HAVE_STINGER)
     result.emplace_back("stinger", "Stinger library", &generate_stinger);
     result.emplace_back("stinger-dv", "Stinger with dense vertices", &generate_stinger_dv);
+#endif
+
+#if defined(HAVE_GRAPHONE)
+    result.emplace_back("g1-cons-sp", "GraphOne, consistency for updates, sparse vertices (vertex dictionary)", &generate_graphone_cons_sp);
+    result.emplace_back("g1-cons-dv", "GraphOne, consistency for updates, dense vertices", &generate_graphone_cons_dv);
+    result.emplace_back("g1-bw-sp", "GraphOne, blind writes, sparse vertices (vertex dictionary)", &generate_graphone_bw_sp);
+    result.emplace_back("g1-bw-dv", "GraphOne, blind writes, dense vertices", &generate_graphone_bw_dv);
 #endif
 
     return result;
@@ -207,7 +255,7 @@ void UpdateInterface::batch_try_again(Action action, Edge edge){
 void UpdateInterface::load(const string& path) {
     auto reader = reader::Reader::open(path);
     ASSERT(reader->is_directed() == is_directed());
-    graph::WeightedEdge edge;
+    gfe::graph::WeightedEdge edge;
     while(reader->read(edge)){
         add_vertex(edge.m_source);
         add_vertex(edge.m_destination);

@@ -49,7 +49,7 @@ extern mutex _log_mutex [[maybe_unused]];
  *                                                                           *
  *****************************************************************************/
 
-namespace experiment {
+namespace gfe::experiment {
 
 Aging2Experiment::Aging2Experiment(){ }
 

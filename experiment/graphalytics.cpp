@@ -34,10 +34,10 @@
 #include "statistics.hpp"
 
 using namespace common;
+using namespace gfe::utility;
 using namespace std;
-using namespace utility;
 
-namespace experiment {
+namespace gfe::experiment {
 
 /*****************************************************************************
  *                                                                           *
@@ -117,7 +117,7 @@ ostream& operator<<(std::ostream& out, const GraphalyticsAlgorithms& props){
  *  GraphalyticsSequential                                                   *
  *                                                                           *
  ****************************************************************************/
-GraphalyticsSequential::GraphalyticsSequential(std::shared_ptr<library::GraphalyticsInterface> interface, uint64_t num_repetitions, const GraphalyticsAlgorithms& properties) :
+GraphalyticsSequential::GraphalyticsSequential(std::shared_ptr<gfe::library::GraphalyticsInterface> interface, uint64_t num_repetitions, const GraphalyticsAlgorithms& properties) :
         m_interface(interface), m_num_repetitions(num_repetitions), m_properties(properties) { }
 
 std::chrono::microseconds GraphalyticsSequential::execute(){

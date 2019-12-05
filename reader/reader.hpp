@@ -20,11 +20,9 @@
 #include <memory>
 #include "common/error.hpp"
 
-namespace graph {
-    class WeightedEdge; // forward decl.
-}
+namespace gfe::graph { class WeightedEdge; } // forward decl.
 
-namespace reader {
+namespace gfe::reader {
 
 /**
  * Forward iterator to read the list of weighted edges from a stored file. Usage:
@@ -63,4 +61,4 @@ public:
  */
 DEFINE_EXCEPTION(ReaderError);
 
-} // namespace graph
+} // namespace

@@ -22,7 +22,7 @@
 
 #include "common/error.hpp"
 
-namespace utility {
+namespace gfe::utility {
 
 // In case the result does not match the reference result, the should should throw a GraphalyticsValidateError
 DEFINE_EXCEPTION(GraphalyticsValidateError);
@@ -80,6 +80,5 @@ public:
     static void sssp(const std::string& result, const std::string& expected, uint64_t max_num_errors = 1);
 
 };
+
 } // namespace
-
-

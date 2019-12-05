@@ -22,13 +22,16 @@
 
 // forward declarations
 namespace common { class Database; }
-namespace experiment { class Aging2Experiment; }
-namespace experiment::details { class Aging2Master; }
-namespace experiment::details { class Aging2Worker; }
-namespace experiment::details { class LatencyStatistics; }
+namespace gfe::experiment { class Aging2Experiment; }
+namespace gfe::experiment::details { class Aging2Master; }
+namespace gfe::experiment::details { class Aging2Worker; }
+namespace gfe::experiment::details { class LatencyStatistics; }
 
-namespace experiment {
+namespace gfe::experiment {
 
+/**
+ * This is a container for the parameters and the measured results of a single execution of the Aging2 experiment
+ */
 class Aging2Result {
     friend class details::Aging2Master;
     friend class details::Aging2Worker;

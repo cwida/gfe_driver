@@ -19,7 +19,7 @@
 
 #include <cinttypes>
 
-namespace experiment::details {
+namespace gfe::experiment::details {
 
 // A single partition handled by a worker thread
 

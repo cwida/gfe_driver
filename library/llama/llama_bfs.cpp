@@ -186,7 +186,7 @@ class ll_bfs_template
         }
     }
 
-    void do_bfs_forward(utility::TimeoutService& time_budget) {
+    void do_bfs_forward(gfe::utility::TimeoutService& time_budget) {
         //---------------------------------
         // prepare root node
         //---------------------------------
@@ -966,7 +966,7 @@ protected:
  *  Wrapper                                                                  *
  *                                                                           *
  *****************************************************************************/
-namespace library {
+namespace gfe::library {
 
 void LLAMAClass::bfs(uint64_t external_source_vertex_id, const char* dump2file) {
     utility::TimeoutService timeout { m_timeout };

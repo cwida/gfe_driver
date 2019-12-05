@@ -19,7 +19,7 @@
 
 #include <string>
 
-namespace reader {
+namespace gfe::reader {
 
 // The format of the given graph
 enum class Format {
@@ -37,6 +37,6 @@ enum class Format {
 Format get_graph_format(const char* path);
 Format get_graph_format(const std::string& path);
 
-} // namespace reader
+} // namespace
 
 

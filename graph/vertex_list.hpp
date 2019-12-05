@@ -19,7 +19,7 @@
 
 #include <cinttypes>
 
-namespace graph {
+namespace gfe::graph {
 
 class CByteArray;
 
@@ -66,4 +66,4 @@ public:
 
 };
     
-} // namespace graph
+} // namespace

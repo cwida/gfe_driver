@@ -24,12 +24,17 @@
 
 class ll_database; // forward declaration
 class ll_mlcsr_ro_graph; // forward declaration
-namespace utility { class TimeoutService; } // forward declaration
+namespace gfe::utility { class TimeoutService; } // forward declaration
 
-namespace library {
+namespace gfe::library {
 
 /**
- * Adaptor for the LLAMA library. It implements the library::Interface.
+ * Adaptor for the LLAMA library, assuming that vertices are dense. Dense vertices imply that all vertex IDs are
+ * a contiguous sequence in [0, |V|), with |V| being the total vertices inserted so far. With dense vertices, there
+ * is no need for an auxiliary dictionary to translate between arbitrary vertex IDs and the logical vertex IDs
+ * used internally in the LLAMA's implementation.
+ *
+ * All methods except dump() & family are thread safe.
  */
 class LLAMA_DV : public virtual UpdateInterface, public virtual GraphalyticsInterface {
     LLAMA_DV(const LLAMA_DV&) = delete;
