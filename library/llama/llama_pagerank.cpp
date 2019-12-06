@@ -34,8 +34,8 @@ using namespace std;
  *                                                                           *
  *****************************************************************************/
 //#define DEBUG
-extern mutex _log_mutex [[maybe_unused]];
-#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::_log_mutex}; std::cout << "[LLAMA::" << __FUNCTION__ << "] " << msg << std::endl; }
+namespace gfe{ extern mutex _log_mutex [[maybe_unused]]; }
+#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::gfe::_log_mutex}; std::cout << "[LLAMA::" << __FUNCTION__ << "] " << msg << std::endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
 #else
@@ -112,6 +112,8 @@ void LLAMAClass::pagerank(uint64_t num_iterations, double damping_factor, const 
 
 // Implementation derived from llama/benchmark/benchmarks/pagerank.h, class ll_b_pagerank_pull_ext
 void LLAMAClass::pagerank_impl(utility::TimeoutService& timer, ll_mlcsr_ro_graph& graph, uint64_t num_vertices, uint64_t num_iterations, double d, /* output array, already allocated */ double* G_pg_rank){
+    COUT_DEBUG("num_vertices: " << num_vertices << ", num_iterations: " << num_iterations << ", damping sum: " << d);
+
     ll_memory_helper m; // memory pool, it releases the allocated resources at dtor
 
     double* G_pg_rank_nxt = m.allocate<double>(graph.max_nodes());
@@ -131,7 +133,6 @@ void LLAMAClass::pagerank_impl(utility::TimeoutService& timer, ll_mlcsr_ro_graph
         double dsum = 0.0; // dangling sum
         #pragma omp parallel for reduction(+:dsum)
         for(node_t t = 0; t < graph.max_nodes(); t ++){
-
             // okay, LLAMA does not know if a vertex does not exist or it's just a gap / empty cell in its arrays
             // we assume all nodes with no incoming or outgoing edges are gaps
             if(graph.out_degree(t) + graph.in_degree(t) == 0) continue;

@@ -432,6 +432,9 @@ void GraphOne::do_update(bool is_insert, uint64_t v0, uint64_t v1, double weight
     set_dst(edge, v1); // destination
     edge.dst_id.second.value_double = weight;
 
+    // The interface #batch-edge(edge) is not (atm) thread safe
+    scoped_lock<common::SpinLock> lock(m_do_update_lock);
+
     get_graphone_graph()->batch_edge(edge);
 
     // update the global counter on the number of edges present
@@ -455,20 +458,17 @@ void GraphOne::build(){
  *****************************************************************************/
 
 void GraphOne::dump_ostream(std::ostream& out) const {
+    uint64_t N = num_vertices();
+    auto view = create_static_view(get_graphone_graph(), STALE_MASK);
+
     out << "[GraphOne] directed graph: " << boolalpha << is_directed() << ", use vertex "
-            "dictionary: " << m_translate_vertex_ids << ", blind writes: " << has_blind_writes() << ", num vertices: " << num_vertices() << ", num edges: " << num_edges() << endl;
-
-    unordered_set<gfe::graph::Edge> deleted_edges; // keep track which edges have been deleted
-    unordered_multimap<uint64_t, gfe::graph::WeightedEdge> inserted_edges; // edges in the non archived buffer
-
-    auto* graph = get_graphone_graph();
-    auto view = create_static_view(graph, STALE_MASK);
+            "dictionary: " << m_translate_vertex_ids << ", blind writes: " << has_blind_writes() << ", num vertices: " << N << ", vertex array capacity: " << view->get_vcount() << ", num edges: " << num_edges() << endl;
 
     // only consider the archived edges
     lite_edge_t* neighbours = nullptr;
     uint64_t neighbours_sz = 0;
 
-    for(sid_t vertex_id = 0; vertex_id < view->get_vcount(); vertex_id ++){
+    for(sid_t vertex_id = 0; vertex_id < N; vertex_id ++){
         if(m_translate_vertex_ids){
             string vertex_name = g->get_typekv()->get_vertex_name(vertex_id);
             if(vertex_name.empty()) continue;
@@ -739,8 +739,16 @@ void GraphOne::bfs(uint64_t source_vertex_id, const char* dump2file) {
 // 3. It operates on floats rather than doubles
 // 4. It uses a different formula to compute the score at the end
 // The algorithm is too different, the implementation below is adapted from llama_pagerank.cpp:
+//#define DEBUG_PAGERANK
+#if defined(DEBUG_PAGERANK)
+#define COUT_DEBUG_PAGERANK(msg) COUT_DEBUG(msg)
+#else
+#define COUT_DEBUG_PAGERANK(msg)
+#endif
 
 static unique_ptr<double[]> graphone_execute_pagerank(uint64_t num_vertices, uint64_t num_iterations, double d, utility::TimeoutService& timer){
+    COUT_DEBUG_PAGERANK("num_vertices: " << num_vertices << ", num_iterations: " << num_iterations << ", damping factor: " << d);
+
     auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
 
     unique_ptr<double[]> ptr_G_pg_rank{ new double[num_vertices]() }; // avoid memory leaks
@@ -783,7 +791,7 @@ static unique_ptr<double[]> graphone_execute_pagerank(uint64_t num_vertices, uin
                 view->get_nebrs_in(v, neighbours);
 
                 double score = 0;
-                for(uint64_t i = 0; i < neighbours_sz; i++){
+                for(uint64_t i = 0; i < degree_in; i++){
                     uint64_t u = get_sid(neighbours[i]);
                     score += G_pg_rank[u] / view->get_degree_out(u);
                 }
@@ -793,6 +801,7 @@ static unique_ptr<double[]> graphone_execute_pagerank(uint64_t num_vertices, uin
 
             free(neighbours); neighbours = nullptr; neighbours_sz = 0;
         }
+
 
         // rank <- rank_next; rank_next <- 0;
         #pragma omp for schedule(dynamic, 4096)
@@ -824,7 +833,7 @@ void GraphOne::pagerank(uint64_t num_iterations, double damping_factor, const ch
     double* rank = ptr_rank.get();
     if(m_translate_vertex_ids) { // translate from GraphOne vertex ids to external vertex ids
         cuckoohash_map</* external id */ string, /* rank */ double> external_ids;
-#pragma omp parallel for
+        #pragma omp parallel for
         for(sid_t internal_id = 0; internal_id < N; internal_id++){
             // 1.what is the real node ID, in the external domain (e.g. user id)
             string vertex_name = g->get_typekv()->get_vertex_name(internal_id);
