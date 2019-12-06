@@ -30,8 +30,8 @@ using namespace std;
  *                                                                           *
  *****************************************************************************/
 //#define DEBUG
-extern mutex _log_mutex [[maybe_unused]];
-#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::_log_mutex}; std::cout << "[BuildThread::" << __FUNCTION__ << "] " << msg << std::endl; }
+namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
+#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::gfe::_log_mutex}; std::cout << "[BuildThread::" << __FUNCTION__ << "] " << msg << std::endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
 #else
