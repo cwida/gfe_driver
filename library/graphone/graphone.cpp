@@ -432,9 +432,7 @@ void GraphOne::do_update(bool is_insert, uint64_t v0, uint64_t v1, double weight
     set_dst(edge, v1); // destination
     edge.dst_id.second.value_double = weight;
 
-    // The interface #batch-edge(edge) is not (atm) thread safe
-    scoped_lock<common::SpinLock> lock(m_do_update_lock);
-
+    // Perform the update
     get_graphone_graph()->batch_edge(edge);
 
     // update the global counter on the number of edges present

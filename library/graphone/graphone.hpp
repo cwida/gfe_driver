@@ -43,7 +43,7 @@ class GraphOne : public virtual UpdateInterface, public virtual GraphalyticsInte
     const bool m_blind_writes; // whether we check the presence of prior existing elements before performing an insertion
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
     std::atomic<uint64_t> m_num_vertices { 0 }; // total number of vertices in the graph
-    uint64_t m_num_edges { 0 }; // total number of edges in the graph (not just those archived)
+    std::atomic<uint64_t> m_num_edges { 0 }; // total number of edges in the graph (not just those archived)
     struct PaddedLock { // to avoid false sharing
         common::SpinLock m_lock;
         uint64_t padding[7];
@@ -51,9 +51,6 @@ class GraphOne : public virtual UpdateInterface, public virtual GraphalyticsInte
     common::SpinLock m_mutex_vtx; // mutex for the vertex dictionary
     uint64_t m_num_edge_locks { 0 }; // the size of the array m_edge_locks;
     PaddedLock* m_edge_locks { nullptr }; // battery of lock, used for the edge updates, when blink_writes is disabled
-
-    // Protect the single invocation to #do_update
-    common::SpinLock m_do_update_lock; // The interface from GraphOne for edges updates is not thread safe
 
     // This is an optimisation. The implementation of #get_weight() is rather slow if it has to create a static view every time
     // it is invoked. We keep a cache of the last static view created
