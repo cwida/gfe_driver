@@ -149,12 +149,17 @@ TEST(GraphOne, ConcurrentUpdates) {
     for(auto& w: workers) w.join();
     workers.clear();
 
+    LOG("Num levels (before build): " << graphone.num_levels());
+
     LOG("Build ...");
     graphone.build();
+
+    LOG("Num levels (after build): " << graphone.num_levels());
 
     // It's enough it does not end with a seg fault...
     LOG("Done");
 }
+
 
 
 #else

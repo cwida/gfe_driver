@@ -207,6 +207,11 @@ public:
     virtual void build(); // default impl. => `nop'
 
     /**
+     * Returns the total number of snaphots/levels/deltas created in the LSM/delta based implementation.
+     */
+    virtual uint64_t num_levels() const;
+
+    /**
      * Perform a batch of edge insertions/deletions.
      * -- LIBRARY IMPLEMENTATIONS SHALL NOT OVERRIDE THIS METHOD: this is only used by the driver in client-server
      * mode. The point is not to measure the performance of ``batch updates'' in the library, but to amortize the

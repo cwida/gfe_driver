@@ -94,7 +94,7 @@ void Configuration::initialiase(int argc, char* argv[]){
 
     options.add_options("Generic")
         ("a, aging", "The number of additional updates for the aging experiment to perform", value<double>()->default_value("0"))
-        ("build_frequency", "The frequency to build a new snapshot in the aging experiment (default: 5 minutes)", value<DurationQuantity>())
+        ("build_frequency", "The frequency to build a new snapshot in the aging experiment (default: disabled)", value<DurationQuantity>())
         ("d, database", "Store the current configuration value into the a sqlite3 database at the given location", value<string>())
         ("efe", "Expansion factor for the edges in the graph", value<double>()->default_value(to_string(get_ef_edges())))
         ("efv", "Expansion factor for the vertices in the graph", value<double>()->default_value(to_string(get_ef_vertices())))

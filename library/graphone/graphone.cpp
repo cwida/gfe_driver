@@ -433,12 +433,14 @@ void GraphOne::do_update(bool is_insert, uint64_t v0, uint64_t v1, double weight
     edge.dst_id.second.value_double = weight;
 
     // Perform the update
-    get_graphone_graph()->batch_edge(edge);
+    status_t rc = get_graphone_graph()->batch_edge(edge);
+    if(rc == eEndBatch) m_num_levels++;
 
     // update the global counter on the number of edges present
     if(is_insert){
         m_num_edges++; // atomic
     } else {
+
         assert(m_num_edges > 0);
         m_num_edges--; // atomic
     }
@@ -447,6 +449,11 @@ void GraphOne::do_update(bool is_insert, uint64_t v0, uint64_t v1, double weight
 void GraphOne::build(){
     COUT_DEBUG("Build");
     g->waitfor_archive();
+    m_num_levels++;
+}
+
+uint64_t GraphOne::num_levels() const {
+    return m_num_levels;
 }
 
 /*****************************************************************************

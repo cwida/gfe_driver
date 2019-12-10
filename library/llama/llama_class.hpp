@@ -133,7 +133,7 @@ public:
      * Get the number of read-only levels (or snapshots, or deltas). Every invocation to #build creates a new read-only level
      * where the changes from the write store are frozen and moved into the read-only store.
      */
-    uint64_t num_levels() const;
+    virtual uint64_t num_levels() const;
 
     /**
      * Returns true if the given vertex is present, false otherwise

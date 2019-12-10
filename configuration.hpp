@@ -58,7 +58,7 @@ class Configuration {
     Configuration& operator=(const Configuration& ) = delete;
 
     // properties
-    uint64_t m_build_frequency { 5 * 60 * 1000 }; // in the aging experiment, the amount of time that must pass before each invocation to #build(), in milliseconds
+    uint64_t m_build_frequency { 0 }; // in the aging experiment, the amount of time that must pass before each invocation to #build(), in milliseconds
     double m_coeff_aging { 0.0 }; // coefficient for the additional updates to perform
     common::Database* m_database { nullptr }; // handle to the database
     std::string m_database_path { "" }; // the path where to store the results

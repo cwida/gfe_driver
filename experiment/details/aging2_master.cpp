@@ -192,6 +192,7 @@ void Aging2Master::do_run_experiment(){
     LOG("[Aging2] Updates performed with " << parameters().m_num_threads << " threads in " << timer);
     m_results.m_completion_time = timer.microseconds();
     m_results.m_num_build_invocations = build_service.num_invocations();
+    m_results.m_num_levels_created = m_parameters.m_library->num_levels();
 }
 
 void Aging2Master::remove_vertices(){

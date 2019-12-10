@@ -106,6 +106,7 @@ uint64_t LLAMAClass::num_vertices() const {
 }
 
 uint64_t LLAMAClass::num_levels() const{
+    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
     return m_db->graph()->ro_graph().num_levels();
 }
 

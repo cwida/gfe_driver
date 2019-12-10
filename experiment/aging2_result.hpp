@@ -45,6 +45,7 @@ class Aging2Result {
     uint64_t m_num_edges_load = 0; // the number of edges loaded from the input graph
     uint64_t m_num_edges_final_graph = 0; // the number of edges in the final graph, after all updates have been performed
     uint64_t m_num_build_invocations = 0; // total number of invocations to the method #build
+    uint64_t m_num_levels_created = 0; // total number of levels/snapshots/deltas created in a LSM/delta based implementation
     uint64_t m_num_operations_total = 0; // total number of operations expected to be performed by the workers
     std::vector<uint64_t> m_reported_times; // time to complete 1x, 2x, 3x, ... updates (inserts/deletions) w.r.t. the size of the input graph, in microsecs
     uint64_t m_random_vertex_id = 0; // the ID of a random vertex stored in the graph

@@ -186,10 +186,12 @@ void InsertOnly::save() {
     db.add("insertion_time", m_time_insert); // microseconds
     db.add("build_time", m_time_build); // microseconds
     db.add("num_edges", m_stream->num_edges());
-    db.add("num_snapshots_created", m_num_build_invocations);
+    db.add("num_snapshots_created", m_interface->num_levels());
+    db.add("num_build_invocations", m_num_build_invocations);
     // missing revision: until 25/Nov/2019
     // version 20191125: build thread, build frequency taken into account, scheduler set to round_robin, removed batch updates
-    db.add("revision", "20191125");
+    // version 20191210: difference between num_build_invocations (explicit invocations to #build()) and num_snapshots_created (actual number of deltas created by the impl)
+    db.add("revision", "20191210");
 
     if(m_measure_latency) m_latencies.save("inserts");
 }

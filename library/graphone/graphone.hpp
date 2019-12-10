@@ -44,6 +44,7 @@ class GraphOne : public virtual UpdateInterface, public virtual GraphalyticsInte
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
     std::atomic<uint64_t> m_num_vertices { 0 }; // total number of vertices in the graph
     std::atomic<uint64_t> m_num_edges { 0 }; // total number of edges in the graph (not just those archived)
+    std::atomic<uint64_t> m_num_levels { 0 }; // record the number of the deltas/level/snapshots created
     struct PaddedLock { // to avoid false sharing
         common::SpinLock m_lock;
         uint64_t padding[7];
@@ -181,6 +182,11 @@ public:
      * Flush all vertices from the buffer into the read-only adjacency lists
      */
     virtual void build();
+
+    /**
+     * Retrieve the total number of delta passes ("archiving") performed since this instance has been created
+     */
+    virtual uint64_t num_levels() const;
 
     /**
      * Perform a BFS from source_vertex_id to all the other vertices in the graph.

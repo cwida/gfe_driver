@@ -50,7 +50,8 @@ void Aging2Result::save(common::Database* handle) {
     db.add("num_vertices_final", m_num_vertices_final_graph);
     db.add("num_edges_load", m_num_edges_load);
     db.add("num_edges_final", m_num_edges_final_graph);
-    db.add("num_snapshots_created", m_num_build_invocations);
+    db.add("num_build_invocations", m_num_build_invocations);
+    db.add("num_snapshots_created", m_num_levels_created);
     db.add("completion_time", m_completion_time); // microseconds
 
     for(int i = 0, sz = m_reported_times.size(); i < sz; i++){
