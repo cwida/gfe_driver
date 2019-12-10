@@ -75,7 +75,7 @@ Aging2Master::Aging2Master(const Aging2Experiment& parameters) :
     m_results.m_num_operations_total = stoull(properties["internal.edges.cardinality"]);
 
     // 1024 is a hack to avoid issues with small graphs
-    m_reported_times = new uint64_t[static_cast<uint64_t>( ::ceil( static_cast<double>(num_operations_total())/num_edges_final_graph())  + 1 )]();
+    m_reported_times = new uint64_t[static_cast<uint64_t>( m_parameters.m_num_reports_per_operations * ::ceil( static_cast<double>(num_operations_total())/num_edges_final_graph()) + 1 )]();
 
     m_parameters.m_library->on_main_init(m_parameters.m_num_threads + /* this + builder service */ 2);
 

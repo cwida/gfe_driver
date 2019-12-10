@@ -79,6 +79,11 @@ void Aging2Experiment::set_report_progress(bool value){
     m_report_progress = value;
 }
 
+void Aging2Experiment::set_num_reports_per_ops(uint64_t value){
+    if(value <= 0){ INVALID_ARGUMENT("The value specified must be >= 1, given: " << value); }
+    m_num_reports_per_operations = value;
+}
+
 void Aging2Experiment::set_measure_latency(bool value){
     m_measure_latency = value;
 }

@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cctype> // tolower
+#include <cmath>
 #include <cstdlib>
 #include <random>
 #include <sstream>
@@ -94,13 +95,14 @@ void Configuration::initialiase(int argc, char* argv[]){
 
     options.add_options("Generic")
         ("a, aging", "The number of additional updates for the aging experiment to perform", value<double>()->default_value("0"))
+        ("aging_step_size", "The step of each recording for the measured progress in the Aging2 experiment. Valid values are 0.1, 0.25, 0.5 and 1.0", value<double>()->default_value("1"))
         ("build_frequency", "The frequency to build a new snapshot in the aging experiment (default: disabled)", value<DurationQuantity>())
         ("d, database", "Store the current configuration value into the a sqlite3 database at the given location", value<string>())
         ("efe", "Expansion factor for the edges in the graph", value<double>()->default_value(to_string(get_ef_edges())))
         ("efv", "Expansion factor for the vertices in the graph", value<double>()->default_value(to_string(get_ef_vertices())))
         ("G, graph", "The path to the graph to load", value<string>())
         ("h, help", "Show this help menu")
-        ("latency", "Measure the latency of updates, report the median, std. dev. and 90/95/97/99 percentiles")
+        ("latency", "Measure the latency of inserts/updates, report the average, median, std. dev. and 90/95/97/99 percentiles")
         ("l, library", libraries_help_screen(), value<string>())
         ("log", "Repeat the log of updates specified in the given file", value<string>())
         ("max_weight", "The maximum weight that can be assigned when reading non weighted graphs", value<double>()->default_value(to_string(max_weight())))
@@ -224,6 +226,10 @@ void Configuration::initialiase(int argc, char* argv[]){
             set_num_threads_omp( result["omp"].as<int>() );
         }
 
+        if ( result["aging_step_size"].count() > 0 ){
+            set_aging_step_size( result["aging_step_size"].as<double>() );
+        }
+
         m_measure_latency = result["latency"].count() > 0;
 
     } catch ( argument_incorrect_type& e){
@@ -308,6 +314,24 @@ void Configuration::set_build_frequency( uint64_t millisecs ){
     m_build_frequency = millisecs;
 }
 
+void Configuration::set_aging_step_size( double value ){
+    if(value <= 0 || value > 1){
+        ERROR("Invalid value for the aging step size. It must be in (0, 1]. Value given: " << value);
+    }
+    if ( ::ceil(1.0/value) != ::floor(1.0/value) ){
+        ERROR("Value for the step size currently not supported: " << value << ". Expected a value such as 1/(step size) is an integer");
+    }
+    m_step_size_recordings = value;
+}
+
+uint64_t Configuration::get_num_recordings_per_ops() const {
+    double step_size = get_aging_step_size();
+    if ( ::ceil(1.0/step_size) != ::floor(1.0/step_size) ){
+        ERROR("Value for the step size currently not supported: " << step_size << ". Expected a value such as 1/(step size) is an integer");
+    }
+    return 1.0/step_size;
+}
+
 int Configuration::num_threads(ThreadsType type) const {
     switch(type){
     case THREADS_READ:
@@ -346,6 +370,7 @@ void Configuration::save_parameters() {
     params.push_back(P("max_weight", to_string(max_weight())));
     params.push_back(P{"seed", to_string(seed())});
     params.push_back(P{"aging", to_string(coefficient_aging())});
+    params.push_back(P{"aging_step_size", to_string(get_aging_step_size())});
     params.push_back(P{"build_frequency", to_string(get_build_frequency())}); // milliseconds
     params.push_back(P{"ef_edges", to_string(get_ef_edges())});
     params.push_back(P{"ef_vertices", to_string(get_ef_vertices())});

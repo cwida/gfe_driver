@@ -200,6 +200,8 @@ void Aging2Worker::main_thread(){
 void Aging2Worker::main_execute_updates(){
     const int64_t num_total_ops = m_master.num_operations_total();
     const bool report_progress = m_master.parameters().m_report_progress;
+    // reports_per_ops only affects how often a report is saved in the db, not the report to the stdout
+    const double reports_per_ops = m_master.parameters().m_num_reports_per_operations;
     int lastset_coeff = 0;
 
     while( ! m_updates.empty() ){
@@ -222,7 +224,7 @@ void Aging2Worker::main_execute_updates(){
             }
 
             // report how long it took to perform 1x, 2x, ... updates w.r.t. to the size of the final graph
-            int aging_coeff = num_ops_done / m_master.num_edges_final_graph();
+            int aging_coeff = (static_cast<double>(num_ops_done) / m_master.num_edges_final_graph()) * reports_per_ops;
             if(aging_coeff > lastset_coeff){
                 if( m_master.m_last_time_reported.compare_exchange_strong(/* updates lastset_coeff */ lastset_coeff, aging_coeff) ){
                     uint64_t duration = chrono::duration_cast<chrono::microseconds>(chrono::steady_clock::now() - m_master.m_time_start ).count();

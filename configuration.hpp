@@ -74,11 +74,13 @@ class Configuration {
     int m_num_threads_write { 1 }; // number of threads to use for the write (insert/update/delete) operations
     std::string m_path_graph_to_load; // the file must be accessible to the server
     uint64_t m_seed = 5051789ull; // random seed, used in various places in the experiments
+    double m_step_size_recordings { 1.0 }; // in the aging2 experiment, how often to record the progress done in the db. It must be a value in (0, 1].
     uint64_t m_timeout_seconds { 3600 }; // max time to complete an operation, in seconds (0 => indefinite)
     std::string m_update_log; // aging experiment through the log file
     std::unique_ptr<library::Interface> (*m_library_factory)(bool directed) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
     bool m_validate_output = false; // whether to validate the execution results of the Graphalytics algorithms
 
+    void set_aging_step_size(double value); // The step in each recording in the progress for the Agin2 experiment. In (0, 1].
     void set_build_frequency(uint64_t millisecs);
     void set_coeff_aging(double value); // Set the coefficient for `aging', i.e. how many updates (insertions/deletions) to perform w.r.t. to the size of the loaded graph
     void set_ef_vertices(double value);
@@ -125,6 +127,12 @@ public:
 
     // Coefficient for the surplus of updates to perform (noise) w.r.t. the final graph  to load
     double coefficient_aging() const{ return m_coeff_aging; }
+
+    // The step of each recording in the progress for the Aging2 experiment
+    double get_aging_step_size() const { return m_step_size_recordings; }
+
+    // Number of recordings per operations, in the Aging experiment
+    uint64_t get_num_recordings_per_ops() const;
 
     // Measure the latency of update operations ?
     bool measure_latency() const { return m_measure_latency; }

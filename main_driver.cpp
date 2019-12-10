@@ -14,10 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-
-//#include <algorithm>
-//#include <cctype>
-//#include <cstdlib>
 #include <iostream>
 
 #include "common/error.hpp"
@@ -115,6 +111,7 @@ static void run_standalone(int argc, char* argv[]){
         experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
         experiment.set_max_weight(configuration().max_weight());
         experiment.set_measure_latency(configuration().measure_latency());
+        experiment.set_num_reports_per_ops(configuration().get_num_recordings_per_ops());
 
         auto result = experiment.execute();
         if(configuration().has_database()) result.save(configuration().db());
