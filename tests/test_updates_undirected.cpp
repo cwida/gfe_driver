@@ -318,7 +318,7 @@ TEST(GraphOne, UpdatesUndirected){
     parallel_check = true; // global, check the weights in parallel
     parallel_vertex_deletions = false; // global, disable vertex deletions
 
-    auto graphone = make_shared<GraphOne>(/* directed ? */ false, /* vtx dict ? */ true, /* blind writes ? */ false, 1ull << 24);
+    auto graphone = make_shared<GraphOne>(/* directed ? */ false, /* vtx dict ? */ true, /* blind writes ? */ false, /* ignore build = */ false, 1ull << 24);
     sequential(graphone, true, 16);
     parallel(graphone, 32);
 

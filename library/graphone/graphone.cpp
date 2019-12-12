@@ -68,8 +68,8 @@ namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
 
 namespace gfe::library {
 
-GraphOne::GraphOne(bool is_graph_directed, bool use_vertex2id_mapping, bool blind_writes, uint64_t max_num_vertices) :
-        m_is_directed(is_graph_directed), m_translate_vertex_ids(use_vertex2id_mapping), m_blind_writes(blind_writes){
+GraphOne::GraphOne(bool is_graph_directed, bool use_vertex2id_mapping, bool blind_writes, bool ignore_build, uint64_t max_num_vertices) :
+        m_is_directed(is_graph_directed), m_translate_vertex_ids(use_vertex2id_mapping), m_blind_writes(blind_writes), m_ignore_build(ignore_build) {
     if(g != nullptr) ERROR("An instance of GraphOne has already been created");
 
     // The graph instance is a global ...
@@ -448,6 +448,7 @@ void GraphOne::do_update(bool is_insert, uint64_t v0, uint64_t v1, double weight
 
 void GraphOne::build(){
     COUT_DEBUG("Build");
+    if(m_ignore_build) return; // nop
     g->waitfor_archive();
     m_num_levels++;
 }

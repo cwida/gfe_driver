@@ -41,6 +41,7 @@ class GraphOne : public virtual UpdateInterface, public virtual GraphalyticsInte
     const bool m_is_directed; // whether the underlying graph is directed or undirected
     const bool m_translate_vertex_ids; // whether to use the mapping from external to internal for the vertex identifiers
     const bool m_blind_writes; // whether we check the presence of prior existing elements before performing an insertion
+    const bool m_ignore_build; // whether to ignore invocations to the method #build()
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
     std::atomic<uint64_t> m_num_vertices { 0 }; // total number of vertices in the graph
     std::atomic<uint64_t> m_num_edges { 0 }; // total number of edges in the graph (not just those archived)
@@ -53,10 +54,7 @@ class GraphOne : public virtual UpdateInterface, public virtual GraphalyticsInte
     uint64_t m_num_edge_locks { 0 }; // the size of the array m_edge_locks;
     PaddedLock* m_edge_locks { nullptr }; // battery of lock, used for the edge updates, when blink_writes is disabled
 
-    // This is an optimisation. The implementation of #get_weight() is rather slow if it has to create a static view every time
-    // it is invoked. We keep a cache of the last static view created
-//    void* m_ptr_static_view_cached { nullptr }; // check whether the last created static view
-//    std::atomic<bool> m_static_view_is_valid = false; // whether the last created static view is still valid
+
 
     // Insert/remove an edge into GraphOne. The weight is ignored if the operation is a deletion
     void do_update(bool is_insert, uint64_t logical_source_id, uint64_t logical_destination_id, double weight = 0.0);
@@ -79,7 +77,6 @@ class GraphOne : public virtual UpdateInterface, public virtual GraphalyticsInte
     uint64_t vtx_ext2int(uint64_t external_vertex_id) const;
 
 public:
-
     /**
      * Create an instance of the wrapper for GraphOne
      * @param is_graph_directed: whether the underlying graph should be directed or undirected
@@ -92,12 +89,17 @@ public:
      *        writes assumes that all edge insertions and deletions are correct, i.e. always refer to non existing or existing edges
      *        respectively, and the methods #add_edge and #remove_add always report success, unless the related vertices do not
      *        exist.
+     * @param ignore_build: if true, it turns the method #build() into a nop. In GraphOne, new levels/snapshots/deltas are automatically
+     *        created in the background. On the other hand, asking for a new delta to be explicitly created, by invoking the method
+     *        build, it simply waits (in idle) for the next delta to be ready. Moreover, we can always retrieve the data from both
+     *        the read store and the dynamic deltas, which is what the current implementation of the Graphalytics algorithms does.
+     *        Therefore, even disabling the method #build() is expected to yield correct results for the experiments.
      * @param max_num_vertices: in GraphOne the array of vertices must be statically allocated in advance, with a fixed size.
      *        In a server environment, we set the capacity to 4G (= 2^32). For a workstation, this value is too high and does
      *        not enable creating an instance for testing purposes. This parameter allows to explicitly set the capacity of
      *        the vertex array.
      */
-    GraphOne(bool is_graph_directed, bool use_vertex2id_mapping, bool blind_writes, uint64_t max_num_vertices);
+    GraphOne(bool is_graph_directed, bool use_vertex2id_mapping, bool blind_writes, bool ignore_build, uint64_t max_num_vertices);
 
     /**
      * Destructor (dummy)

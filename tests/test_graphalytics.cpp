@@ -213,13 +213,13 @@ TEST(Stinger, GraphalyticsUndirected){
 
 #if defined(HAVE_GRAPHONE)
 TEST(GraphOne, GraphalyticsDirected){
-    auto graph = make_unique<GraphOne>(/* directed */ true, /* vertex dictionary */ true, /* blind writes */ true, /* max num vertices */ 32);
+    auto graph = make_unique<GraphOne>(/* directed */ true, /* vertex dictionary */ true, /* blind writes */ true, /* ignore build = */ false, /* max num vertices */ 32);
     load_graph(graph.get(), path_example_directed);
     validate(graph.get(), path_example_directed);
 }
 
 TEST(GraphOne, GraphalyticsUndirected){
-    auto graph = make_unique<GraphOne>(/* directed */ false, /* vertex dictionary */ true, /* blind writes */ true, /* max num vertices */ 32);
+    auto graph = make_unique<GraphOne>(/* directed */ false, /* vertex dictionary */ true, /* blind writes */ true, /* ignore build = */ false,  /* max num vertices */ 32);
     load_graph(graph.get(), path_example_undirected);
     validate(graph.get(), path_example_undirected);
 }

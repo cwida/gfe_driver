@@ -72,7 +72,7 @@ using namespace std;
  */
 TEST(GraphOne, PageRank) {
     LLAMAClass llama { /* directed = */ false };
-    GraphOne graphone { /* directed = */ false, /* vertex dict = */ true, /* blind writes = */ true, /* num vertices */ 64 * 1024 * 1024 };
+    GraphOne graphone { /* directed = */ false, /* vertex dict = */ true, /* blind writes = */ true, /* ignore build = */ false, /* num vertices */ 64 * 1024 * 1024 };
     uint64_t num_vertices = 128;
 
     LOG("Init stream");
@@ -115,7 +115,7 @@ TEST(GraphOne, PageRank) {
 #endif
 
 TEST(GraphOne, ConcurrentUpdates) {
-    GraphOne graphone { /* directed = */ false, /* vertex dict = */ true, /* blind writes = */ true, /* num vertices */ 64 * 1024 * 1024 };
+    GraphOne graphone { /* directed = */ false, /* vertex dict = */ true, /* blind writes = */ true, /* ignore build = */ false, /* num vertices */ 64 * 1024 * 1024 };
     uint64_t num_vertices = 1<<14;
     uint64_t num_threads = 8;
 

@@ -116,21 +116,28 @@ static uint64_t graphone_max_num_vertices(){
 
 std::unique_ptr<Interface> generate_graphone_cons_sp(bool directed_graph){
     uint64_t N = graphone_max_num_vertices();
-    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ false, N) };
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ false, /* ignore build ? */ false, N) };
 }
 std::unique_ptr<Interface> generate_graphone_cons_dv(bool directed_graph){
     uint64_t N = graphone_max_num_vertices();
-    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ false, /* blind writes ? */ false, N) };
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ false, /* blind writes ? */ false, /* ignore build ? */ false, N) };
 }
 std::unique_ptr<Interface> generate_graphone_bw_sp(bool directed_graph){
     uint64_t N = graphone_max_num_vertices();
-    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ true, N) };
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ true, /* ignore build ? */ false, N) };
 }
 std::unique_ptr<Interface> generate_graphone_bw_dv(bool directed_graph){
     uint64_t N = graphone_max_num_vertices();
-    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ false, /* blind writes ? */ true, N) };
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ false, /* blind writes ? */ true, /* ignore build ? */ false, N) };
 }
-
+std::unique_ptr<Interface> generate_graphone_bw_sp_ignore_build(bool directed_graph){
+    uint64_t N = graphone_max_num_vertices();
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ true, /* ignore build ? */ true, N) };
+}
+std::unique_ptr<Interface> generate_graphone_bw_dv_ignore_build(bool directed_graph){
+    uint64_t N = graphone_max_num_vertices();
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ false, /* blind writes ? */ true, /* ignore build ? */ true, N) };
+}
 #endif
 
 vector<ImplementationManifest> implementations() {
@@ -154,7 +161,9 @@ vector<ImplementationManifest> implementations() {
     result.emplace_back("g1-cons-sp", "GraphOne, consistency for updates, sparse vertices (vertex dictionary)", &generate_graphone_cons_sp);
     result.emplace_back("g1-cons-dv", "GraphOne, consistency for updates, dense vertices", &generate_graphone_cons_dv);
     result.emplace_back("g1-bw-sp", "GraphOne, blind writes, sparse vertices (vertex dictionary)", &generate_graphone_bw_sp);
-    result.emplace_back("g1-bw-dv2", "GraphOne, blind writes, dense vertices", &generate_graphone_bw_dv);
+    result.emplace_back("g1-bw-dv", "GraphOne, blind writes, dense vertices", &generate_graphone_bw_dv);
+    result.emplace_back("g1-bw-sp-ignore-build", "GraphOne, blind writes, sparse vertices (vertex dictionary), new deltas/levels cannot be explicitly created", &generate_graphone_bw_sp_ignore_build);
+    result.emplace_back("g1-bw-dv-ignore-build", "GraphOne, blind writes, dense vertices, new deltas/levels cannot be explicitly created", &generate_graphone_bw_dv_ignore_build);
 #endif
 
     return result;
