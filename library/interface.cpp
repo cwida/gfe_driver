@@ -154,7 +154,7 @@ vector<ImplementationManifest> implementations() {
     result.emplace_back("g1-cons-sp", "GraphOne, consistency for updates, sparse vertices (vertex dictionary)", &generate_graphone_cons_sp);
     result.emplace_back("g1-cons-dv", "GraphOne, consistency for updates, dense vertices", &generate_graphone_cons_dv);
     result.emplace_back("g1-bw-sp", "GraphOne, blind writes, sparse vertices (vertex dictionary)", &generate_graphone_bw_sp);
-    result.emplace_back("g1-bw-dv", "GraphOne, blind writes, dense vertices", &generate_graphone_bw_dv);
+    result.emplace_back("g1-bw-dv2", "GraphOne, blind writes, dense vertices", &generate_graphone_bw_dv);
 #endif
 
     return result;
