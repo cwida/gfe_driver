@@ -68,7 +68,7 @@ class Configuration {
     std::string m_library_name; // the library to test
     double m_max_weight { 1.0 }; // the maximum weight that can be assigned when reading non weighted graphs
     bool m_measure_latency = false; // whether to measure the latency of the update operations (insert/deletion).
-    uint64_t m_num_repetitions { 5 }; // when applicable, how many times the same experiment should be repeated
+    uint64_t m_num_repetitions { 0 }; // when applicable, how many times the same experiment should be repeated
     int m_num_threads_omp { 0 }; // if different than 0, the max number of threads used by OpenMP
     int m_num_threads_read { 1 }; // number of threads to use for the read operations
     int m_num_threads_write { 1 }; // number of threads to use for the write (insert/update/delete) operations
