@@ -100,7 +100,7 @@ GraphOne::GraphOne(bool is_graph_directed, bool use_vertex2id_mapping, bool blin
     g->create_threads(/* archiving */ true, /* logging */ false); // background threads, to create the snapshots and logging to disk
 
     // edge locks, to ensure consistency when performing an update
-    if(use_vertex2id_mapping){
+    if(use_vertex2id_mapping || !blind_writes){
         m_num_edge_locks = 64; // arbitrary value
         static_assert(sizeof(PaddedLock) == 64, "Expected to match the size of a cache line");
         m_edge_locks = new PaddedLock[ m_num_edge_locks ]();
