@@ -146,7 +146,7 @@ namespace gfe::library {
  *                                                                           *
  *****************************************************************************/
 
-LLAMA_DV::LLAMA_DV(bool is_directed) : m_is_directed(is_directed) {
+LLAMA_DV::LLAMA_DV(bool is_directed, bool blind_writes) : m_is_directed(is_directed), m_blind_writes(blind_writes) {
     m_db = new ll_database();
 
     auto& csr = m_db->graph()->ro_graph();
@@ -253,11 +253,21 @@ bool LLAMA_DV::add_edge(graph::WeightedEdge e){
         std::swap(source, destination);
     }
 
-    // blind write, assume that an edge source -> destination does not already exist
-    edge_t edge_id = m_db->graph()->add_edge(source, destination);
-    m_db->graph()->get_edge_property_64(g_llama_property_weights)->add(edge_id, *reinterpret_cast<uint64_t*>(&(e.m_weight)));
+    edge_t edge_id;
+    bool inserted = true;
 
-    return true;
+    if(m_blind_writes){ // blind write, assume that an edge source -> destination does not already exist
+        edge_id = m_db->graph()->add_edge(source, destination);
+    } else {
+        inserted = m_db->graph()->add_edge_if_not_exists(source, destination, &edge_id);
+    }
+
+    // thread unsafe, this should really still be under the same latch of add_edge_if_not_exists
+    if(inserted){
+        m_db->graph()->get_edge_property_64(g_llama_property_weights)->set(edge_id, *reinterpret_cast<uint64_t*>(&(e.m_weight)));
+    }
+
+    return inserted;
 }
 
 bool LLAMA_DV::remove_edge(graph::Edge e){
@@ -275,7 +285,6 @@ bool LLAMA_DV::remove_edge(graph::Edge e){
      * sequence m_db->graph()->delete_edge( source, m_db->graph()->find(source, destination) ) is not thread safe, it
      * would still demand a lock to be correct. Therefore use m_db->graph()->delete_edge_if_exists(...)
      */
-
     return m_db->graph()->delete_edge_if_exists(source, destination);
 }
 

@@ -41,6 +41,7 @@ class LLAMA_DV : public virtual UpdateInterface, public virtual GraphalyticsInte
     LLAMA_DV& operator=(const LLAMA_DV&) = delete;
 
     const bool m_is_directed; // is the graph directed
+    const bool m_blind_writes; // blind writes ?
     ll_database* m_db { nullptr }; // handle to the llama implementation
     uint64_t m_num_edges { 0 }; // the current number of edges contained in the read-only store
     mutable std::shared_mutex m_lock_checkpoint; // invoking #build(), that is creating a new snapshot, must be done without any other interference from other writers
@@ -75,7 +76,7 @@ public:
      * Constructor
      * @param is_directed true if the underlying graph is directed, false otherwise
      */
-    LLAMA_DV(bool is_directed);
+    LLAMA_DV(bool is_directed, bool blind_writes = true);
 
     /**
      * Destructor

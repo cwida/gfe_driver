@@ -86,6 +86,9 @@ std::unique_ptr<Interface> generate_llama(bool directed_graph){
 std::unique_ptr<Interface> generate_llama_dv(bool directed_graph){
     return unique_ptr<Interface>{ new LLAMA_DV(directed_graph) };
 }
+std::unique_ptr<Interface> generate_llama_dv_nobw(bool directed_graph){
+    return unique_ptr<Interface>{ new LLAMA_DV(directed_graph, /* blind writes */ false) };
+}
 #endif
 
 #if defined(HAVE_STINGER)
@@ -150,6 +153,7 @@ vector<ImplementationManifest> implementations() {
     // v2 25/11/2019: better scalability for the llama dictionary
     result.emplace_back("llama2", "LLAMA library", &generate_llama);
     result.emplace_back("llama-dv", "LLAMA with dense vertices", &generate_llama_dv);
+    result.emplace_back("llama-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
 #endif
 
 #if defined(HAVE_STINGER)
