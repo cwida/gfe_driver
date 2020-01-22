@@ -34,6 +34,7 @@
 #include "baseline/dummy.hpp"
 #if defined(HAVE_LLAMA)
 #include "llama/llama_class.hpp"
+#include "llama/llama_ref.hpp"
 #include "llama-dv/llama-dv.hpp"
 #endif
 #include "reader/reader.hpp"
@@ -89,6 +90,9 @@ std::unique_ptr<Interface> generate_llama_dv(bool directed_graph){
 std::unique_ptr<Interface> generate_llama_dv_nobw(bool directed_graph){
     return unique_ptr<Interface>{ new LLAMA_DV(directed_graph, /* blind writes */ false) };
 }
+std::unique_ptr<Interface> generate_llama_ref(bool directed_graph){
+    return unique_ptr<Interface>{ new LLAMARef(directed_graph) };
+}
 #endif
 
 #if defined(HAVE_STINGER)
@@ -97,6 +101,9 @@ std::unique_ptr<Interface> generate_stinger(bool directed_graph){
 }
 std::unique_ptr<Interface> generate_stinger_dv(bool directed_graph){
     return unique_ptr<Interface>{ new StingerDV(directed_graph) };
+}
+std::unique_ptr<Interface> generate_stinger_ref(bool directed_graph){
+    return unique_ptr<Interface>{ new StingerRef(directed_graph) };
 }
 #endif
 
@@ -119,27 +126,35 @@ static uint64_t graphone_max_num_vertices(){
 
 std::unique_ptr<Interface> generate_graphone_cons_sp(bool directed_graph){
     uint64_t N = graphone_max_num_vertices();
-    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ false, /* ignore build ? */ false, N) };
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ false, /* ignore build ? */ false, /* ref impl ? */ false, N) };
 }
 std::unique_ptr<Interface> generate_graphone_cons_dv(bool directed_graph){
     uint64_t N = graphone_max_num_vertices();
-    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ false, /* blind writes ? */ false, /* ignore build ? */ false, N) };
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ false, /* blind writes ? */ false, /* ignore build ? */ false, /* ref impl ? */ false, N) };
 }
 std::unique_ptr<Interface> generate_graphone_bw_sp(bool directed_graph){
     uint64_t N = graphone_max_num_vertices();
-    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ true, /* ignore build ? */ false, N) };
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ true, /* ignore build ? */ false, /* ref impl ? */ false,  N) };
 }
 std::unique_ptr<Interface> generate_graphone_bw_dv(bool directed_graph){
     uint64_t N = graphone_max_num_vertices();
-    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ false, /* blind writes ? */ true, /* ignore build ? */ false, N) };
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ false, /* blind writes ? */ true, /* ignore build ? */ false, /* ref impl ? */ false, N) };
 }
 std::unique_ptr<Interface> generate_graphone_bw_sp_ignore_build(bool directed_graph){
     uint64_t N = graphone_max_num_vertices();
-    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ true, /* ignore build ? */ true, N) };
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ true, /* ignore build ? */ true, /* ref impl ? */ false, N) };
 }
 std::unique_ptr<Interface> generate_graphone_bw_dv_ignore_build(bool directed_graph){
     uint64_t N = graphone_max_num_vertices();
-    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ false, /* blind writes ? */ true, /* ignore build ? */ true, N) };
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ false, /* blind writes ? */ true, /* ignore build ? */ true, /* ref impl ? */ false, N) };
+}
+std::unique_ptr<Interface> generate_graphone_ref(bool directed_graph){
+    uint64_t N = graphone_max_num_vertices();
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ true, /* ignore build ? */ false, /* ref impl ? */ true, N) };
+}
+std::unique_ptr<Interface> generate_graphone_ref_ignore_build(bool directed_graph){
+    uint64_t N = graphone_max_num_vertices();
+    return unique_ptr<Interface>{ new GraphOne(directed_graph, /* vtx dict ? */ true, /* blind writes ? */ true, /* ignore build ? */ true, /* ref impl ? */ true, N) };
 }
 #endif
 
@@ -154,11 +169,13 @@ vector<ImplementationManifest> implementations() {
     result.emplace_back("llama2", "LLAMA library", &generate_llama);
     result.emplace_back("llama-dv", "LLAMA with dense vertices", &generate_llama_dv);
     result.emplace_back("llama-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
+    result.emplace_back("llama-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
 #endif
 
 #if defined(HAVE_STINGER)
     result.emplace_back("stinger", "Stinger library", &generate_stinger);
     result.emplace_back("stinger-dv", "Stinger with dense vertices", &generate_stinger_dv);
+    result.emplace_back("stinger-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
 #endif
 
 #if defined(HAVE_GRAPHONE)
@@ -168,6 +185,8 @@ vector<ImplementationManifest> implementations() {
     result.emplace_back("g1-bw-dv", "GraphOne, blind writes, dense vertices", &generate_graphone_bw_dv);
     result.emplace_back("g1-bw-sp-ignore-build", "GraphOne, blind writes, sparse vertices (vertex dictionary), new deltas/levels cannot be explicitly created", &generate_graphone_bw_sp_ignore_build);
     result.emplace_back("g1-bw-dv-ignore-build", "GraphOne, blind writes, dense vertices, new deltas/levels cannot be explicitly created", &generate_graphone_bw_dv_ignore_build);
+    result.emplace_back("g1-ref", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref);
+    result.emplace_back("g1-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
 #endif
 
     return result;

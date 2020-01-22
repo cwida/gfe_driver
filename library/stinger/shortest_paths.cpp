@@ -108,24 +108,23 @@ static std::vector<double> a_star(stinger_t * S, int64_t NV, int64_t source_vert
         //we found our goal!
         if (current.vertex == dest_vertex) break;
 
-        STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(S, current.vertex)
-                                {
-                                    //for all the neighbors of the current vertex
-                                    double new_cost;
-                                    if (ignore_weights){
-                                        new_cost = cost_so_far[current.vertex] + 1; // disregard the weights, instead count paths
-                                    } else{
-                                        new_cost = cost_so_far[current.vertex] + INT2DBL(STINGER_EDGE_WEIGHT);
-                                    }
+        STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(S, current.vertex) {
+            //for all the neighbors of the current vertex
+            double new_cost;
+            if (ignore_weights){
+                new_cost = cost_so_far[current.vertex] + 1; // disregard the weights, instead count paths
+            } else{
+                new_cost = cost_so_far[current.vertex] + INT2DBL(STINGER_EDGE_WEIGHT);
+            }
 
-                                    if (new_cost < cost_so_far[STINGER_EDGE_DEST] || cost_so_far[STINGER_EDGE_DEST] == std::numeric_limits<double>::max()) {
-                                        cost_so_far[STINGER_EDGE_DEST] = new_cost;
-                                        weighted_vertex_t next;
-                                        next.vertex = STINGER_EDGE_DEST;
-                                        next.cost = new_cost;
-                                        frontier.push(next);
-                                    }
-                                }
+            if (new_cost < cost_so_far[STINGER_EDGE_DEST] || cost_so_far[STINGER_EDGE_DEST] == std::numeric_limits<double>::max()) {
+                cost_so_far[STINGER_EDGE_DEST] = new_cost;
+                weighted_vertex_t next;
+                next.vertex = STINGER_EDGE_DEST;
+                next.cost = new_cost;
+                frontier.push(next);
+            }
+        }
         STINGER_FORALL_OUT_EDGES_OF_VTX_END();
     }
 

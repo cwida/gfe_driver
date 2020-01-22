@@ -58,7 +58,7 @@ static std::unique_ptr<gfe::graph::WeightedEdgeStream> generate_edge_stream(uint
     return make_unique<gfe::graph::WeightedEdgeStream>(edges);
 }
 
-static void sequential(shared_ptr<UpdateInterface> interface, bool deletions = true, uint64_t num_vertices = 1024) {
+static void sequential(shared_ptr<UpdateInterface> interface, bool edge_deletions = true, bool vertex_deletions = true, uint64_t num_vertices = 1024) {
     interface->on_main_init(1);
     interface->on_thread_init(0);
 
@@ -100,7 +100,7 @@ static void sequential(shared_ptr<UpdateInterface> interface, bool deletions = t
         }
     }
 
-    if(deletions){ // remove all edges from the graph
+    if(edge_deletions){ // remove all edges from the graph
         edge_list->permute(gfe::configuration().seed() + 99942341);
         for(uint64_t i =0, sz = edge_list->num_edges(); i < sz; i++){
             auto edge = edge_list->get(i).edge();
@@ -121,6 +121,15 @@ static void sequential(shared_ptr<UpdateInterface> interface, bool deletions = t
                 ASSERT_FALSE(interface->has_edge(i, j));
                 ASSERT_FALSE(interface->has_edge(j, i));
             }
+        }
+
+        // remove all vertices
+        if(vertex_deletions){
+            for(uint64_t vertex_id = 1; vertex_id <= edge_list->max_vertex_id(); vertex_id++){
+                interface->remove_vertex(vertex_id);
+            }
+            interface->build(); // flush all changes
+            ASSERT_EQ(interface->num_vertices(), 0);
         }
     }
 
@@ -318,8 +327,8 @@ TEST(GraphOne, UpdatesUndirected){
     parallel_check = true; // global, check the weights in parallel
     parallel_vertex_deletions = false; // global, disable vertex deletions
 
-    auto graphone = make_shared<GraphOne>(/* directed ? */ false, /* vtx dict ? */ true, /* blind writes ? */ false, /* ignore build = */ false, 1ull << 24);
-    sequential(graphone, true, 16);
+    auto graphone = make_shared<GraphOne>(/* directed ? */ false, /* vtx dict ? */ true, /* blind writes ? */ false, /* ignore build = */ false, /* GAP impl ? */ false, 1ull << 24);
+    sequential(graphone, true, false, 16);
     parallel(graphone, 32);
 
     parallel_check = false; // global, reset to the default value

@@ -21,15 +21,18 @@
 #include <iostream>
 #include <random>
 #include <string>
+#include <unordered_set>
 
 #include "common/error.hpp"
 #include "common/filesystem.hpp"
+#include "common/permutation.hpp"
 #include "configuration.hpp"
 #include "experiment/aging.hpp"
 #include "graph/edge_stream.hpp"
 #include "library/baseline/adjacency_list.hpp"
 #if defined(HAVE_LLAMA)
 #include "library/llama/llama_class.hpp"
+#include "library/llama/llama_ref.hpp"
 #endif
 #if defined(HAVE_STINGER)
 #include "library/stinger/stinger.hpp"
@@ -195,6 +198,75 @@ TEST(LLAMA, GraphalyticsUndirected){
     load_graph(graph.get(), path_example_undirected);
     validate(graph.get(), path_example_undirected);
 }
+
+TEST(LLAMARef, GraphalyticsDirected){
+    auto graph = make_unique<LLAMARef>(/* directed */ true);
+    load_graph(graph.get(), path_example_directed);
+    validate(graph.get(), path_example_directed);
+}
+
+TEST(LLAMARef, GraphalyticsUndirected){
+    auto graph = make_unique<LLAMARef>(/* directed */ false);
+    load_graph(graph.get(), path_example_undirected);
+    validate(graph.get(), path_example_undirected);
+}
+
+#if defined(HAVE_STINGER)
+TEST(LLAMARef, GraphalyticsCompareWCCWithStinger){
+    auto stinger_ref = make_unique<StingerRef>(/* directed */ false);
+    auto llama_ref = make_unique<LLAMARef>(/* directed */ false);
+
+    // generate a random vertex stream
+    const uint64_t max_vertex_id = 1600000;
+    vector<gfe::graph::WeightedEdge> edges;
+    for(uint64_t i = 10; i < max_vertex_id; i+=10){
+        for(uint64_t j = i +10; j < std::min(max_vertex_id, i + 50); j+=10){
+            edges.push_back(gfe::graph::WeightedEdge{i, j, static_cast<double>(j * 1000 + i)});
+        }
+    }
+    gfe::graph::WeightedEdgeStream stream(edges);
+    stream.permute();
+
+    unordered_set<uint64_t> existing_vertices;
+    auto insert_vertex = [&existing_vertices, &llama_ref, &stinger_ref](uint64_t vertex){
+        if(existing_vertices.count(vertex) == 0){
+            llama_ref->add_vertex(vertex);
+            stinger_ref->add_vertex(vertex);
+            existing_vertices.insert(vertex);
+        }
+    };
+
+    LOG("Insert " << stream.num_edges() << " edges ...");
+    for(uint64_t i = 0; i < stream.num_edges(); i++){
+        insert_vertex(stream[i].m_source);
+        insert_vertex(stream[i].m_destination);
+
+        llama_ref->add_edge(stream[i]);
+        stinger_ref->add_edge(stream[i]);
+
+        if(i == 1000) llama_ref->build(); // create multiple snapshots
+    }
+
+    llama_ref->build();
+
+    ASSERT_EQ(llama_ref->num_vertices(), stinger_ref->num_vertices());
+    ASSERT_EQ(llama_ref->num_edges(), stinger_ref->num_edges());
+
+    string path_result_stinger_ref = temp_file_path();
+    LOG("WCC StingerRef: " << path_result_stinger_ref);
+    stinger_ref->wcc(path_result_stinger_ref.c_str());
+
+    string path_result_llama_ref = temp_file_path();
+    LOG("WCC LLAMARef: " << path_result_llama_ref);
+    llama_ref->wcc(path_result_llama_ref.c_str());
+
+    LOG("Validate the result ...");
+    gfe::utility::GraphalyticsValidate::wcc(path_result_llama_ref, path_result_stinger_ref);
+    LOG("Validation succeeded");
+}
+
+#endif
+
 #endif
 
 #if defined(HAVE_STINGER)
@@ -209,17 +281,87 @@ TEST(Stinger, GraphalyticsUndirected){
     load_graph(graph.get(), path_example_undirected);
     validate(graph.get(), path_example_undirected);
 }
+
+TEST(StingerRef, GraphalyticsDirected){
+    auto graph = make_unique<StingerRef>(/* directed */ true);
+    load_graph(graph.get(), path_example_directed);
+    validate(graph.get(), path_example_directed);
+}
+
+TEST(StingerRef, GraphalyticsUndirected){
+    auto graph = make_unique<StingerRef>(/* directed */ false);
+    load_graph(graph.get(), path_example_undirected);
+    validate(graph.get(), path_example_undirected);
+}
+
+TEST(StingerRef, GraphalyticsCompareWithBaseline){
+    auto stinger_ref = make_unique<StingerRef>(/* directed */ false);
+    auto baseline = make_unique<AdjacencyList>(/* directed */ false);
+
+    // generate a random vertex stream
+    const uint64_t max_vertex_id = 1600;
+    vector<gfe::graph::WeightedEdge> edges;
+    for(uint64_t i = 10; i < max_vertex_id; i+=10){
+        for(uint64_t j = i +10; j < max_vertex_id; j+=10){
+            edges.push_back(gfe::graph::WeightedEdge{i, j, static_cast<double>(j * 1000 + i)});
+        }
+    }
+    gfe::graph::WeightedEdgeStream stream(edges);
+    stream.permute();
+
+    // insert the vertices in the libraries, one by one
+    LOG("Insert " << max_vertex_id / 10 << " vertices ...");
+    vector<int64_t> vertices;
+    for(uint64_t i = 10; i <= max_vertex_id; i+= 10){ vertices.push_back(i); }
+    unique_ptr<uint64_t[]> ptr_permutation { new uint64_t[vertices.size()] };
+    common::permute(ptr_permutation.get(), vertices.size(), 3);
+    for(uint64_t i = 0; i < vertices.size(); i++){
+        uint64_t vertex = vertices[ ptr_permutation[i] ];
+        baseline->add_vertex(vertex);
+        stinger_ref->add_vertex(vertex);
+    }
+
+    LOG("Insert " << stream.num_edges() << " edges ...");
+    for(uint64_t i = 0; i < stream.num_edges(); i++){
+        baseline->add_edge(stream[i]);
+        stinger_ref->add_edge(stream[i]);
+    }
+
+    ASSERT_EQ(baseline->num_vertices(), stinger_ref->num_vertices());
+    ASSERT_EQ(baseline->num_edges(), stinger_ref->num_edges());
+
+    uint64_t source_vertex = 10;
+
+    string path_result_baseline = temp_file_path();
+    LOG("BFS Baseline: " << path_result_baseline);
+    baseline->bfs(source_vertex, path_result_baseline.c_str());
+
+    string path_result_stinger_ref = temp_file_path();
+    LOG("BFS StingerRef: " << path_result_stinger_ref);
+    stinger_ref->bfs(source_vertex, path_result_stinger_ref.c_str());
+
+    LOG("Validate the result ...");
+    gfe::utility::GraphalyticsValidate::bfs(path_result_stinger_ref, path_result_baseline);
+    LOG("Validation succeeded");
+}
+
 #endif
 
 #if defined(HAVE_GRAPHONE)
 TEST(GraphOne, GraphalyticsDirected){
-    auto graph = make_unique<GraphOne>(/* directed */ true, /* vertex dictionary */ true, /* blind writes */ true, /* ignore build = */ false, /* max num vertices */ 32);
+    auto graph = make_unique<GraphOne>(/* directed */ true, /* vertex dictionary */ true, /* blind writes */ true, /* ignore build = */ false, /* ref impl ? */ false, /* max num vertices */ 32);
     load_graph(graph.get(), path_example_directed);
     validate(graph.get(), path_example_directed);
 }
 
 TEST(GraphOne, GraphalyticsUndirected){
-    auto graph = make_unique<GraphOne>(/* directed */ false, /* vertex dictionary */ true, /* blind writes */ true, /* ignore build = */ false,  /* max num vertices */ 32);
+    auto graph = make_unique<GraphOne>(/* directed */ false, /* vertex dictionary */ true, /* blind writes */ true, /* ignore build = */ false, /* ref impl ? */ false, /* max num vertices */ 32);
+    load_graph(graph.get(), path_example_undirected);
+    validate(graph.get(), path_example_undirected);
+}
+
+TEST(GraphOneRef, GraphalyticsUndirected){
+    auto graph = make_unique<GraphOne>(/* directed */ false, /* vertex dictionary */ true, /* blind writes */ true, /* ignore build = */ false, /* ref impl ? */ true, /* max num vertices */ 32);
     load_graph(graph.get(), path_example_undirected);
     validate(graph.get(), path_example_undirected);
 }

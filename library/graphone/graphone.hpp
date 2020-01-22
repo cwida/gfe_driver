@@ -34,14 +34,15 @@ class GraphOne : public virtual UpdateInterface, public virtual GraphalyticsInte
     GraphOne(const GraphOne&) = delete;
     GraphOne& operator=(const GraphOne&) = delete;
 
-    // you might wonder where it the handle to the actual implementation? Well, it's a global
-    // variable, as mandated by the library, named g and defined in base.cpp.
+    // you might wonder where is the handle to the actual implementation? Well, it's a global
+    // variable, as mandated by the library, named g and defined in graphone.cpp.
     // ...
 
     const bool m_is_directed; // whether the underlying graph is directed or undirected
     const bool m_translate_vertex_ids; // whether to use the mapping from external to internal for the vertex identifiers
     const bool m_blind_writes; // whether we check the presence of prior existing elements before performing an insertion
     const bool m_ignore_build; // whether to ignore invocations to the method #build()
+    const bool m_ref_gapbs; // whether to use the variants from the GAP BS for the graphalytics algorithms
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
     std::atomic<uint64_t> m_num_vertices { 0 }; // total number of vertices in the graph
     std::atomic<uint64_t> m_num_edges { 0 }; // total number of edges in the graph (not just those archived)
@@ -53,8 +54,6 @@ class GraphOne : public virtual UpdateInterface, public virtual GraphalyticsInte
     common::SpinLock m_mutex_vtx; // mutex for the vertex dictionary
     uint64_t m_num_edge_locks { 0 }; // the size of the array m_edge_locks;
     PaddedLock* m_edge_locks { nullptr }; // battery of lock, used for the edge updates, when blink_writes is disabled
-
-
 
     // Insert/remove an edge into GraphOne. The weight is ignored if the operation is a deletion
     void do_update(bool is_insert, uint64_t logical_source_id, uint64_t logical_destination_id, double weight = 0.0);
@@ -76,6 +75,10 @@ class GraphOne : public virtual UpdateInterface, public virtual GraphalyticsInte
     // Given an external vertex ID, retrieve the internal (logical) vertex ID, or raise an exception if the mapping does not exist
     uint64_t vtx_ext2int(uint64_t external_vertex_id) const;
 
+    // BFS implementations
+    void bfs_native(uint64_t source_vertex_id, const char* dump2file = nullptr); // native
+    void bfs_gapbs(uint64_t source_vertex_id, const char* dump2file = nullptr); // GAP BS impl
+
 public:
     /**
      * Create an instance of the wrapper for GraphOne
@@ -94,12 +97,14 @@ public:
      *        build, it simply waits (in idle) for the next delta to be ready. Moreover, we can always retrieve the data from both
      *        the read store and the dynamic deltas, which is what the current implementation of the Graphalytics algorithms does.
      *        Therefore, even disabling the method #build() is expected to yield correct results for the experiments.
+     * @param ref_gapbs: if true, in the Graphalytics algorithms, reuse the adapted versions from the GAP BS suite, similarly to llama-ref
+     *        and stinger-ref. Otherwise, employ the native variants.
      * @param max_num_vertices: in GraphOne the array of vertices must be statically allocated in advance, with a fixed size.
      *        In a server environment, we set the capacity to 4G (= 2^32). For a workstation, this value is too high and does
      *        not enable creating an instance for testing purposes. This parameter allows to explicitly set the capacity of
      *        the vertex array.
      */
-    GraphOne(bool is_graph_directed, bool use_vertex2id_mapping, bool blind_writes, bool ignore_build, uint64_t max_num_vertices);
+    GraphOne(bool is_graph_directed, bool use_vertex2id_mapping, bool blind_writes, bool ignore_build, bool ref_gapbs, uint64_t max_num_vertices);
 
     /**
      * Destructor (dummy)

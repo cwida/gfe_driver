@@ -97,32 +97,31 @@ static pair<int64_t, T> parse_value(uint64_t lineno, char* buffer, const char* b
 
 namespace { template<typename T> struct Tuple { int64_t vertex_id; T value; uint64_t lineno; }; }
 
+/**
+ * Read the content of the given reference/expected file, return an hash map vertex id -> <value, line in the file>
+ */
 template<typename T>
-static vector<Tuple<T>> read_results(const std::string& path_to_file){
+static unordered_map</* vertex id */ int64_t, /* value */ Tuple<T>> read_results(const std::string& path_to_file){
     fstream handle(path_to_file, ios_base::in);
     if(!handle.good()) FATAL("The result file does not exist or is not accessible. Path: `"  << path_to_file << "'");
 
     uint64_t lineno = 0; // current line number
     char buffer[BUFFER_SZ]; // read the current line from the file
-    vector<Tuple<T>> tuples_result;
+    unordered_map<int64_t, Tuple<T>> result;
 
-    // first parse `expected'. It may be unsorted
     lineno = 0;
     while(true){
         handle.getline(buffer, BUFFER_SZ);
         if(handle.eof()) break;
         auto v = parse_value<T>(lineno, buffer, "result");
-        tuples_result.push_back({v.first, v.second, lineno});
+        auto rc = result.insert({ v.first, Tuple<T>{v.first, v.second, lineno} });
+        if(!rc.second){ FATAL("[lineno=" << lineno << ", file=" << path_to_file << "] The vertex " << v.first << " is a duplicate, already defined at line #" << rc.first->second.lineno); }
         lineno++;
     }
 
     handle.close();
 
-    sort(begin(tuples_result), end(tuples_result), [](const Tuple<T>& c1, const Tuple<T>& c2){
-        return c1.vertex_id < c2.vertex_id;
-    });
-
-    return tuples_result;
+    return result;
 }
 
 /*****************************************************************************
@@ -135,9 +134,9 @@ void GraphalyticsValidate::exact_match(const std::string& path_result, const std
 
     fstream handle_expected(path_expected, ios_base::in);
     if(!handle_expected.good()) FATAL("The reference file does not exist or is not accessible. Path: `" << path_expected << "'");
-    vector<Tuple<int64_t>> tuples_result = read_results<int64_t>(path_result);
+    auto hash_results = read_results<int64_t>(path_result); // hash map: vertex id -> <value, line>
 
-    // now parse `reference'. It is always sorted
+    // now parse `reference'
     char buffer[BUFFER_SZ];
     uint64_t lineno = 0;
     while(true){
@@ -145,24 +144,24 @@ void GraphalyticsValidate::exact_match(const std::string& path_result, const std
         if(handle_expected.eof()) break;
         auto t_expected = parse_value<int64_t>(lineno, buffer, "expected");
 
-        if(lineno >= tuples_result.size()){
+        if(lineno >= hash_results.size()){
             ERROR_COUNT("[lineno=" << lineno << "] VALIDATION ERROR, the reference contains more vertices than the actual result file");
         } else {
-
-            const auto& t_result = tuples_result[lineno];
-
-            if (t_expected.first != t_result.vertex_id){
-            	ERROR_COUNT("[line number result:" << t_result.lineno << ", reference:" << lineno << "] VALIDATION ERROR, vertex retrieved: " << t_result.vertex_id << ", vertex expected: " << t_expected.first << " ");
-            } else if (t_expected.second != t_result.value){
-            	ERROR_COUNT("[line number result:" << t_result.lineno << ", reference:" << lineno << "] VALIDATION ERROR, vertex: " << t_result.vertex_id << " OK, value retrieved: " << t_result.value << ", value expected: " << t_expected.second);
+            const auto& t_result_it = hash_results.find(t_expected.first);
+            if (t_result_it == end(hash_results)){
+                ERROR_COUNT("[line number reference: " << lineno << "] VALIDATION ERROR, the vertex " << t_expected.first << " is present in the reference (" << path_expected << ") but not in the results (" << path_result << ") ");
+            } else if (t_result_it->second.vertex_id != t_expected.first){ // this should never occur, as the index of the hash map is the vertex id itself
+                ERROR_COUNT("[line number result: " << t_result_it->second.lineno << ", reference: " << lineno << "] VALIDATION ERROR, vertex retrieved: " << t_result_it->second.vertex_id << ", vertex expected: " << t_expected.first << " ");
+            } else if (t_expected.second != t_result_it->second.value){
+                ERROR_COUNT("[line number result: " << t_result_it->second.lineno << ", reference: " << lineno << "] VALIDATION ERROR, vertex: " << t_result_it->second.vertex_id << " matches, but value retrieved: " << t_result_it->second.value << " != value expected: " << t_expected.second);
             }
         }
 
         lineno++;
     }
 
-    if(lineno < tuples_result.size()){
-    	ERROR_COUNT("The result file contains more lines [vertices] than the expected/reference output. Vertices result:" << tuples_result.size() << ", vertices expected: " << lineno);
+    if(lineno < hash_results.size()){
+    	ERROR_COUNT("The result file contains more lines [vertices] than the expected/reference output. Vertices in the result file: " << hash_results.size() << ", vertices expected: " << lineno);
     }
 
     handle_expected.close();
@@ -188,7 +187,7 @@ void GraphalyticsValidate::epsilon_match(const std::string& path_result, const s
 
     fstream handle_expected(path_expected, ios_base::in);
     if(!handle_expected.good()) FATAL("The reference file does not exist or is not accessible. Path: `" << path_expected << "'");
-    vector<Tuple<double>> tuples_result = read_results<double>(path_result);
+    auto hash_results = read_results<double>(path_result); // hash map: vertex id -> <value, line>
 
     uint64_t lineno = 0; // current line number
     char buffer[BUFFER_SZ]; // current line read from the file
@@ -198,19 +197,25 @@ void GraphalyticsValidate::epsilon_match(const std::string& path_result, const s
         if(handle_expected.eof()) break;
 
         auto t_expected = parse_value<double>(lineno, buffer, "expected");
-        if(lineno >= tuples_result.size()){
+        if(lineno >= hash_results.size()){
             ERROR_COUNT("[lineno=" << lineno << "] VALIDATION ERROR, the reference contains more vertices than the actual result file");
         } else {
-            const auto& t_result = tuples_result[lineno];
 
-            if (t_expected.first != t_result.vertex_id){
-                ERROR_COUNT("[lineno result:" << t_result.lineno << ", reference:" << lineno << "] VALIDATION ERROR, vertex retrieved: " << t_result.vertex_id << ", vertex expected: " << t_expected.first << " ");
+            const auto& t_result_it = hash_results.find(t_expected.first);
+            if (t_result_it == end(hash_results)){
+                ERROR_COUNT("[line number reference: " << lineno << "] VALIDATION ERROR, the vertex " << t_expected.first << " is present in the reference (" << path_expected << ") but not in the results (" << path_result << ") ");
+            } else if (t_result_it->second.vertex_id != t_expected.first){ // this should never occur, as the index of the hash map is the vertex id itself
+                ERROR_COUNT("[line number result: " << t_result_it->second.lineno << ", reference: " << lineno << "] VALIDATION ERROR, vertex retrieved: " << t_result_it->second.vertex_id << ", vertex expected: " << t_expected.first << " ");
             } else {
-                double error = abs(t_result.value - t_expected.second) / t_expected.second;
-                COUT_DEBUG("vertex: " << t_result.vertex_id << ", value: " << t_result.value << ", expected: " << t_expected.second << ", error: " << error);
+                double value_result = t_result_it->second.value;
+                double value_expected = t_expected.second;
+
+
+                double error = abs(value_result - value_expected) / value_expected;
+                COUT_DEBUG("vertex: " << t_result_it->second.vertex_id << ", value: " << value_result << ", expected: " << value_expected << ", error: " << error);
                 if (error > epsilon){
-                    ERROR_COUNT("[lineno result:" << t_result.lineno << ", reference:" << lineno << "] VALIDATION ERROR, vertex: " << t_result.vertex_id << " OK, "
-                            "value retrieved: " << t_result.value << ", value expected: " << t_expected.second << ", error: " << error << ", tolerance (epsilon): " << epsilon);
+                    ERROR_COUNT("[lineno result: " << t_result_it->second.lineno << ", reference:" << lineno << "] VALIDATION ERROR, vertex: " << t_result_it->second.vertex_id << " matches, but "
+                            "value retrieved: " << value_result << ", value expected: " << value_expected << ", error: " << error << ", tolerance (epsilon): " << epsilon);
                 }
             }
         }
@@ -218,8 +223,8 @@ void GraphalyticsValidate::epsilon_match(const std::string& path_result, const s
         lineno++;
     }
 
-    if(lineno < tuples_result.size()){
-        ERROR("The result file contains more lines [vertices] than the expected/reference output. Vertices result:" << tuples_result.size() << ", vertices expected: " << lineno);
+    if(lineno < hash_results.size()){
+        ERROR_COUNT("The result file contains more lines [vertices] than the expected/reference output. Vertices in the result file: " << hash_results.size() << ", vertices expected: " << lineno);
     }
 
     handle_expected.close();
@@ -305,7 +310,7 @@ void GraphalyticsValidate::equivalence_match(const std::string& result, const st
     }
 
     if(lineno < components_result.size()){
-        ERROR_COUNT("The result file contains more lines [vertices] than the expected/reference output. Vertices result:" << components_result.size() << ", vertices expected: " << lineno);
+        ERROR_COUNT("The result file contains more lines [vertices] than the expected/reference output. Vertices result:  " << components_result.size() << ", vertices expected: " << lineno);
     }
 
     handle_expected.close();

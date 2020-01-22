@@ -37,6 +37,7 @@ namespace gfe::library {
  * All methods except dump() & family are thread safe.
  */
 class LLAMAClass : public virtual UpdateInterface, public virtual GraphalyticsInterface {
+protected:
     LLAMAClass(const LLAMAClass&) = delete;
     LLAMAClass& operator=(const LLAMAClass&) = delete;
 

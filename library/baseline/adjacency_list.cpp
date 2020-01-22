@@ -44,8 +44,8 @@ using namespace std;
  *                                                                           *
  *****************************************************************************/
 //#define DEBUG
-extern mutex _log_mutex;
-#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{_log_mutex}; std::cout << "[AdjacencyList::" << __FUNCTION__ << "] [" << concurrency::get_thread_id() << "] " << msg << std::endl; }
+namespace gfe { extern mutex _log_mutex; }
+#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::gfe::_log_mutex}; std::cout << "[AdjacencyList::" << __FUNCTION__ << "] [" << concurrency::get_thread_id() << "] " << msg << std::endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
 #else
@@ -420,6 +420,8 @@ void AdjacencyList::pagerank(uint64_t num_iterations, double damping_factor, con
             // final score for the given vertex_id
             score = (1.0 - damping_factor) / V + damping_factor * score + (damping_factor/V) * dangling_sum;
             rank_next[vertex_id] = score;
+
+            COUT_DEBUG("[" << iter << "] rank[" << vertex_id << "]: " << rank_next[vertex_id]);
         }
 
         // set the computed rank the current for the next iteration

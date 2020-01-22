@@ -54,7 +54,7 @@ void LLAMAClass::pagerank(uint64_t num_iterations, double damping_factor, const 
     TimeoutService timeout_srv { m_timeout };
     Timer timer; timer.start();
 
-    // retrieve the latest snapshot the internal source_vertex_id
+    // retrieve the latest snapshot
     shared_lock<shared_mutex> slock(m_lock_checkpoint);
     auto graph = get_snapshot();
 //    dump_snapshot(graph);

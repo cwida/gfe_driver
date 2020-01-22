@@ -30,6 +30,7 @@
 
 #include "common/system.hpp"
 #include "common/timer.hpp"
+#include "third-party/gapbs/gapbs.hpp"
 #include "third-party/libcuckoo/cuckoohash_map.hh"
 #include "utility/timeout_service.hpp"
 
@@ -68,8 +69,8 @@ namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
 
 namespace gfe::library {
 
-GraphOne::GraphOne(bool is_graph_directed, bool use_vertex2id_mapping, bool blind_writes, bool ignore_build, uint64_t max_num_vertices) :
-        m_is_directed(is_graph_directed), m_translate_vertex_ids(use_vertex2id_mapping), m_blind_writes(blind_writes), m_ignore_build(ignore_build) {
+GraphOne::GraphOne(bool is_graph_directed, bool use_vertex2id_mapping, bool blind_writes, bool ignore_build, bool ref_gapbs, uint64_t max_num_vertices) :
+        m_is_directed(is_graph_directed), m_translate_vertex_ids(use_vertex2id_mapping), m_blind_writes(blind_writes), m_ignore_build(ignore_build), m_ref_gapbs(ref_gapbs) {
     if(g != nullptr) ERROR("An instance of GraphOne has already been created");
 
     // The graph instance is a global ...
@@ -105,6 +106,8 @@ GraphOne::GraphOne(bool is_graph_directed, bool use_vertex2id_mapping, bool blin
         static_assert(sizeof(PaddedLock) == 64, "Expected to match the size of a cache line");
         m_edge_locks = new PaddedLock[ m_num_edge_locks ]();
     }
+
+    COUT_DEBUG("Use the GAP Benchmark Suite implementation for the Graphalytics algorithms: " << std::boolalpha << m_ref_gapbs);
 }
 
 GraphOne::~GraphOne(){
@@ -542,12 +545,316 @@ void GraphOne::dump_ostream(std::ostream& out) const {
  *  BFS                                                                      *
  *                                                                           *
  *****************************************************************************/
+// Implementation based on the reference BFS for the GAP Benchmark Suite
+// https://github.com/sbeamer/gapbs
+// The reference implementation has been written by Scott Beamer
+//
+// Copyright (c) 2015, The Regents of the University of California (Regents)
+// All Rights Reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+// 3. Neither the name of the Regents nor the
+//    names of its contributors may be used to endorse or promote products
+//    derived from this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL REGENTS BE LIABLE FOR ANY
+// DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+// ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+/*
+
+Will return parent array for a BFS traversal from a source vertex
+This BFS implementation makes use of the Direction-Optimizing approach [1].
+It uses the alpha and beta parameters to determine whether to switch search
+directions. For representing the frontier, it uses a SlidingQueue for the
+top-down approach and a Bitmap for the bottom-up approach. To reduce
+false-sharing for the top-down approach, thread-local QueueBuffer's are used.
+To save time computing the number of edges exiting the frontier, this
+implementation precomputes the degrees in bulk at the beginning by storing
+them in parent array as negative numbers. Thus the encoding of parent is:
+  parent[x] < 0 implies x is unvisited and parent[x] = -out_degree(x)
+  parent[x] >= 0 implies x been visited
+[1] Scott Beamer, Krste Asanović, and David Patterson. "Direction-Optimizing
+    Breadth-First Search." International Conference on High Performance
+    Computing, Networking, Storage and Analysis (SC), Salt Lake City, Utah,
+    November 2012.
+
+*/
+
+static
+int64_t graphone_gapbs_bfs_BUStep(snap_t<lite_edge_t>* view, uint64_t v_count, int64_t* distances, int64_t distance, gapbs::Bitmap &front, gapbs::Bitmap &next) {
+    int64_t awake_count = 0;
+    next.reset();
+
+    #pragma omp parallel reduction(+ : awake_count)
+    {
+        // the array with all the edges of a given vertex
+        lite_edge_t* neighbours = nullptr;
+        uint64_t neighbours_sz = 0;
+
+        #pragma omp for schedule(dynamic, 1024)
+        for (int64_t u = 0; u < v_count; u++) {
+            if (distances[u] < 0){ // the node has not been visited yet
+                uint64_t degree = view->get_degree_in(u);
+                if(degree == 0) continue;
+
+                if(degree > neighbours_sz){
+                    neighbours_sz = degree;
+                    neighbours = (lite_edge_t*) realloc(neighbours, sizeof(neighbours[0]) * neighbours_sz);
+                    if(neighbours == nullptr) throw std::bad_alloc{};
+                }
+                degree = view->get_nebrs_in(u, neighbours); // reassign degree as it may have been decreased by #get_nebrs_out
+
+                for(uint64_t i = 0; i < degree; i++){
+                    uint64_t dst = get_sid(neighbours[i]);
+
+                    if(front.get_bit(dst)) {
+                        distances[u] = distance; // on each BUStep, all nodes will have the same distance
+                        awake_count++;
+                        next.set_bit(u);
+                        break;
+                    }
+                }
+            }
+        }
+
+        free(neighbours); neighbours = nullptr; neighbours_sz = 0;
+    }
+
+    return awake_count;
+}
+
+static
+int64_t graphone_gapbs_bfs_TDStep(snap_t<lite_edge_t>* view, uint64_t v_count, int64_t* distances, int64_t distance, gapbs::SlidingQueue<int64_t>& queue) {
+    int64_t scout_count = 0;
+    #pragma omp parallel reduction(+ : scout_count)
+    {
+        gapbs::QueueBuffer<int64_t> lqueue(queue);
+
+        // the array with all the edges of a given vertex
+        lite_edge_t* neighbours = nullptr;
+        uint64_t neighbours_sz = 0;
+
+        #pragma omp for
+        for (auto q_iter = queue.begin(); q_iter < queue.end(); q_iter++) {
+            int64_t u = *q_iter;
+
+            uint64_t degree = view->get_degree_out(u);
+            if(degree == 0) continue;
+
+            if(degree > neighbours_sz){
+                neighbours_sz = degree;
+                neighbours = (lite_edge_t*) realloc(neighbours, sizeof(neighbours[0]) * neighbours_sz);
+                if(neighbours == nullptr) throw std::bad_alloc{};
+            }
+            degree = view->get_nebrs_out(u, neighbours); // reassign degree as it may have been decreased by #get_nebrs_out
+
+            for(uint64_t i = 0; i < degree; i++){
+                uint64_t dst = get_sid(neighbours[i]);
+
+
+                int64_t curr_val = distances[dst];
+                if (curr_val < 0 && gapbs::compare_and_swap(distances[dst], curr_val, distance)) {
+                    lqueue.push_back(dst);
+                    scout_count += -curr_val;
+                }
+            }
+        }
+
+        free(neighbours); neighbours = nullptr; neighbours_sz = 0;
+
+        lqueue.flush();
+    }
+
+    return scout_count;
+}
+
+static
+void graphone_gapbs_bfs_QueueToBitmap(const gapbs::SlidingQueue<int64_t> &queue, gapbs::Bitmap &bm) {
+    #pragma omp parallel for
+    for (auto q_iter = queue.begin(); q_iter < queue.end(); q_iter++) {
+        int64_t u = *q_iter;
+        bm.set_bit_atomic(u);
+    }
+}
+
+static
+void graphone_gapbs_bfs_BitmapToQueue(snap_t<lite_edge_t>* view, uint64_t v_count, const gapbs::Bitmap &bm, gapbs::SlidingQueue<int64_t> &queue) {
+    #pragma omp parallel
+    {
+        gapbs::QueueBuffer<int64_t> lqueue(queue);
+        #pragma omp for
+        for (int64_t n=0; n < v_count; n++)
+            if (bm.get_bit(n))
+                lqueue.push_back(n);
+        lqueue.flush();
+    }
+    queue.slide_window();
+}
+
+static
+unique_ptr<int64_t[]>  graphone_gapbs_bfs_init_distances(snap_t<lite_edge_t>* view, uint64_t v_count){
+    unique_ptr<int64_t[]> distances{ new int64_t[v_count] };
+    #pragma omp parallel for
+    for (uint64_t n = 0; n < v_count; n++){
+        int64_t out_degree = view->get_degree_out(n);
+        distances[n] = out_degree != 0 ? - out_degree : -1;
+    }
+    return distances;
+}
+
+static
+unique_ptr<int64_t[]> graphone_gapbs_bfs(uint64_t v_count, uint64_t num_out_edges, uint64_t source, utility::TimeoutService& timer, int alpha = 15, int beta = 18) {
+    // Initialisation
+    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
+
+    // The implementation from GAP BS reports the parent (which indeed it should make more sense), while the one required by
+    // Graphalytics only returns the distance
+    unique_ptr<int64_t[]> ptr_distances = graphone_gapbs_bfs_init_distances(view, v_count);
+    int64_t* __restrict distances = ptr_distances.get();
+    distances[source] = 0;
+
+    gapbs::SlidingQueue<int64_t> queue(v_count);
+    queue.push_back(source);
+    queue.slide_window();
+    gapbs::Bitmap curr(v_count);
+    curr.reset();
+    gapbs::Bitmap front(v_count);
+    front.reset();
+    int64_t edges_to_check = num_out_edges; //g.num_edges_directed();
+    int64_t scout_count = view->get_degree_out(source);
+    int64_t distance = 1; // current distance
+    while (!timer.is_timeout() && !queue.empty()) {
+
+        if (scout_count > edges_to_check / alpha) {
+            int64_t awake_count, old_awake_count;
+            graphone_gapbs_bfs_QueueToBitmap(queue, front);
+            awake_count = queue.size();
+            queue.slide_window();
+            do {
+                old_awake_count = awake_count;
+                awake_count = graphone_gapbs_bfs_BUStep(view, v_count, distances, distance, front, curr);
+                front.swap(curr);
+                distance++;
+            } while ((awake_count >= old_awake_count) || (awake_count > v_count / beta));
+            graphone_gapbs_bfs_BitmapToQueue(view, v_count, front, queue);
+            scout_count = 1;
+        } else {
+            edges_to_check -= scout_count;
+            scout_count = graphone_gapbs_bfs_TDStep(view, v_count, distances, distance, queue);
+            queue.slide_window();
+            distance++;
+        }
+    }
+
+    delete_static_view(view);
+
+    return ptr_distances;
+}
+
+void GraphOne::bfs_gapbs(uint64_t source_vertex_id, const char* dump2file) {
+    // Init
+    utility::TimeoutService timeout { m_timeout };
+    Timer timer; timer.start();
+    uint64_t root = vtx_ext2int(source_vertex_id); // from a graphalytics vertex ID to the dense vertex ID used internally
+    uint64_t N = num_vertices();
+    uint64_t M = num_edges();
+
+    // Run the BFS algorithm
+    unique_ptr<int64_t[]> ptr_distances = graphone_gapbs_bfs(N, M, root, timeout);
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
+
+    // Translate the vertex IDs and dump to file if required
+    int64_t* distances = ptr_distances.get();
+    if(m_translate_vertex_ids) { // translate from GraphOne vertex ids to external vertex ids
+        cuckoohash_map</* external id */ string, /* distance */ int64_t> external_ids;
+        #pragma omp parallel for
+        for(sid_t internal_id = 0; internal_id < N; internal_id++){
+            // 1.what is the real node ID, in the external domain (e.g. user id)
+            string vertex_name = g->get_typekv()->get_vertex_name(internal_id);
+            if(vertex_name.empty()) continue; // this means that a mapping does not exist. It should never occur as atm we don't support vertex deletions
+
+            // 2. retrieve the distance / weight
+            int64_t distance = distances[internal_id];
+
+            // 3. make the association vertex name - distance
+            external_ids.insert(vertex_name, distance);
+        }
+
+        if(timeout.is_timeout()){
+            RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
+        }
+
+        // store the results in the given file
+        if(dump2file != nullptr){
+            COUT_DEBUG("save the results to: " << dump2file);
+            fstream handle(dump2file, ios_base::out);
+            if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
+
+            auto hashtable = external_ids.lock_table();
+
+            for(const auto& keyvaluepair : hashtable){
+                handle << keyvaluepair.first << " ";
+                auto distance = keyvaluepair.second;
+
+                if(distance < 0){
+                    handle << numeric_limits<int64_t>::max();
+                } else {
+                    handle << distance;
+                }
+
+                handle << "\n";
+            }
+
+            handle.close();
+        }
+
+    } else { // without the vertex dictionary
+
+        // store the results in the given file
+        if(dump2file != nullptr){
+            COUT_DEBUG("save the results to: " << dump2file);
+            fstream handle(dump2file, ios_base::out);
+            if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
+
+
+            for(sid_t internal_id = 0; internal_id < N; internal_id++){
+                handle << internal_id << " ";
+                auto distance = distances[internal_id];
+
+                if(distance < 0){
+                    handle << numeric_limits<int64_t>::max();
+                } else {
+                    handle << distance;
+                }
+
+                handle << "\n";
+            }
+
+            handle.close();
+        }
+    }
+}
+
 // Implementation based on:
 // > file graphone/test/plaingraph_test.cpp
 // >>> 03/12/2019, the function was moved to analytics/mem_iterative_analytics.h after the latest upstream bump
 // > function: template<class T> void mem_bfs(gview_t<T>* snaph, uint8_t* status, sid_t root)
 
-static unique_ptr<uint32_t[]> graphone_execute_bfs(uint64_t v_count, uint64_t root, utility::TimeoutService& timeout){
+static unique_ptr<uint32_t[]> graphone_native_bfs(uint64_t v_count, uint64_t root, utility::TimeoutService& timeout){
     // Initialisation
     auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
     int level = 1;
@@ -641,7 +948,7 @@ static unique_ptr<uint32_t[]> graphone_execute_bfs(uint64_t v_count, uint64_t ro
     return ptr_status;
 }
 
-void GraphOne::bfs(uint64_t source_vertex_id, const char* dump2file) {
+void GraphOne::bfs_native(uint64_t source_vertex_id, const char* dump2file) {
     // Init
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
@@ -649,21 +956,21 @@ void GraphOne::bfs(uint64_t source_vertex_id, const char* dump2file) {
     uint64_t N = num_vertices();
 
     // Run the BFS algorithm
-    auto ptr_distances = graphone_execute_bfs(N, root, timeout);
+    unique_ptr<uint32_t[]> ptr_distances = graphone_native_bfs(N, root, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs and dump to file if required
     uint32_t* distances = ptr_distances.get();
     if(m_translate_vertex_ids) { // translate from GraphOne vertex ids to external vertex ids
-        cuckoohash_map</* external id */ string, /* distance */ int> external_ids;
-#pragma omp parallel for
+        cuckoohash_map</* external id */ string, /* distance */ uint32_t> external_ids;
+        #pragma omp parallel for
         for(sid_t internal_id = 0; internal_id < N; internal_id++){
             // 1.what is the real node ID, in the external domain (e.g. user id)
             string vertex_name = g->get_typekv()->get_vertex_name(internal_id);
             if(vertex_name.empty()) continue; // this means that a mapping does not exist. It should never occur as atm we don't support vertex deletions
 
             // 2. retrieve the distance / weight
-            int distance = distances[internal_id];
+            uint32_t distance = distances[internal_id];
 
             // 3. make the association vertex name - distance
             external_ids.insert(vertex_name, distance);
@@ -732,11 +1039,137 @@ void GraphOne::bfs(uint64_t source_vertex_id, const char* dump2file) {
     }
 }
 
+
+void GraphOne::bfs(uint64_t source_vertex_id, const char* dump2file){
+    if(m_ref_gapbs){
+        bfs_gapbs(source_vertex_id, dump2file);
+    } else {
+        bfs_native(source_vertex_id, dump2file);
+    }
+}
+
 /*****************************************************************************
  *                                                                           *
  *  PageRank                                                                 *
  *                                                                           *
  *****************************************************************************/
+//#define DEBUG_PAGERANK
+#if defined(DEBUG_PAGERANK)
+#define COUT_DEBUG_PAGERANK(msg) COUT_DEBUG(msg)
+#else
+#define COUT_DEBUG_PAGERANK(msg)
+#endif
+
+// Implementation based on the reference PageRank for the GAP Benchmark Suite
+// https://github.com/sbeamer/gapbs
+// The reference implementation has been written by Scott Beamer
+//
+// Copyright (c) 2015, The Regents of the University of California (Regents)
+// All Rights Reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+// 3. Neither the name of the Regents nor the
+//    names of its contributors may be used to endorse or promote products
+//    derived from this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL REGENTS BE LIABLE FOR ANY
+// DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+// ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+/*
+GAP Benchmark Suite
+Kernel: PageRank (PR)
+Author: Scott Beamer
+
+Will return pagerank scores for all vertices once total change < epsilon
+
+This PR implementation uses the traditional iterative approach. This is done
+to ease comparisons to other implementations (often use same algorithm), but
+it is not necesarily the fastest way to implement it. It does perform the
+updates in the pull direction to remove the need for atomics.
+*/
+
+static
+unique_ptr<double[]> graphone_gapbs_pagerank(uint64_t num_vertices, uint64_t num_iterations, double damping_factor, utility::TimeoutService& timer) {
+    // init
+    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
+    const double init_score = 1.0 / num_vertices;
+    const double base_score = (1.0 - damping_factor) / num_vertices;
+
+    unique_ptr<double[]> ptr_scores{ new double[num_vertices]() }; // avoid memory leaks
+    double* scores = ptr_scores.get();
+    #pragma omp parallel for
+    for(uint64_t v = 0; v < num_vertices; v++){
+        scores[v] = init_score;
+    }
+    gapbs::pvector<double> outgoing_contrib(num_vertices, 0.0);
+
+    // pagerank iterations
+    for(uint64_t iteration = 0; iteration < num_iterations && !timer.is_timeout(); iteration++){
+        double dangling_sum = 0.0;
+
+        // for each node, precompute its contribution to all of its outgoing neighbours and, if it's a sink,
+        // add its rank to the `dangling sum' (to be added to all nodes).
+
+        #pragma omp parallel for reduction(+:dangling_sum)
+        for(uint64_t v = 0; v < num_vertices; v++){
+            uint64_t out_degree = view->get_degree_out(v);
+            if(out_degree == 0){ // this is a sink
+                dangling_sum += scores[v];
+            } else {
+                outgoing_contrib[v] = scores[v] / out_degree;
+            }
+        }
+
+        dangling_sum /= num_vertices;
+
+        // compute the new score for each node in the graph
+        #pragma omp parallel
+        {
+            lite_edge_t* neighbours = nullptr;
+            uint64_t neighbours_sz = 0;
+
+            #pragma omp for schedule(dynamic, 64)
+            for(uint64_t v = 0; v < num_vertices; v++){
+                uint64_t degree_in = view->get_degree_in(v);
+                if(degree_in > neighbours_sz){
+                    neighbours_sz = degree_in;
+                    neighbours = (lite_edge_t*) realloc(neighbours, sizeof(neighbours[0]) * neighbours_sz);
+                    if(neighbours == nullptr) throw std::bad_alloc{};
+                }
+                view->get_nebrs_in(v, neighbours);
+
+                double incoming_total = 0;
+                for(uint64_t i = 0; i < degree_in; i++){
+                    uint64_t u = get_sid(neighbours[i]);
+                    incoming_total += outgoing_contrib[u];
+                }
+
+                // update the score
+                scores[v] = base_score + damping_factor * (incoming_total + dangling_sum);
+            }
+
+            free(neighbours); neighbours = nullptr; neighbours_sz = 0;
+        }
+    }
+
+    delete_static_view(view);
+    return ptr_scores;
+}
+
 // GraphOne ships with its own implementation of PageRank in graphone/analytics/mem_iterative_analytics.h,
 // function template<class T> void mem_pagerank(gview_t<T>* snaph, int iteration_count). Still
 // there are a few issues w.r.t. to the Graphalytics specification:
@@ -745,14 +1178,8 @@ void GraphOne::bfs(uint64_t source_vertex_id, const char* dump2file) {
 // 3. It operates on floats rather than doubles
 // 4. It uses a different formula to compute the score at the end
 // The algorithm is too different, the implementation below is adapted from llama_pagerank.cpp:
-//#define DEBUG_PAGERANK
-#if defined(DEBUG_PAGERANK)
-#define COUT_DEBUG_PAGERANK(msg) COUT_DEBUG(msg)
-#else
-#define COUT_DEBUG_PAGERANK(msg)
-#endif
 
-static unique_ptr<double[]> graphone_execute_pagerank(uint64_t num_vertices, uint64_t num_iterations, double d, utility::TimeoutService& timer){
+static unique_ptr<double[]> graphone_pagerank_impl_from_llama(uint64_t num_vertices, uint64_t num_iterations, double d, utility::TimeoutService& timer){
     COUT_DEBUG_PAGERANK("num_vertices: " << num_vertices << ", num_iterations: " << num_iterations << ", damping factor: " << d);
 
     auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
@@ -832,7 +1259,9 @@ void GraphOne::pagerank(uint64_t num_iterations, double damping_factor, const ch
     uint64_t N = num_vertices();
 
     // Run the PageRank algorithm
-    unique_ptr<double[]> ptr_rank = graphone_execute_pagerank(N, num_iterations, damping_factor, timeout);
+    unique_ptr<double[]> ptr_rank =
+            m_ref_gapbs ? graphone_gapbs_pagerank(N, num_iterations, damping_factor, timeout)
+                        : graphone_pagerank_impl_from_llama(N, num_iterations, damping_factor, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs and dump to file if required
@@ -893,6 +1322,36 @@ void GraphOne::pagerank(uint64_t num_iterations, double damping_factor, const ch
  *  WCC                                                                      *
  *                                                                           *
  *****************************************************************************/
+// Implementation based on the reference WCC for the GAP Benchmark Suite
+// https://github.com/sbeamer/gapbs
+// The reference implementation has been written by Scott Beamer
+//
+// Copyright (c) 2015, The Regents of the University of California (Regents)
+// All Rights Reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+// 3. Neither the name of the Regents nor the
+//    names of its contributors may be used to endorse or promote products
+//    derived from this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL REGENTS BE LIABLE FOR ANY
+// DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+// ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
 //#define DEBUG_WCC
 #if defined(DEBUG_WCC)
 #define COUT_DEBUG_WCC(msg) COUT_DEBUG(msg)
@@ -900,14 +1359,104 @@ void GraphOne::pagerank(uint64_t num_iterations, double damping_factor, const ch
 #define COUT_DEBUG_WCC(msg)
 #endif
 
+/*
+GAP Benchmark Suite
+Kernel: Connected Components (CC)
+Author: Scott Beamer
+
+Will return comp array labelling each vertex with a connected component ID
+
+This CC implementation makes use of the Shiloach-Vishkin [2] algorithm with
+implementation optimizations from Bader et al. [1]. Michael Sutton contributed
+a fix for directed graphs using the min-max swap from [3], and it also produces
+more consistent performance for undirected graphs.
+
+[1] David A Bader, Guojing Cong, and John Feo. "On the architectural
+    requirements for efficient execution of graph algorithms." International
+    Conference on Parallel Processing, Jul 2005.
+
+[2] Yossi Shiloach and Uzi Vishkin. "An o(logn) parallel connectivity algorithm"
+    Journal of Algorithms, 3(1):57–67, 1982.
+
+[3] Kishore Kothapalli, Jyothish Soman, and P. J. Narayanan. "Fast GPU
+    algorithms for graph connectivity." Workshop on Large Scale Parallel
+    Processing, 2010.
+*/
+
+// The hooking condition (comp_u < comp_v) may not coincide with the edge's
+// direction, so we use a min-max swap such that lower component IDs propagate
+// independent of the edge's direction.
+static // do_wcc
+unique_ptr<uint64_t[]> graphone_gapbs_wcc(uint64_t num_total_vertices, utility::TimeoutService& timer) {
+    // init
+    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
+    unique_ptr<uint64_t[]> ptr_components { new uint64_t[num_total_vertices] };
+    uint64_t* comp = ptr_components.get();
+
+    #pragma omp parallel for
+    for (uint64_t n = 0; n < num_total_vertices; n++){
+        comp[n] = n;
+    }
+
+    bool change = true;
+    while (change && !timer.is_timeout()) {
+        change = false;
+
+        #pragma omp parallel
+        {
+            lite_edge_t* neighbours = nullptr;
+            uint64_t neighbours_sz = 0;
+
+            #pragma omp parallel for
+            for (uint64_t u = 0; u < num_total_vertices; u++){
+                uint64_t degree_out = view->get_degree_out(u);
+
+                // outgoing edges
+                if(degree_out > neighbours_sz){
+                    neighbours_sz = degree_out;
+                    neighbours = (lite_edge_t*) realloc(neighbours, sizeof(neighbours[0]) * neighbours_sz);
+                    if(neighbours == nullptr) throw std::bad_alloc{};
+                }
+                view->get_nebrs_out(u, neighbours);
+
+                for(uint64_t i = 0; i < degree_out; i++){
+                    uint64_t v = get_sid(neighbours[i]);
+
+                    uint64_t comp_u = comp[u];
+                    uint64_t comp_v = comp[v];
+                    if (comp_u == comp_v) continue;
+                    // Hooking condition so lower component ID wins independent of direction
+                    uint64_t high_comp = std::max(comp_u, comp_v);
+                    uint64_t low_comp = std::min(comp_u, comp_v);
+                    if (high_comp == comp[high_comp]) {
+                        change = true;
+                        comp[high_comp] = low_comp;
+                    }
+                }
+            }
+
+            free(neighbours); neighbours = nullptr; neighbours_sz = 0;
+        }
+
+        #pragma omp parallel for
+        for (uint64_t n = 0; n < num_total_vertices; n++){
+            while (comp[n] != comp[comp[n]]) {
+                comp[n] = comp[comp[n]];
+            }
+        }
+    }
+
+    return ptr_components;
+}
+
 // Implementation similar to the specification
-static unique_ptr<uint32_t[]> graphone_execute_wcc(uint64_t num_vertices, bool is_directed, utility::TimeoutService& timeout){
+static unique_ptr<uint64_t[]> graphone_simple_wcc(uint64_t num_vertices, bool is_directed, utility::TimeoutService& timeout){
     // Initialisation
     auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
-    unique_ptr<uint32_t[]> ptr_components0 { new uint32_t[num_vertices] }; // avoid memory leaks
-    unique_ptr<uint32_t[]> ptr_components1 { new uint32_t[num_vertices] };
-    uint32_t* components0 = ptr_components0.get(); // current iteration
-    uint32_t* components1 = ptr_components1.get(); // next iteration
+    unique_ptr<uint64_t[]> ptr_components0 { new uint64_t[num_vertices] }; // avoid memory leaks
+    unique_ptr<uint64_t[]> ptr_components1 { new uint64_t[num_vertices] };
+    uint64_t* components0 = ptr_components0.get(); // current iteration
+    uint64_t* components1 = ptr_components1.get(); // next iteration
 
     #pragma omp parallel for
     for(uint64_t v = 0; v < num_vertices; v++){
@@ -993,13 +1542,15 @@ void GraphOne::wcc(const char* dump2file) {
     uint64_t N = num_vertices();
 
     // Run the WCC algorithm
-    unique_ptr<uint32_t[]> ptr_components = graphone_execute_wcc(N, m_is_directed, timeout);
+    unique_ptr<uint64_t[]> ptr_components =
+            m_ref_gapbs ? graphone_gapbs_wcc(N, timeout)
+                        : graphone_simple_wcc(N, m_is_directed, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs and dump to file if required
-    uint32_t* components = ptr_components.get();
+    uint64_t* components = ptr_components.get();
     if(m_translate_vertex_ids) { // translate from GraphOne vertex ids to external vertex ids
-        cuckoohash_map</* external id */ string, /* component */ uint32_t> external_ids;
+        cuckoohash_map</* external id */ string, /* component */ uint64_t> external_ids;
         #pragma omp parallel for
         for(sid_t internal_id = 0; internal_id < N; internal_id++){
             // 1.what is the real node ID, in the external domain (e.g. user id)
@@ -1007,7 +1558,7 @@ void GraphOne::wcc(const char* dump2file) {
             if(vertex_name.empty()) continue; // this means that a mapping does not exist. It should never occur as atm we don't support vertex deletions
 
             // 2. retrieve the distance / weight
-            uint32_t component = components[internal_id];
+            uint64_t component = components[internal_id];
 
             // 3. make the association vertex name - score
             external_ids.insert(vertex_name, component);
@@ -1440,282 +1991,11 @@ void GraphOne::lcc(const char* dump2file) {
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-namespace { // anonymous
-
-/*
-GAP Benchmark Suite
-Class:  pvector
-Author: Scott Beamer
-
-Vector class with ability to not initialize or do initialize in parallel
- - std::vector (when resizing) will always initialize, and does it serially
- - When pvector is resized, new elements are uninitialized
- - Resizing is not thread-safe
-*/
-
-template <typename T_>
-class pvector {
- public:
-  typedef T_* iterator;
-
-  pvector() : start_(nullptr), end_size_(nullptr), end_capacity_(nullptr) {}
-
-  explicit pvector(size_t num_elements) {
-    start_ = new T_[num_elements];
-    end_size_ = start_ + num_elements;
-    end_capacity_ = end_size_;
-  }
-
-  pvector(size_t num_elements, T_ init_val) : pvector(num_elements) {
-    fill(init_val);
-  }
-
-  pvector(iterator copy_begin, iterator copy_end)
-      : pvector(copy_end - copy_begin) {
-    #pragma omp parallel for
-    for (size_t i=0; i < capacity(); i++)
-      start_[i] = copy_begin[i];
-  }
-
-  // don't want this to be copied, too much data to move
-  pvector(const pvector &other) = delete;
-
-  // prefer move because too much data to copy
-  pvector(pvector &&other)
-      : start_(other.start_), end_size_(other.end_size_),
-        end_capacity_(other.end_capacity_) {
-    other.start_ = nullptr;
-    other.end_size_ = nullptr;
-    other.end_capacity_ = nullptr;
-  }
-
-  // want move assignment
-  pvector& operator= (pvector &&other) {
-    start_ = other.start_;
-    end_size_ = other.end_size_;
-    end_capacity_ = other.end_capacity_;
-    other.start_ = nullptr;
-    other.end_size_ = nullptr;
-    other.end_capacity_ = nullptr;
-    return *this;
-  }
-
-  ~pvector() {
-    if (start_ != nullptr)
-      delete[] start_;
-  }
-
-  // not thread-safe
-  void reserve(size_t num_elements) {
-    if (num_elements > capacity()) {
-      T_ *new_range = new T_[num_elements];
-      #pragma omp parallel for
-      for (size_t i=0; i < size(); i++)
-        new_range[i] = start_[i];
-      end_size_ = new_range + size();
-      delete[] start_;
-      start_ = new_range;
-      end_capacity_ = start_ + num_elements;
-    }
-  }
-
-  bool empty() {
-    return end_size_ == start_;
-  }
-
-  void clear() {
-    end_size_ = start_;
-  }
-
-  void resize(size_t num_elements) {
-    reserve(num_elements);
-    end_size_ = start_ + num_elements;
-  }
-
-  T_& operator[](size_t n) {
-    return start_[n];
-  }
-
-  const T_& operator[](size_t n) const {
-    return start_[n];
-  }
-
-  void push_back(T_ val) {
-    if (size() == capacity()) {
-      size_t new_size = capacity() == 0 ? 1 : capacity() * growth_factor;
-      reserve(new_size);
-    }
-    *end_size_ = val;
-    end_size_++;
-  }
-
-  void fill(T_ init_val) {
-    #pragma omp parallel for
-    for (T_* ptr=start_; ptr < end_size_; ptr++)
-      *ptr = init_val;
-  }
-
-  size_t capacity() const {
-    return end_capacity_ - start_;
-  }
-
-  size_t size() const {
-    return end_size_ - start_;
-  }
-
-  iterator begin() const {
-    return start_;
-  }
-
-  iterator end() const {
-    return end_size_;
-  }
-
-  T_* data() const {
-    return start_;
-  }
-
-  void swap(pvector &other) {
-    std::swap(start_, other.start_);
-    std::swap(end_size_, other.end_size_);
-    std::swap(end_capacity_, other.end_capacity_);
-  }
-
-
- private:
-  T_* start_;
-  T_* end_size_;
-  T_* end_capacity_;
-  static const size_t growth_factor = 2;
-};
-
-/*
-GAP Benchmark Suite
-File:   Platform Atomics
-Author: Scott Beamer
-
-Wrappers for compiler intrinsics for atomic memory operations (AMOs)
- - If not using OpenMP (serial), provides serial fallbacks
-*/
-
-#if defined _OPENMP
-
-  #if defined __GNUC__
-
-    // gcc/clang/icc instrinsics
-
-    template<typename T, typename U>
-    T fetch_and_add(T &x, U inc) {
-      return __sync_fetch_and_add(&x, inc);
-    }
-
-    template<typename T>
-    bool compare_and_swap(T &x, const T &old_val, const T &new_val) {
-      return __sync_bool_compare_and_swap(&x, old_val, new_val);
-    }
-
-    template<>
-    [[maybe_unused]] bool compare_and_swap(float &x, const float &old_val, const float &new_val) {
-      return __sync_bool_compare_and_swap(reinterpret_cast<uint32_t*>(&x),
-                                          reinterpret_cast<const uint32_t&>(old_val),
-                                          reinterpret_cast<const uint32_t&>(new_val));
-    }
-
-    template<>
-    [[maybe_unused]] bool compare_and_swap(double &x, const double &old_val, const double &new_val) {
-      return __sync_bool_compare_and_swap(reinterpret_cast<uint64_t*>(&x),
-                                          reinterpret_cast<const uint64_t&>(old_val),
-                                          reinterpret_cast<const uint64_t&>(new_val));
-    }
-
-  #elif __SUNPRO_CC
-
-    // sunCC (solaris sun studio) intrinsics
-    // less general, only work for int32_t, int64_t, uint32_t, uint64_t
-    // http://docs.oracle.com/cd/E19253-01/816-5168/6mbb3hr06/index.html
-
-    #include <atomic.h>
-    #include <cinttypes>
-
-    int32_t fetch_and_add(int32_t &x, int32_t inc) {
-      return atomic_add_32_nv((volatile uint32_t*) &x, inc) - inc;
-    }
-
-    int64_t fetch_and_add(int64_t &x, int64_t inc) {
-      return atomic_add_64_nv((volatile uint64_t*) &x, inc) - inc;
-    }
-
-    uint32_t fetch_and_add(uint32_t &x, uint32_t inc) {
-      return atomic_add_32_nv((volatile uint32_t*) &x, inc) - inc;
-    }
-
-    uint64_t fetch_and_add(uint64_t &x, uint64_t inc) {
-      return atomic_add_64_nv((volatile uint64_t*) &x, inc) - inc;
-    }
-
-    bool compare_and_swap(int32_t &x, const int32_t &old_val, const int32_t &new_val) {
-      return old_val == atomic_cas_32((volatile uint32_t*) &x, old_val, new_val);
-    }
-
-    bool compare_and_swap(int64_t &x, const int64_t &old_val, const int64_t &new_val) {
-      return old_val == atomic_cas_64((volatile uint64_t*) &x, old_val, new_val);
-    }
-
-    bool compare_and_swap(uint32_t &x, const uint32_t &old_val, const uint32_t &new_val) {
-      return old_val == atomic_cas_32((volatile uint32_t*) &x, old_val, new_val);
-    }
-
-    bool compare_and_swap(uint64_t &x, const uint64_t &old_val, const uint64_t &new_val) {
-      return old_val == atomic_cas_64((volatile uint64_t*) &x, old_val, new_val);
-    }
-
-    bool compare_and_swap(float &x, const float &old_val, const float &new_val) {
-      return old_val == atomic_cas_32((volatile uint32_t*) &x,
-                                      (const volatile uint32_t&) old_val,
-                                      (const volatile uint32_t&) new_val);
-    }
-
-    bool compare_and_swap(double &x, const double &old_val, const double &new_val) {
-      return old_val == atomic_cas_64((volatile uint64_t*) &x,
-                                      (const volatile uint64_t&) old_val,
-                                      (const volatile uint64_t&) new_val);
-    }
-
-  #else   // defined __GNUC__ __SUNPRO_CC
-
-    #error No atomics available for this compiler but using OpenMP
-
-  #endif  // else defined __GNUC__ __SUNPRO_CC
-
-#else   // defined _OPENMP
-
-  // serial fallbacks
-
-  template<typename T, typename U>
-  T fetch_and_add(T &x, U inc) {
-    T orig_val = x;
-    x += inc;
-    return orig_val;
-  }
-
-  template<typename T>
-  bool compare_and_swap(T &x, const T &old_val, const T &new_val) {
-    if (x == old_val) {
-      x = new_val;
-      return true;
-    }
-    return false;
-  }
-
-#endif  // else defined _OPENMP
-
-} // anonymous namespace
-
 using NodeID = uint64_t;
 using WeightT = double;
 static const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 
-static pvector<WeightT> graphone_execute_sssp(uint64_t num_vertices, uint64_t source, double delta, utility::TimeoutService& timer){
+static gapbs::pvector<WeightT> graphone_execute_sssp(uint64_t num_vertices, uint64_t source, double delta, utility::TimeoutService& timer){
     auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
 
     // Total number of edges in the view
@@ -1726,9 +2006,9 @@ static pvector<WeightT> graphone_execute_sssp(uint64_t num_vertices, uint64_t so
     }
 
     // Init
-    pvector<WeightT> dist(num_vertices, numeric_limits<WeightT>::infinity());
+    gapbs::pvector<WeightT> dist(num_vertices, numeric_limits<WeightT>::infinity());
     dist[source] = 0;
-    pvector<NodeID> frontier(num_edges);
+    gapbs::pvector<NodeID> frontier(num_edges);
     // two element arrays for double buffering curr=iter&1, next=(iter+1)&1
     size_t shared_indexes[2] = {0, kMaxBin};
     size_t frontier_tails[2] = {1, 0};
@@ -1767,7 +2047,7 @@ static pvector<WeightT> graphone_execute_sssp(uint64_t num_vertices, uint64_t so
                         WeightT new_dist = dist[u] + w;
                         if (new_dist < old_dist) {
                             bool changed_dist = true;
-                            while (!compare_and_swap(dist[v], old_dist, new_dist)) {
+                            while (!gapbs::compare_and_swap(dist[v], old_dist, new_dist)) {
                                 old_dist = dist[v];
                                 if (old_dist <= new_dist) {
                                     changed_dist = false;
@@ -1802,7 +2082,7 @@ static pvector<WeightT> graphone_execute_sssp(uint64_t num_vertices, uint64_t so
             }
 
             if (next_bin_index < local_bins.size()) {
-                size_t copy_start = fetch_and_add(next_frontier_tail, local_bins[next_bin_index].size());
+                size_t copy_start = gapbs::fetch_and_add(next_frontier_tail, local_bins[next_bin_index].size());
                 copy(local_bins[next_bin_index].begin(), local_bins[next_bin_index].end(), frontier.data() + copy_start);
                 local_bins[next_bin_index].resize(0);
             }
@@ -1823,7 +2103,7 @@ static pvector<WeightT> graphone_execute_sssp(uint64_t num_vertices, uint64_t so
     return dist;
 }
 
-void GraphOne::sssp(uint64_t source_vertex_id, const char* dump2file) {
+void GraphOne::sssp(uint64_t source_vertex_id, const char* dump2file) { // GAPBS
     // Init
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
@@ -1838,7 +2118,7 @@ void GraphOne::sssp(uint64_t source_vertex_id, const char* dump2file) {
     // Translate the vertex IDs and dump to file if required
     if(m_translate_vertex_ids) { // translate from GraphOne vertex ids to external vertex ids
         cuckoohash_map</* external id */ string, /* distance */ double> external_ids;
-#pragma omp parallel for
+        #pragma omp parallel for
         for(sid_t internal_id = 0; internal_id < N; internal_id++){
             // 1.what is the real node ID, in the external domain (e.g. user id)
             string vertex_name = g->get_typekv()->get_vertex_name(internal_id);
