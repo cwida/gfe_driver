@@ -350,14 +350,21 @@ fi
     
 dnl check whether we can compile & link a program that makes usage of omp.h
 if ( test "${have_openmp}" == "no" ); then
-    if ( test x"${with_llama}" = x"auto" ); then
+    if ( test x"${with_llama}" == x"auto" ); then
         AC_MSG_NOTICE([llama support disabled: the OpenMP header omp.h is missing.])
         with_llama="no";
     else
         AC_MSG_FAILURE([llama: missing prerequisite header omp.h (OpenMP runtime library)])
     fi
 fi
-    
+
+dnl check whether we have Intel TBB
+if ( test x"${with_llama}" != x"no" ); then
+	AC_MSG_NOTICE([llama: checking whether Intel TBB is present in the machine...])
+	MY_INTEL_TBB() dnl it raises an error if not satisfied
+	AS_VAR_APPEND([CPPFLAGS], [" -DLLAMA_HASHMAP_WITH_TBB"])
+fi
+
 dnl check whether we can compile & link a simple program invoking functions from the llama library
 if ( test x"${with_llama}" != x"no" ); then
     AC_MSG_CHECKING([whether we can compile and link against the llama library])

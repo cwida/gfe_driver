@@ -166,10 +166,10 @@ vector<ImplementationManifest> implementations() {
 
 #if defined(HAVE_LLAMA)
     // v2 25/11/2019: better scalability for the llama dictionary
-    result.emplace_back("llama2", "LLAMA library", &generate_llama);
+    result.emplace_back("llama3", "LLAMA library", &generate_llama);
     result.emplace_back("llama-dv", "LLAMA with dense vertices", &generate_llama_dv);
     result.emplace_back("llama-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
-    result.emplace_back("llama-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
+    result.emplace_back("llama3-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
 #endif
 
 #if defined(HAVE_STINGER)

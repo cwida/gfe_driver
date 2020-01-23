@@ -83,12 +83,16 @@ LLAMAClass::LLAMAClass(bool is_directed) : m_is_directed(is_directed) {
     csr.create_uninitialized_node_property_64(g_llama_property_names, LL_T_INT64); // translate a logical id (e.g. node_id = 4) into an external node id (e.g. user_id = 21084718954)
     csr.create_uninitialized_edge_property_64(g_llama_property_weights, LL_T_DOUBLE);
 
+#if !defined(LLAMA_HASHMAP_WITH_TBB)
     m_vmap_locks = new SpinLock[m_num_vmap_locks];
+#endif
 }
 
 
 LLAMAClass::~LLAMAClass(){
+#if !defined(LLAMA_HASHMAP_WITH_TBB)
     delete[] m_vmap_locks; m_vmap_locks = nullptr;
+#endif
     delete m_db; m_db = nullptr;
 }
 
@@ -102,7 +106,11 @@ uint64_t LLAMAClass::num_edges() const {
 }
 
 uint64_t LLAMAClass::num_vertices() const {
+#if defined(LLAMA_HASHMAP_WITH_TBB)
+    return m_vmap.size();
+#else
     return m_vmap_read_only.size();
+#endif
 }
 
 uint64_t LLAMAClass::num_levels() const{
@@ -115,6 +123,10 @@ bool LLAMAClass::is_directed() const {
 }
 
 bool LLAMAClass::has_vertex(uint64_t vertex_id) const {
+#if defined(LLAMA_HASHMAP_WITH_TBB)
+    decltype(m_vmap)::const_accessor accessor;
+    return m_vmap.find(accessor, vertex_id);
+#else
     scoped_lock<SpinLock> vlock(m_vmap_locks[vertex_id % m_num_vmap_locks]);
 
     try {
@@ -123,11 +135,32 @@ bool LLAMAClass::has_vertex(uint64_t vertex_id) const {
     } catch (std::out_of_range& e){
         return false;
     }
+#endif
 }
+
 
 double LLAMAClass::get_weight(uint64_t ext_source_id, uint64_t ext_destination_id) const {
     auto nan = numeric_limits<double>::quiet_NaN();
 
+
+#if defined(LLAMA_HASHMAP_WITH_TBB)
+    decltype(m_vmap)::const_accessor accessor1, accessor2; // shared lock on the dictionary
+    if(!m_vmap.find(accessor1, ext_source_id)){ return nan; }
+    if(!m_vmap.find(accessor2, ext_destination_id)) { return nan; }
+
+    int64_t source = accessor1->second;
+    int64_t destination = accessor2->second;
+
+    if(!m_is_directed && source > destination){ // for undirected graphs, ensure src_id < dst_id
+        std::swap(source, destination);
+    }
+
+    edge_t edge_id = m_db->graph()->find(source, destination);
+    if(edge_id == LL_NIL_EDGE) return nan; // the edge does not exist
+
+    return get_out_edge_weight(* (m_db->graph()), edge_id);
+
+#else
     uint64_t int_source_id, int_destination_id;
     try {
         uint64_t vtx_lock_1 = min(ext_source_id % m_num_vmap_locks, ext_destination_id % m_num_vmap_locks);
@@ -151,12 +184,15 @@ double LLAMAClass::get_weight(uint64_t ext_source_id, uint64_t ext_destination_i
     } catch ( std::out_of_range& e){
         return nan; // either ext_source_id or ext_destination_id
     }
+#endif
 }
 
 void LLAMAClass::set_timeout(uint64_t seconds) {
     m_timeout = chrono::seconds{ seconds };
 }
 
+
+#if !defined(LLAMA_HASHMAP_WITH_TBB)
 int64_t LLAMAClass::vmap_write_store_find(uint64_t external_vertex_id) const {
     int64_t logical_id = -1;
 
@@ -182,6 +218,23 @@ bool LLAMAClass::vmap_write_store_contains(uint64_t external_vertex_id) const {
     } catch (std::out_of_range& e){
         return false;
     }
+}
+#endif
+
+int64_t LLAMAClass::get_internal_vertex_id(uint64_t external_vertex_id) const {
+#if defined(LLAMA_HASHMAP_WITH_TBB)
+    decltype(m_vmap)::const_accessor accessor;
+    if ( m_vmap.find(accessor, external_vertex_id ) ){
+        return accessor->second;
+    } else {
+        ERROR("The given vertex does not exist: " << external_vertex_id);
+    }
+#else
+    int64_t llama_source_vertex_id;
+    if (! m_vmap_read_only.find(external_vertex_id, llama_source_vertex_id) ){ // side effect, it assigns llama_source_vertex_id
+        ERROR("The given vertex does not exist: " << external_vertex_id);
+    }
+#endif
 }
 
 uint64_t LLAMAClass::get_read_store_outdegree(ll_mlcsr_ro_graph& snapshot, int64_t llama_vertex_id) const{
@@ -209,6 +262,7 @@ ll_mlcsr_ro_graph LLAMAClass::get_snapshot() const {
     return ll_mlcsr_ro_graph{ &(m_db->graph()->ro_graph()) , static_cast<int>(num_levels()) -1 };
 }
 
+
 /*****************************************************************************
  *                                                                           *
  *  Updates                                                                  *
@@ -219,6 +273,18 @@ bool LLAMAClass::add_vertex(uint64_t vertex_id_ext){
     shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("vertex_id: " << vertex_id_ext);
 
+#if defined(LLAMA_HASHMAP_WITH_TBB)
+    decltype(m_vmap)::accessor accessor; // xlock
+    bool inserted = m_vmap.insert(accessor, vertex_id_ext);
+    if ( inserted ){
+        node_t node_id = m_db->graph()->add_node();
+        m_db->graph()->get_node_property_64(g_llama_property_names)->set(node_id, vertex_id_ext); // register the mapping internal -> external
+
+        accessor->second = node_id;
+    }
+
+    return inserted;
+#else
     auto& mutex = m_vmap_locks[vertex_id_ext % m_num_vmap_locks];
     mutex.lock();
     if(!vmap_write_store_contains(vertex_id_ext)){
@@ -246,14 +312,27 @@ bool LLAMAClass::add_vertex(uint64_t vertex_id_ext){
         mutex.unlock();
         return false;
     }
+#endif
 }
 
 bool LLAMAClass::remove_vertex(uint64_t vertex_id_ext){
     shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("vertex_id: " << vertex_id_ext);
 
-    bool is_removed = false;
+#if defined(LLAMA_HASHMAP_WITH_TBB)
+    decltype(m_vmap)::accessor accessor; // xlock
+    bool found = m_vmap.find(accessor, vertex_id_ext);
+    if(found){
+        int64_t llama_vertex_id = accessor->second;
+        assert(llama_vertex_id != -1);
+        m_db->graph()->delete_node(llama_vertex_id);
+
+        m_vmap.erase(accessor);
+    }
+    return found;
+#else
     int64_t llama_vertex_id = -1;
+    bool is_removed = false;
 
     auto& mutex = m_vmap_locks[vertex_id_ext % m_num_vmap_locks];
     mutex.lock();
@@ -276,6 +355,7 @@ bool LLAMAClass::remove_vertex(uint64_t vertex_id_ext){
     }
 
     return is_removed;
+#endif
 }
 
 bool LLAMAClass::add_edge(graph::WeightedEdge e){
@@ -283,6 +363,16 @@ bool LLAMAClass::add_edge(graph::WeightedEdge e){
     COUT_DEBUG("edge: " << e);
 
     node_t llama_source_id { -1 }, llama_destination_id { -1 };
+
+#if defined(LLAMA_HASHMAP_WITH_TBB)
+    decltype(m_vmap)::const_accessor accessor1, accessor2; // shared lock on the dictionary
+    if(!m_vmap.find(accessor1, e.source())){ return false; }
+    if(!m_vmap.find(accessor2, e.destination())) { return false; }
+
+    llama_source_id = accessor1->second;
+    llama_destination_id = accessor2->second;
+
+#else
 
     try {
         scoped_lock<SpinLock> vlock(m_vmap_locks[e.m_source % m_num_vmap_locks]);
@@ -297,6 +387,8 @@ bool LLAMAClass::add_edge(graph::WeightedEdge e){
     } catch( std::out_of_range& e ){
         return false; // the destination does not exist
     }
+
+#endif
 
     if(!m_is_directed){ // for undirected graphs, ensure llama_source_id < llama_destination_id
         if(llama_source_id > llama_destination_id){
@@ -322,6 +414,15 @@ bool LLAMAClass::remove_edge(graph::Edge e){
 
     node_t llama_source_id { -1 }, llama_destination_id { -1 };
 
+#if defined(LLAMA_HASHMAP_WITH_TBB)
+    decltype(m_vmap)::const_accessor accessor1, accessor2; // shared lock on the dictionary
+    if(!m_vmap.find(accessor1, e.source())){ return false; }
+    if(!m_vmap.find(accessor2, e.destination())) { return false; }
+
+    llama_source_id = accessor1->second;
+    llama_destination_id = accessor2->second;
+
+#else
     try {
         scoped_lock<SpinLock> vlock(m_vmap_locks[e.m_source % m_num_vmap_locks]);
         llama_source_id = vmap_write_store_find(e.m_source); // throws std::out_of_range if ext_source_id is not present
@@ -335,6 +436,7 @@ bool LLAMAClass::remove_edge(graph::Edge e){
     } catch( std::out_of_range& e ){
         return false; // the destination does not exist
     }
+#endif
 
     // Again, this cannot be strictly correct, a race condition can still occur where a vertex is removed in the meanwhile we are
     // changing an edge
@@ -351,6 +453,7 @@ void LLAMAClass::build(){
     scoped_lock<shared_mutex> xlock(m_lock_checkpoint);
     COUT_DEBUG("build");
 
+#if !defined(LLAMA_HASHMAP_WITH_TBB)
     // merge the changes to the vertex ids into m_vmap_read_only
     auto changeset_removed = m_vmap_removed.lock_table();
     for(auto it = begin(changeset_removed); it != end(changeset_removed); it++){
@@ -366,6 +469,7 @@ void LLAMAClass::build(){
 
     m_vmap_updated.clear();
     m_vmap_removed.clear();
+#endif
 
     assert((static_cast<int64_t>(m_num_edges) + m_db->graph()->get_num_edges_diff() >= 0) && "Underflow");
     m_num_edges += m_db->graph()->get_num_edges_diff();

@@ -17,13 +17,22 @@
 
 #pragma once
 
+// Whether to use libcuckoo or tbb as a dictionary to store the vertex IDs. With libcuckoo we
+// try to keep track whether vertex ids are should only be visible in the write-store. With tbb there
+// is only a global view, resembling the same behaviour of GraphOne.
+// #define LLAMA_HASHMAP_WITH_TBB /* set by configure.ac */
+
 #include <atomic>
 #include <chrono>
 #include <shared_mutex>
 
 #include "common/spinlock.hpp"
 #include "library/interface.hpp"
+#if defined(LLAMA_HASHMAP_WITH_TBB)
+#include "tbb/concurrent_hash_map.h"
+#else
 #include "third-party/libcuckoo/cuckoohash_map.hh"
+#endif
 
 class ll_database; // forward declaration
 class ll_mlcsr_ro_graph; // forward declaration
@@ -44,7 +53,12 @@ protected:
     const bool m_is_directed; // is the graph directed
     ll_database* m_db { nullptr };
     uint64_t m_num_edges { 0 }; // the current number of edges contained
+    std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
+    mutable std::shared_mutex m_lock_checkpoint; // invoking #build(), that is creating a new snapshot, must be done without any other interference from other writers
 
+#if defined(LLAMA_HASHMAP_WITH_TBB)
+    tbb::concurrent_hash_map<uint64_t, /* node_t */ int64_t> m_vmap; // vertex dictionary, from external vertex ID to internal vertex ID
+#else
     // A vertex mapping (vmap) is a hash table where the keys are external node ids (e.g. user_id = 2184128047 ) and the mapped values
     // are corresponding logical node ids in the llama library (e.g. logical_id = 3 ).
     // In this we have three vmaps:
@@ -62,8 +76,7 @@ protected:
 
     mutable common::SpinLock* m_vmap_locks {nullptr}; // array of locks, to sync m_vertex_mappings and operations in m_db
     const uint64_t m_num_vmap_locks = /* arbitrary number */ 4096 ; // size of the array `m_vmap_locks'
-    mutable std::shared_mutex m_lock_checkpoint; // invoking #build(), that is creating a new snapshot, must be done without any other interference from other writers
-    std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
+
 
     // Retrieve the logical vertex_id for the given external vertex_id, starting from the write store. This method is not thread-safe.
     // The method throws std::out_of_range in case the vertex is not present to mimic the behaviour of cuckoohash_map#find
@@ -73,6 +86,10 @@ protected:
 
     // Check whether the given vertex exists in the write store
     bool vmap_write_store_contains(uint64_t external_vertex_id) const;
+#endif
+
+    // Retrieve the internal vertex id (only looking into the read store with libcuckoo) for the given external vertex ID. It raises an exception if the vertex does not exist.
+    int64_t get_internal_vertex_id(uint64_t external_vertex_id) const;
 
     // Retrieve the outgoing degree (# outgoing edges) for the given logical vertex_id, starting from the write store
     uint64_t get_write_store_outdegree(int64_t llama_vertex_id) const;

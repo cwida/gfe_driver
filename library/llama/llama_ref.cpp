@@ -25,6 +25,7 @@
 #include "common/system.hpp"
 #include "common/timer.hpp"
 #include "third-party/gapbs/gapbs.hpp"
+#include "third-party/libcuckoo/cuckoohash_map.hh"
 #include "utility/timeout_service.hpp"
 #include "llama_internal.hpp"
 
@@ -311,10 +312,7 @@ void LLAMARef::bfs(uint64_t external_source_vertex_id, const char* dump2file){
     // retrieve the latest snapshot the internal source_vertex_id
     shared_lock<shared_mutex> slock(m_lock_checkpoint);
     auto graph = get_snapshot();
-    int64_t llama_source_vertex_id;
-    if (! m_vmap_read_only.find(external_source_vertex_id, llama_source_vertex_id) ){ // side effect, it assigns llama_source_vertex_id
-        ERROR("The given vertex does not exist: " << external_source_vertex_id);
-    }
+    int64_t llama_source_vertex_id = get_internal_vertex_id(external_source_vertex_id);
     uint64_t num_edges = 0;
     for(uint64_t i = 0; i < graph.num_levels(); i++){ num_edges += graph.max_edges(i); }
 
@@ -741,10 +739,7 @@ void LLAMARef::sssp(uint64_t external_source_vertex_id, const char* dump2file){
     shared_lock<shared_mutex> slock(m_lock_checkpoint);
     auto graph = get_snapshot();
 //    dump_snapshot(graph);
-    int64_t llama_source_vertex_id;
-    if (! m_vmap_read_only.find(external_source_vertex_id, llama_source_vertex_id) ){ // side effect, it assigns llama_source_vertex_id
-        ERROR("The given vertex does not exist: " << external_source_vertex_id);
-    }
+    int64_t llama_source_vertex_id = get_internal_vertex_id(external_source_vertex_id);
     slock.unlock();
 
     // execute the algorithm

@@ -42,6 +42,7 @@
 #include "llama_internal.hpp"
 
 #include "common/timer.hpp"
+#include "third-party/libcuckoo/cuckoohash_map.hh"
 #include "utility/timeout_service.hpp"
 
 #include <fstream>
@@ -194,10 +195,7 @@ void LLAMAClass::sssp(uint64_t external_source_vertex_id, const char* dump2file)
     shared_lock<shared_mutex> slock(m_lock_checkpoint);
     auto graph = get_snapshot();
 //    dump_snapshot(graph);
-    int64_t llama_source_vertex_id;
-    if (! m_vmap_read_only.find(external_source_vertex_id, llama_source_vertex_id) ){ // side effect, it assigns llama_source_vertex_id
-        ERROR("The given vertex does not exist: " << external_source_vertex_id);
-    }
+    int64_t llama_source_vertex_id = get_internal_vertex_id(external_source_vertex_id);
     slock.unlock();
 
     // execute the SSSP algorithm
