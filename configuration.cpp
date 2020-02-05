@@ -31,6 +31,7 @@
 #include "common/filesystem.hpp"
 #include "common/quantity.hpp"
 #include "common/system.hpp"
+#include "experiment/graphalytics.hpp"
 #include "library/interface.hpp"
 #include "reader/graphlog_reader.hpp"
 #include "third-party/cxxopts/cxxopts.hpp"
@@ -96,6 +97,7 @@ void Configuration::initialiase(int argc, char* argv[]){
     options.add_options("Generic")
         ("a, aging", "The number of additional updates for the aging experiment to perform", value<double>()->default_value("0"))
         ("aging_step_size", "The step of each recording for the measured progress in the Aging2 experiment. Valid values are 0.1, 0.25, 0.5 and 1.0", value<double>()->default_value("1"))
+        ("blacklist", "Comma separated list of graph algorithms to blacklist and do not execute", value<string>())
         ("build_frequency", "The frequency to build a new snapshot in the aging experiment (default: disabled)", value<DurationQuantity>())
         ("d, database", "Store the current configuration value into the a sqlite3 database at the given location", value<string>())
         ("efe", "Expansion factor for the edges in the graph", value<double>()->default_value(to_string(get_ef_edges())))
@@ -230,6 +232,23 @@ void Configuration::initialiase(int argc, char* argv[]){
             set_aging_step_size( result["aging_step_size"].as<double>() );
         }
 
+        if( result["blacklist"].count() > 0 ){
+            string algorithm;
+            stringstream ss(result["blacklist"].as<string>());
+            while(getline(ss, algorithm, ',')){
+                // trim
+                algorithm.erase(algorithm.begin(), std::find_if(algorithm.begin(), algorithm.end(), [](int ch) { return !std::isspace(ch); }));
+                algorithm.erase(std::find_if(algorithm.rbegin(), algorithm.rend(), [](int ch) { return !std::isspace(ch); }).base(), algorithm.end());
+
+                // to lower case
+                std::transform(algorithm.begin(), algorithm.end(), algorithm.begin(),[](unsigned char c){ return std::tolower(c); });
+
+                m_blacklist.push_back(algorithm);
+            }
+
+            std::sort(m_blacklist.begin(), m_blacklist.end());
+        } // blacklist
+
         m_measure_latency = result["latency"].count() > 0;
 
     } catch ( argument_incorrect_type& e){
@@ -353,6 +372,26 @@ std::unique_ptr<library::Interface> Configuration::generate_graph_library() {
     return m_library_factory(is_graph_directed());
 }
 
+void Configuration::do_blacklist(bool& property_enabled, const char* name) const {
+    if(property_enabled){
+        if(find(begin(m_blacklist), end(m_blacklist), name) != end(m_blacklist)){
+            string name_upper_case = name;
+            std::transform(name_upper_case.begin(), name_upper_case.end(), name_upper_case.begin(),[](unsigned char c){ return std::toupper(c); });
+            LOG("> Ignore " << name_upper_case << ", algorithm blacklisted");
+            property_enabled = false;
+        }
+    }
+}
+
+void Configuration::blacklist(gfe::experiment::GraphalyticsAlgorithms& algorithms) const {
+    do_blacklist(algorithms.bfs.m_enabled, "bfs");
+    do_blacklist(algorithms.cdlp.m_enabled, "cdlp");
+    do_blacklist(algorithms.lcc.m_enabled, "lcc");
+    do_blacklist(algorithms.pagerank.m_enabled, "pagerank");
+    do_blacklist(algorithms.sssp.m_enabled, "sssp");
+    do_blacklist(algorithms.wcc.m_enabled, "wcc");
+}
+
 /*****************************************************************************
  *                                                                           *
  *  Save parameters                                                          *
@@ -389,6 +428,15 @@ void Configuration::save_parameters() {
     }
     params.push_back(P{"role", "standalone"});
     params.push_back(P{"validate_output", to_string(validate_output())});
+
+    if(!m_blacklist.empty()){
+        stringstream ss;
+        for(auto& s: m_blacklist){
+            if(ss.tellp() > 0){ ss << ", "; }
+            ss << s;
+        }
+        params.push_back(P{"blacklist", ss.str()});
+    }
 
     sort(begin(params), end(params));
     db()->store_parameters(params);

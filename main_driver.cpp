@@ -128,6 +128,8 @@ static void run_standalone(int argc, char* argv[]){
             properties.sssp.m_source_vertex = random_vertex;
         }
 
+        configuration().blacklist(properties);
+
         GraphalyticsSequential exp_seq { impl_ga, configuration().num_repetitions(), properties };
 
         if(configuration().validate_output()){

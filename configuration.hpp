@@ -29,6 +29,7 @@
 
 namespace common { class Database; } // forward declaration
 namespace gfe { class Configuration; } // forward declaration
+namespace gfe::experiment { struct GraphalyticsAlgorithms; } // forward declaration
 namespace gfe::library { class Interface; } // forward declaration
 
 namespace gfe {
@@ -58,6 +59,7 @@ class Configuration {
     Configuration& operator=(const Configuration& ) = delete;
 
     // properties
+    std::vector<std::string> m_blacklist; // list of graph algorithms that cannot be executed
     uint64_t m_build_frequency { 0 }; // in the aging experiment, the amount of time that must pass before each invocation to #build(), in milliseconds
     double m_coeff_aging { 0.0 }; // coefficient for the additional updates to perform
     common::Database* m_database { nullptr }; // handle to the database
@@ -100,6 +102,9 @@ class Configuration {
 
     // Set the property seed
     void set_seed(uint64_t value){ m_seed = value; }
+
+    // Check whether the given property has been blacklisted
+    void do_blacklist(bool& property_enabled, const char* property_name) const;
 public:
     // Default configuration
     Configuration();
@@ -178,6 +183,9 @@ public:
 
     // Retrieve the path to the database
     const std::string& get_database_path() const { return m_database_path; }
+
+    // Remove the algorithms blacklisted by the user in the GraphalyticsAlgorithms list
+    void blacklist(gfe::experiment::GraphalyticsAlgorithms& algorithms) const;
 };
 
 } // namespace
