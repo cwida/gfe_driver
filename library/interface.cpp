@@ -45,6 +45,9 @@
 #if defined(HAVE_GRAPHONE)
 #include "graphone/graphone.hpp"
 #endif
+#if defined(HAVE_TESEO)
+#include "teseo/teseo_driver.hpp"
+#endif
 
 using namespace std;
 
@@ -158,6 +161,12 @@ std::unique_ptr<Interface> generate_graphone_ref_ignore_build(bool directed_grap
 }
 #endif
 
+#if defined(HAVE_TESEO)
+std::unique_ptr<Interface> generate_teseo(bool directed_graph){
+    return unique_ptr<Interface>{ new TeseoDriver(directed_graph) };
+}
+#endif
+
 vector<ImplementationManifest> implementations() {
     vector<ImplementationManifest> result;
 
@@ -187,6 +196,10 @@ vector<ImplementationManifest> implementations() {
     result.emplace_back("g1-bw-dv-ignore-build", "GraphOne, blind writes, dense vertices, new deltas/levels cannot be explicitly created", &generate_graphone_bw_dv_ignore_build);
     result.emplace_back("g1-ref", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref);
     result.emplace_back("g1-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
+#endif
+
+#if defined(HAVE_TESEO)
+    result.emplace_back("teseo.1", "Teseo", &generate_teseo);
 #endif
 
     return result;

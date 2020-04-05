@@ -158,14 +158,12 @@ chrono::microseconds InsertOnly::execute() {
     timer.start();
     m_interface->build();
     timer.stop();
-    m_interface->on_thread_destroy(0);
+
     m_time_build = timer.microseconds();
     if(m_time_build > 0){
         LOG("Build time: " << timer);
     }
     m_num_build_invocations++;
-
-    m_interface->on_main_destroy();
 
     LOG("Edge stream size: " << m_stream->num_edges() << ", num edges stored in the graph: " << m_interface->num_edges() << ", match: " << (m_stream->num_edges() == m_interface->num_edges() ? "yes" : "no"));
 
@@ -174,6 +172,10 @@ chrono::microseconds InsertOnly::execute() {
         m_latencies = details::LatencyStatistics::compute_statistics(latencies, m_stream->num_edges());
         LOG("Measured latencies: " << m_latencies);
     }
+
+    m_interface->on_thread_destroy(0);
+    m_interface->on_main_destroy();
+
 
     return chrono::microseconds{ m_time_insert + m_time_build };
 }

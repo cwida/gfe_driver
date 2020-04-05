@@ -233,7 +233,7 @@ fi
 CMAKE_BUILD_TYPE="Debug" #default
 if( test x"${enable_optimize}" = x"yes" ); then
     if( test x"${enable_debug}" = x"yes" ); then
-        CMAKE_BUILD_TYPE="RELWITHDEBINFO"
+        CMAKE_BUILD_TYPE="RelWithDebInfo"
     else # debug flags not set
         CMAKE_BUILD_TYPE="Release"
     fi
@@ -243,6 +243,50 @@ AC_SUBST([CMAKE_BUILD_TYPE])
 #############################################################################
 # Switch to LLVM libc++ (-stdlib=libc++)
 #MY_CHECK_STDLIB_LIBCXX([CXX="$CXX -stdlib=libc++"])
+
+#############################################################################
+# Support for the Teseo
+# Usage:
+# --with-teseo=/path/to/teseo/build
+#
+
+AC_ARG_WITH([teseo], [AS_HELP_STRING([--with-teseo@<:@=ARG@:>@], [
+    Enable the support to Teseo. The argument needs to be the path where the library has been built.
+])], [])
+
+if ( test x"${with_teseo}" != x"" && test x"${with_teseo}" != "no" ); then
+    
+    if( test x"${with_teseo}" == x"yes" ); then
+        AC_MSG_ERROR(["the full path to the Teseo build needs to be specified, e.g. --with-teseo=/path/to/teseo/build"]);
+    fi
+    
+    path_teseo=$(realpath "${with_teseo}") 
+    path_teseo_library="${path_teseo}/libteseo.so"
+    AC_CHECK_FILE([${path_teseo_library}], [  ],  [ AC_MSG_ERROR([file not found: ${path_teseo_library}]) ])
+    
+    path_teseo_makefile="${path_teseo}/Makefile"
+    AC_CHECK_FILE([${path_teseo_makefile}], [  ],  [ AC_MSG_ERROR(["file not found: ${path_teseo_makefile}"]) ])
+    
+    path_teseo_includedir="$(realpath "${with_teseo}/$(make -C $(dirname ${path_teseo_makefile}) -n -p | awk '/^srcdir/ {print $3}')")/include" 
+    AC_MSG_NOTICE([Teseo include path: ${path_teseo_includedir}])
+    
+    AS_VAR_APPEND([CPPFLAGS], [" -I${path_teseo_includedir} -I${path_teseo_includedir}/../src/"])
+    AS_VAR_APPEND([LIBS], [" -L${path_teseo} -Wl,-rpath=${path_teseo} -lteseo"])
+    
+    # Try to compile a program with Teseo
+    AC_LINK_IFELSE([
+        AC_LANG_PROGRAM([[
+            @%:@include "teseo.hpp"
+        ]], [[
+            teseo::Teseo instance;
+        ]])
+    ], [], [
+        AC_MSG_FAILURE([unable to compile and link an executable with teseo])
+    ])
+    
+    AC_MSG_NOTICE([Teseo support enabled])
+    AS_VAR_APPEND([CPPFLAGS], [" -DHAVE_TESEO"])
+fi
 
 #############################################################################
 # Support for the library Stinger

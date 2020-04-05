@@ -45,6 +45,11 @@
 #include "library/graphone/graphone.hpp"
 #endif
 
+#if defined(HAVE_TESEO)
+#include "library/teseo/teseo_driver.hpp"
+#endif
+
+
 using namespace gfe::library;
 using namespace std;
 
@@ -198,7 +203,7 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
 
     // check all edges have been inserted
     auto routine_check_edges = [interface, edge_list](int thread_id, int num_threads){
-        interface->on_thread_destroy(thread_id);
+        interface->on_thread_init(thread_id);
         ASSERT_EQ(interface->num_edges(), edge_list->num_edges());
         for(uint64_t i = thread_id +1; i < edge_list->max_vertex_id(); i += num_threads){
             for(uint64_t j = i +1; j < edge_list->max_vertex_id(); j++){
@@ -330,6 +335,22 @@ TEST(GraphOne, UpdatesUndirected){
     auto graphone = make_shared<GraphOne>(/* directed ? */ false, /* vtx dict ? */ true, /* blind writes ? */ false, /* ignore build = */ false, /* GAP impl ? */ false, 1ull << 24);
     sequential(graphone, true, false, 16);
     parallel(graphone, 32);
+
+    parallel_check = false; // global, reset to the default value
+    parallel_vertex_deletions = true; // global, reset to the default value
+}
+#endif
+
+#if defined(HAVE_TESEO)
+TEST(Teseo, UpdatesUndirected){
+    parallel_check = true; // global, check the weights in parallel
+    parallel_vertex_deletions = false; // global, disable vertex deletions
+
+    { // Sequential
+        auto teseo = make_shared<TeseoDriver>(/* directed ? */ false);
+        sequential(teseo, true, false);
+    }
+
 
     parallel_check = false; // global, reset to the default value
     parallel_vertex_deletions = true; // global, reset to the default value
