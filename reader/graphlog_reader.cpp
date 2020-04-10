@@ -223,6 +223,7 @@ VertexReader::~VertexReader(){
 
 bool VertexReader::read_vertex(uint64_t& out_vertex){
     if(m_position >= m_buffer_size){
+        m_position = 0; // reset the position of the iterator
         m_buffer_size = m_loader.load(m_buffer, m_buffer_capacity);
         if(m_buffer_size == 0) return false;
     }

@@ -17,8 +17,6 @@
 
 #pragma once
 
-#pragma once
-
 #include "reader.hpp"
 
 #include <cstddef>

@@ -282,7 +282,6 @@ bool GraphOne::add_vertex(uint64_t vertex_id) {
     if(m_translate_vertex_ids){ // regular graph, translate the vertex into the logical id into the adjacency list
         string str_vertex_id = to_string(vertex_id);
 
-//        auto& mutex = m_edge_locks[vertex_id % m_num_edge_locks].m_lock;
         // The internal dictionary provided by GraphOne is not thread safe
         scoped_lock<SpinLock> lock(m_mutex_vtx);
 
@@ -360,6 +359,10 @@ bool GraphOne::add_edge(gfe::graph::WeightedEdge e){
         v1 = (sid_t) e.destination();
     }
 
+    // Temporary assertions. So far GraphOne cannot contain more than 4G vertices
+    assert(v0 < (1ull<<32) && "Invalid vertex id for the src");
+    assert(v1 < (1ull<<32) && "Invalid vertex id for the dest");
+
     // not strictly necessary, but it eases the impl of #get_weight
     if(!m_is_directed && v0 > v1) std::swap(v0, v1);
 
@@ -401,6 +404,10 @@ bool GraphOne::remove_edge(gfe::graph::Edge e){
         v0 = (sid_t) e.source();
         v1 = (sid_t) e.destination();
     }
+
+    // Temporary assertions. So far GraphOne cannot contain more than 4G vertices
+    assert(v0 < (1ull<<32) && "Invalid vertex id for the src");
+    assert(v1 < (1ull<<32) && "Invalid vertex id for the dest");
 
     // not strictly necessary, but it eases the impl of #get_weight
     if(!m_is_directed && v0 > v1) std::swap(v0, v1);
@@ -719,7 +726,7 @@ unique_ptr<int64_t[]>  graphone_gapbs_bfs_init_distances(snap_t<lite_edge_t>* vi
 static
 unique_ptr<int64_t[]> graphone_gapbs_bfs(uint64_t v_count, uint64_t num_out_edges, uint64_t source, utility::TimeoutService& timer, int alpha = 15, int beta = 18) {
     // Initialisation
-    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
+    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK & PRIVATE_MASK); // global
 
     // The implementation from GAP BS reports the parent (which indeed it should make more sense), while the one required by
     // Graphalytics only returns the distance
@@ -856,7 +863,7 @@ void GraphOne::bfs_gapbs(uint64_t source_vertex_id, const char* dump2file) {
 
 static unique_ptr<uint32_t[]> graphone_native_bfs(uint64_t v_count, uint64_t root, utility::TimeoutService& timeout){
     // Initialisation
-    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
+    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK & PRIVATE_MASK); // global
     int level = 1;
     int top_down = 1;
     sid_t frontier = 0;
@@ -1105,7 +1112,7 @@ updates in the pull direction to remove the need for atomics.
 static
 unique_ptr<double[]> graphone_gapbs_pagerank(uint64_t num_vertices, uint64_t num_iterations, double damping_factor, utility::TimeoutService& timer) {
     // init
-    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
+    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK & PRIVATE_MASK); // global
     const double init_score = 1.0 / num_vertices;
     const double base_score = (1.0 - damping_factor) / num_vertices;
 
@@ -1182,7 +1189,7 @@ unique_ptr<double[]> graphone_gapbs_pagerank(uint64_t num_vertices, uint64_t num
 static unique_ptr<double[]> graphone_pagerank_impl_from_llama(uint64_t num_vertices, uint64_t num_iterations, double d, utility::TimeoutService& timer){
     COUT_DEBUG_PAGERANK("num_vertices: " << num_vertices << ", num_iterations: " << num_iterations << ", damping factor: " << d);
 
-    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
+    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK & PRIVATE_MASK); // global
 
     unique_ptr<double[]> ptr_G_pg_rank{ new double[num_vertices]() }; // avoid memory leaks
     unique_ptr<double[]> ptr_G_pg_rank_nxt{ new double[num_vertices]() };
@@ -1389,7 +1396,7 @@ more consistent performance for undirected graphs.
 static // do_wcc
 unique_ptr<uint64_t[]> graphone_gapbs_wcc(uint64_t num_total_vertices, utility::TimeoutService& timer) {
     // init
-    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
+    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK & PRIVATE_MASK); // global
     unique_ptr<uint64_t[]> ptr_components { new uint64_t[num_total_vertices] };
     uint64_t* comp = ptr_components.get();
 
@@ -1452,7 +1459,7 @@ unique_ptr<uint64_t[]> graphone_gapbs_wcc(uint64_t num_total_vertices, utility::
 // Implementation similar to the specification
 static unique_ptr<uint64_t[]> graphone_simple_wcc(uint64_t num_vertices, bool is_directed, utility::TimeoutService& timeout){
     // Initialisation
-    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
+    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK & PRIVATE_MASK); // global
     unique_ptr<uint64_t[]> ptr_components0 { new uint64_t[num_vertices] }; // avoid memory leaks
     unique_ptr<uint64_t[]> ptr_components1 { new uint64_t[num_vertices] };
     uint64_t* components0 = ptr_components0.get(); // current iteration
@@ -1607,7 +1614,7 @@ void GraphOne::wcc(const char* dump2file) {
  *****************************************************************************/
 // same impl~ as the one done for llama
 static unique_ptr<uint64_t[]> graphone_execute_cdlp(bool is_directed, bool translate_vertex_names, uint64_t num_vertices, uint64_t max_iterations, utility::TimeoutService& timer){
-    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
+    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK & PRIVATE_MASK); // global
     unique_ptr<uint64_t[]> ptr_labels0 { new uint64_t[num_vertices] };
     unique_ptr<uint64_t[]> ptr_labels1 { new uint64_t[num_vertices] };
     uint64_t* labels0 = ptr_labels0.get(); // current labels
@@ -1786,7 +1793,7 @@ void GraphOne::cdlp(uint64_t max_iterations, const char* dump2file) {
 
 // loosely based on the impl~ made for Stinger
 static unique_ptr<double[]> graphone_execute_lcc(uint64_t num_vertices, bool is_directed, utility::TimeoutService& timer){
-    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
+    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK & PRIVATE_MASK); // global
     unique_ptr<double[]> ptr_lcc { new double[num_vertices] };
     double* lcc = ptr_lcc.get();
 
@@ -1996,7 +2003,7 @@ using WeightT = double;
 static const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 
 static gapbs::pvector<WeightT> graphone_execute_sssp(uint64_t num_vertices, uint64_t source, double delta, utility::TimeoutService& timer){
-    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK); // global
+    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK & PRIVATE_MASK); // global
 
     // Total number of edges in the view
     uint64_t num_edges = 0;
