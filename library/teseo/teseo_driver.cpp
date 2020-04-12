@@ -120,8 +120,16 @@ bool TeseoDriver::add_vertex(uint64_t vertex_id){
 }
 
 bool TeseoDriver::remove_vertex(uint64_t vertex_id){
-    assert(0 && "not implemented yet");
-    return false;
+    auto tx = TESEO->start_transaction();
+    try {
+        tx.remove_vertex(vertex_id);
+        tx.commit();
+        return true;
+    } catch( LogicalError& e ){
+        return false;
+    } catch( TransactionConflict& e) {
+        return false;
+    }
 }
 
 bool TeseoDriver::add_edge(gfe::graph::WeightedEdge e) {

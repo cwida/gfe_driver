@@ -183,13 +183,13 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
         interface->on_thread_destroy(thread_id);
     };
 
-    uint64_t edges_per_thread = edge_list->num_edges() / num_threads;
-    uint64_t odd_threads = edge_list->num_edges() % num_threads;
+    int64_t edges_per_thread = edge_list->num_edges() / num_threads;
+    int64_t odd_threads = edge_list->num_edges() % num_threads;
 
     vector<thread> threads;
-    uint64_t start = 0;
+    int64_t start = 0;
     for(int thread_id = 0; thread_id < num_threads; thread_id ++){
-        uint64_t length = edges_per_thread + (thread_id < odd_threads);
+        int64_t length = edges_per_thread + (thread_id < odd_threads);
         threads.emplace_back(routine_insert_edges, thread_id, start, length);
         start += length;
     }
@@ -344,13 +344,12 @@ TEST(GraphOne, UpdatesUndirected){
 #if defined(HAVE_TESEO)
 TEST(Teseo, UpdatesUndirected){
     parallel_check = true; // global, check the weights in parallel
-    parallel_vertex_deletions = false; // global, disable vertex deletions
+    parallel_vertex_deletions = true; // global, enable vertex deletions
 
-    { // Sequential
-        auto teseo = make_shared<TeseoDriver>(/* directed ? */ false);
-        sequential(teseo, true, false);
-    }
-
+    auto teseo = make_shared<TeseoDriver>(/* directed ? */ false);
+    sequential(teseo);
+    parallel(teseo, 128);
+    parallel(teseo, 1024);
 
     parallel_check = false; // global, reset to the default value
     parallel_vertex_deletions = true; // global, reset to the default value
