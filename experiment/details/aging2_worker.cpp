@@ -134,6 +134,18 @@ void Aging2Worker::wait(){
     m_condvar.wait(lock, [this](){ return m_task.m_type == TaskOp::IDLE; });
 }
 
+bool Aging2Worker::wait(const chrono::time_point<chrono::steady_clock>& tp){
+//    auto now = chrono::steady_clock::now();
+
+    unique_lock<mutex> lock(m_mutex);
+//    while(m_task.m_type != TaskOp::IDLE || /* timeout ? */ !((tp <= now) || (tp - now) < 1ms) ) {
+        m_condvar.wait_until(lock, tp, [this](){ return m_task.m_type == TaskOp::IDLE; });
+//        now = chrono::steady_clock::now(); // next iteration
+//    };
+
+    return m_task.m_type == TaskOp::IDLE;
+}
+
 /*****************************************************************************
  *                                                                           *
  * Background thread                                                         *
@@ -321,6 +333,8 @@ void Aging2Worker::graph_execute_batch_updates0(graph::WeightedEdge* __restrict 
         } else { // deletion
             graph_remove_edge<with_latency>(updates[i].edge());
         }
+
+        m_num_operations++;
     }
 }
 
@@ -399,6 +413,10 @@ uint64_t Aging2Worker::num_insertions() const{
 
 uint64_t Aging2Worker::num_deletions() const {
     return m_num_edge_deletions;
+}
+
+uint64_t Aging2Worker::num_operations() const {
+    return m_num_operations;
 }
 
 } // namespace

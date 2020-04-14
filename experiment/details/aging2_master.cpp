@@ -184,7 +184,7 @@ void Aging2Master::do_run_experiment(){
 
     Timer timer; timer.start();
     for(auto w: m_workers) w->execute_updates();
-    for(auto w: m_workers) w->wait();
+    wait_and_record();
     build_service.stop();
     m_parameters.m_library->build(); // flush last changes
     timer.stop();
@@ -241,8 +241,33 @@ uint64_t Aging2Master::num_operations_total() const {
     return m_results.m_num_operations_total;
 }
 
+uint64_t Aging2Master::num_operations_sofar() const {
+    uint64_t total = 0;
+    for(auto w: m_workers) total += w->num_operations();
+    return total;
+}
+
 uint64_t Aging2Master::num_edges_final_graph() const {
    return m_results.m_num_edges_load;
+}
+
+void Aging2Master::wait_and_record() {
+    bool done = false;
+    m_results.m_progress.clear();
+
+    do {
+        auto tp = chrono::steady_clock::now() + 60s;
+
+        done = true;
+        uint64_t i = 0, num_workers = m_workers.size();
+        while(done && i < num_workers){
+            done &= m_workers[i]->wait(tp);
+            i++;
+        }
+
+        if(!done){ m_results.m_progress.push_back(num_operations_sofar()); }
+
+    } while(!done);
 }
 
 void Aging2Master::store_results(){

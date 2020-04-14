@@ -73,6 +73,12 @@ class Aging2Master {
     // Save the current results in `m_results'
     void store_results();
 
+    // Retrieve the current number of operations performed so far by the workers
+    uint64_t num_operations_sofar() const;
+
+    // Wait for the workers to complete, record the throughput in the meanwhile
+    void wait_and_record();
+
     // print to stdout the number of vertices/edges expected and effectively stored in the final library. The two values should be equal.
     void log_num_vtx_edges();
 

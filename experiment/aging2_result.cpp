@@ -61,6 +61,12 @@ void Aging2Result::save(common::Database* handle) {
         db.add("completion_time", m_reported_times[i]); // microseconds
     }
 
+    for(uint64_t i = 0, sz = m_progress.size(); i < sz; i++){
+        auto db = handle->add("aging_intermediate_throughput2");
+        db.add("time", (int64_t) i +1); // 1, 2, 3...
+        db.add("num_operations", m_progress[i]);
+    }
+
     if(m_latency_stats.get() != nullptr){
         m_latency_stats[0].save("inserts");
         m_latency_stats[1].save("deletes");

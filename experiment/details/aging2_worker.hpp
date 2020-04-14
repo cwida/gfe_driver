@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <random>
@@ -45,6 +46,7 @@ class Aging2Worker {
     uint64_t m_num_edge_insertions {0}; // counter, total number of edge insertions to perform, as contained in the array m_updates
     uint64_t* m_latency_deletions {nullptr};
     uint64_t m_num_edge_deletions {0}; // counter, total number of edge deletions to perform, as contained in the array m_updates
+    std::atomic<uint64_t> m_num_operations = 0; // counter, total number of operations performed so far
 
     enum class TaskOp { IDLE, START, STOP, LOAD_EDGES, EXECUTE_UPDATES, REMOVE_VERTICES, SET_ARRAY_LATENCIES };
     struct Task { TaskOp m_type; uint64_t* m_payload; uint64_t m_payload_sz; };
@@ -122,11 +124,17 @@ public:
     // Wait for the last operation issued to complete
     void wait();
 
+    // Wait for the last operation issued to complete or up to the given time point. Return true if the last operation performed was completed.
+    bool wait(const std::chrono::time_point<std::chrono::steady_clock>& tp);
+
     // Number of edge insertions scheduled to perform
     uint64_t num_insertions() const;
 
     // Number of edge deletions scheduled to perform
     uint64_t num_deletions() const;
+
+    // Total number of operations performed so far
+    uint64_t num_operations() const;
 };
 
 } // namespace
