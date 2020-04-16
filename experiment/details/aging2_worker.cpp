@@ -135,13 +135,13 @@ void Aging2Worker::wait(){
 }
 
 bool Aging2Worker::wait(const chrono::time_point<chrono::steady_clock>& tp){
-//    auto now = chrono::steady_clock::now();
+    auto now = chrono::steady_clock::now();
 
     unique_lock<mutex> lock(m_mutex);
-//    while(m_task.m_type != TaskOp::IDLE || /* timeout ? */ !((tp <= now) || (tp - now) < 1ms) ) {
+    while(m_task.m_type != TaskOp::IDLE && /* timeout ? */ !((tp <= now) || (tp - now) < 1ms) ) {
         m_condvar.wait_until(lock, tp, [this](){ return m_task.m_type == TaskOp::IDLE; });
-//        now = chrono::steady_clock::now(); // next iteration
-//    };
+        now = chrono::steady_clock::now(); // next iteration
+    };
 
     return m_task.m_type == TaskOp::IDLE;
 }

@@ -62,8 +62,8 @@ void Aging2Result::save(common::Database* handle) {
     }
 
     for(uint64_t i = 0, sz = m_progress.size(); i < sz; i++){
-        auto db = handle->add("aging_intermediate_throughput2");
-        db.add("time", (int64_t) i +1); // 1, 2, 3...
+        auto db = handle->add("aging_intermediate_throughput3");
+        db.add("second", (int64_t) i +1); // 1, 2, 3...
         db.add("num_operations", m_progress[i]);
     }
 

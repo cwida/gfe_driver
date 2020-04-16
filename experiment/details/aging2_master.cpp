@@ -256,7 +256,7 @@ void Aging2Master::wait_and_record() {
     m_results.m_progress.clear();
 
     do {
-        auto tp = chrono::steady_clock::now() + 60s;
+        auto tp = chrono::steady_clock::now() + 1s;
 
         done = true;
         uint64_t i = 0, num_workers = m_workers.size();
@@ -267,7 +267,9 @@ void Aging2Master::wait_and_record() {
 
         if(!done){ m_results.m_progress.push_back(num_operations_sofar()); }
 
-    } while(!done);
+    } while(!done && m_results.m_progress.size() < 14400 /* 4 h */);
+
+    if(!done){ for(auto& w : m_workers) w->wait(); }
 }
 
 void Aging2Master::store_results(){
