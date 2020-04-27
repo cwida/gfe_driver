@@ -77,6 +77,7 @@ class Configuration {
     std::string m_path_graph_to_load; // the file must be accessible to the server
     uint64_t m_seed = 5051789ull; // random seed, used in various places in the experiments
     double m_step_size_recordings { 1.0 }; // in the aging2 experiment, how often to record the progress done in the db. It must be a value in (0, 1].
+    bool m_timeout_aging2 { false }; // forcedly stop the aging2 experiment after four hours, if it hasn't terminated yet
     uint64_t m_timeout_seconds { 3600 }; // max time to complete an operation, in seconds (0 => indefinite)
     std::string m_update_log; // aging experiment through the log file
     std::unique_ptr<library::Interface> (*m_library_factory)(bool directed) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
@@ -168,6 +169,9 @@ public:
 
     // Check whether the configuration/results need to be stored into a database
     bool has_database() const;
+
+    // Is the timeout set for the aging2 experiment?
+    bool is_aging2_timeout_set() const;
 
     // Retrieve the handle to the database connection, where the final results of the experiments are stored
     ::common::Database* db();

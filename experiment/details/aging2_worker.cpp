@@ -328,6 +328,8 @@ void Aging2Worker::graph_execute_batch_updates(graph::WeightedEdge* __restrict u
 template<bool with_latency>
 void Aging2Worker::graph_execute_batch_updates0(graph::WeightedEdge* __restrict updates, uint64_t num_updates){
     for(uint64_t i = 0; i < num_updates; i++){
+        if(m_master.m_stop_experiment) break; // timeout, we're done
+
         if(updates[i].m_weight >= 0){ // insertion
             graph_insert_edge<with_latency>(updates[i]);
         } else { // deletion

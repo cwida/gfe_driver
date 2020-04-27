@@ -269,7 +269,16 @@ void Aging2Master::wait_and_record() {
 
     } while(!done && m_results.m_progress.size() < 14400 /* 4 h */);
 
-    if(!done){ for(auto& w : m_workers) w->wait(); }
+    if(!done){
+        // forcedly stop the experiment
+        if(m_parameters.m_has_timeout){
+            LOG("TIMEOUT HIT, Terminating the experiment ... ");
+            m_stop_experiment = true;
+        }
+
+        // wait the workers to terminate
+        for(auto& w : m_workers) w->wait();
+    }
 }
 
 void Aging2Master::store_results(){
@@ -296,6 +305,8 @@ void Aging2Master::store_results(){
 
         delete[] m_latencies; m_latencies = nullptr; // free some memory
     }
+
+    m_results.m_timeout = m_stop_experiment;
 }
 
 void Aging2Master::log_num_vtx_edges(){

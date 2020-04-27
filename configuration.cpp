@@ -97,6 +97,7 @@ void Configuration::initialiase(int argc, char* argv[]){
     options.add_options("Generic")
         ("a, aging", "The number of additional updates for the aging experiment to perform", value<double>()->default_value("0"))
         ("aging_step_size", "The step of each recording for the measured progress in the Aging2 experiment. Valid values are 0.1, 0.25, 0.5 and 1.0", value<double>()->default_value("1"))
+        ("aging_timeout", "Force terminating the aging experiment after four hours")
         ("blacklist", "Comma separated list of graph algorithms to blacklist and do not execute", value<string>())
         ("build_frequency", "The frequency to build a new snapshot in the aging experiment (default: disabled)", value<DurationQuantity>())
         ("d, database", "Store the current configuration value into the a sqlite3 database at the given location", value<string>())
@@ -250,7 +251,7 @@ void Configuration::initialiase(int argc, char* argv[]){
         } // blacklist
 
         m_measure_latency = result["latency"].count() > 0;
-
+        m_timeout_aging2 = result["aging_timeout"].count() > 0;
     } catch ( argument_incorrect_type& e){
         ERROR(e.what());
     }
@@ -368,6 +369,10 @@ int Configuration::num_threads_omp() const {
     return m_num_threads_omp;
 }
 
+bool Configuration::is_aging2_timeout_set() const {
+    return m_timeout_aging2;
+}
+
 std::unique_ptr<library::Interface> Configuration::generate_graph_library() {
     return m_library_factory(is_graph_directed());
 }
@@ -410,6 +415,7 @@ void Configuration::save_parameters() {
     params.push_back(P{"seed", to_string(seed())});
     params.push_back(P{"aging", to_string(coefficient_aging())});
     params.push_back(P{"aging_step_size", to_string(get_aging_step_size())});
+    params.push_back(P{"aging_timeout", to_string(is_aging2_timeout_set())});
     params.push_back(P{"build_frequency", to_string(get_build_frequency())}); // milliseconds
     params.push_back(P{"ef_edges", to_string(get_ef_edges())});
     params.push_back(P{"ef_vertices", to_string(get_ef_vertices())});

@@ -112,6 +112,7 @@ static void run_standalone(int argc, char* argv[]){
         experiment.set_max_weight(configuration().max_weight());
         experiment.set_measure_latency(configuration().measure_latency());
         experiment.set_num_reports_per_ops(configuration().get_num_recordings_per_ops());
+        experiment.set_timeout(configuration().is_aging2_timeout_set());
 
         auto result = experiment.execute();
         if(configuration().has_database()) result.save(configuration().db());

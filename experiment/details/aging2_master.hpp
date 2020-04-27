@@ -53,6 +53,9 @@ class Aging2Master {
 
     cuckoohash_map<uint64_t, bool> m_vertices_present; // current list of vertices present in the graph
 
+    // Stinger is so slow, that we stop the experiment after four hours
+    std::atomic<bool> m_stop_experiment = false;
+
     Aging2Result m_results; // final results of the experiment
 
     // Initialise the set of workers

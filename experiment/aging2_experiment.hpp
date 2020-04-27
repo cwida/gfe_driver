@@ -51,6 +51,7 @@ class Aging2Experiment {
     bool m_report_progress = false; // whether to report the current progress
     uint64_t m_num_reports_per_operations = 1; // how often to save in the database progress done
     bool m_measure_latency = false; // whether to measure the latency of updates
+    bool m_has_timeout = false; // stop the experiment after 4 hours?
 
 public:
     // Instantiate the factory class
@@ -83,6 +84,9 @@ public:
 
     // Measure the latency of updates?
     void set_measure_latency(bool value);
+
+    // Stop the experiment after four hours
+    void set_timeout(bool value);
 
     // [Internal parameter]
     // Set the granularity of a task for a worker thread. This is the number of contiguos operations (inserts/deletes) done
