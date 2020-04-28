@@ -184,7 +184,7 @@ vector<ImplementationManifest> implementations() {
 #if defined(HAVE_STINGER)
     result.emplace_back("stinger", "Stinger library", &generate_stinger);
     result.emplace_back("stinger-dv", "Stinger with dense vertices", &generate_stinger_dv);
-    result.emplace_back("stinger-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
+    result.emplace_back("stinger-ref2", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
 #endif
 
 #if defined(HAVE_GRAPHONE)
