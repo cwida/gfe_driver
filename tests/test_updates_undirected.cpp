@@ -86,6 +86,7 @@ static void sequential(shared_ptr<UpdateInterface> interface, bool edge_deletion
         interface->add_edge(edge);
     }
 
+    this_thread::sleep_for(1s);
     interface->build();
 
     // check all edges have been inserted

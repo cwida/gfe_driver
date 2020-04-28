@@ -71,6 +71,24 @@ AC_DEFUN([MY_INTEL_TBB], [
 ])
 
 #############################################################################
+# libevent >2.1.1
+have_libevent="unknown"; # Perform the check only once when invoking MY_LIBEVENT()
+AC_DEFUN([MY_LIBEVENT], [
+    if test x"${have_libevent}" == x"unknown"; then
+        for header in "event2/event.h" "event2/thread.h"; do
+            AC_CHECK_HEADER([${header}], [],
+                [AC_MSG_ERROR([missing prerequisite: this program requires the headers for libevent v2.1.x with support for pthreads]) ],
+                [ [/* avoid default includes */] ])
+        done
+        AC_SEARCH_LIBS([libevent_global_shutdown], [event_core event], [],
+            [ AC_MSG_ERROR([missing prerequisite: this program requires libevent]) ])
+        AC_SEARCH_LIBS([evthread_use_pthreads], [event_pthreads event], [],
+            [ AC_MSG_ERROR([missing prerequisite: this program requires libevent with support for pthreads]) ])
+        have_libevent="yes";
+    fi
+])
+    
+#############################################################################
 # pthreads
 AC_SEARCH_LIBS([pthread_create], [pthread], [],
     [ AC_MSG_ERROR([missing prerequisite: this program requires pthreads to work (dependency for sqlite3)]) ])
@@ -255,13 +273,14 @@ AC_ARG_WITH([teseo], [AS_HELP_STRING([--with-teseo@<:@=ARG@:>@], [
 ])], [])
 
 if ( test x"${with_teseo}" != x"" && test x"${with_teseo}" != "no" ); then
-    
     if( test x"${with_teseo}" == x"yes" ); then
         AC_MSG_ERROR(["the full path to the Teseo build needs to be specified, e.g. --with-teseo=/path/to/teseo/build"]);
     fi
     
+    MY_LIBEVENT()
+    
     path_teseo=$(realpath "${with_teseo}") 
-    path_teseo_library="${path_teseo}/libteseo.so"
+    path_teseo_library="${path_teseo}/libteseo.a"
     AC_CHECK_FILE([${path_teseo_library}], [  ],  [ AC_MSG_ERROR([file not found: ${path_teseo_library}]) ])
     
     path_teseo_makefile="${path_teseo}/Makefile"
@@ -270,8 +289,8 @@ if ( test x"${with_teseo}" != x"" && test x"${with_teseo}" != "no" ); then
     path_teseo_includedir="$(realpath "${with_teseo}/$(make -C $(dirname ${path_teseo_makefile}) -n -p | awk '/^srcdir/ {print $3}')")/include" 
     AC_MSG_NOTICE([Teseo include path: ${path_teseo_includedir}])
     
-    AS_VAR_APPEND([CPPFLAGS], [" -I${path_teseo_includedir} -I${path_teseo_includedir}/../src/"])
-    AS_VAR_APPEND([LIBS], [" -L${path_teseo} -Wl,-rpath=${path_teseo} -lteseo"])
+    AS_VAR_APPEND([CPPFLAGS], [" -I${path_teseo_includedir} -I${path_teseo}/include"])
+    AS_VAR_SET([LIBS], ["-L${path_teseo} -lteseo ${LIBS}"])
     
     # Try to compile a program with Teseo
     AC_LINK_IFELSE([
@@ -403,7 +422,7 @@ if ( test "${have_openmp}" == "no" ); then
 fi
 
 dnl check whether we have Intel TBB
-if ( test x"${with_llama}" != x"no" ); then
+if ( test x"${with_llama}" != x"no" &&  test x"${with_llama}" != x"auto" ); then
 	AC_MSG_NOTICE([llama: checking whether Intel TBB is present in the machine...])
 	MY_INTEL_TBB() dnl it raises an error if not satisfied
 	AS_VAR_APPEND([CPPFLAGS], [" -DLLAMA_HASHMAP_WITH_TBB"])
@@ -434,6 +453,13 @@ if ( test x"${with_llama}" != x"no" ); then
             AC_MSG_FAILURE([unable to compile and link an executable with llama])
         fi
     ])
+fi
+
+dnl check whether we have Intel TBB (auto)
+if (test x"${with_llama}" == x"auto" ); then
+    AC_MSG_NOTICE([llama: checking whether Intel TBB is present in the machine...])
+    MY_INTEL_TBB() dnl it raises an error if not satisfied
+    AS_VAR_APPEND([CPPFLAGS], [" -DLLAMA_HASHMAP_WITH_TBB"])
 fi
 
 dnl add the definition HAVE_LLAMA into the list of preprocessor variables $CPPFLAGS

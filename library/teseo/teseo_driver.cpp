@@ -18,13 +18,11 @@
 
 #include <cassert>
 #include <mutex>
+
+
+#include "teseo/context/global_context.hpp"
+#include "teseo/memstore/memstore.hpp"
 #include "teseo.hpp"
-
-#undef RAISE_EXCEPTION_CREATE_ARGUMENTS
-#undef CURRENT_ERROR_TYPE
-#include "../src/context.hpp" // for dump()
-#include "../src/memstore/sparse_array.hpp" // for dump()
-
 
 using namespace std;
 using namespace teseo;
@@ -37,8 +35,8 @@ using namespace teseo;
  *                                                                           *
  *****************************************************************************/
 //#define DEBUG
-extern mutex _log_mutex [[maybe_unused]];
-#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::_log_mutex}; std::cout << "[TeseoDriver::" << __FUNCTION__ << "] " << msg << std::endl; }
+namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
+#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::gfe::_log_mutex}; std::cout << "[TeseoDriver::" << __FUNCTION__ << "] " << msg << std::endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
 #else
@@ -120,6 +118,7 @@ bool TeseoDriver::add_vertex(uint64_t vertex_id){
 }
 
 bool TeseoDriver::remove_vertex(uint64_t vertex_id){
+    COUT_DEBUG("remove vertex: " << vertex_id);
     auto tx = TESEO->start_transaction();
     try {
         tx.remove_vertex(vertex_id);
@@ -167,8 +166,8 @@ bool TeseoDriver::remove_edge(gfe::graph::Edge e) {
  *****************************************************************************/
 
 void TeseoDriver::dump_ostream(std::ostream& out) const {
-    teseo::internal::context::global_context()->dump();
-    teseo::internal::context::global_context()->storage()->dump();
+    auto memstore = teseo::context::global_context()->memstore();
+    memstore->dump();
 }
 
 } // namespace
