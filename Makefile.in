@@ -102,6 +102,7 @@ endif
 # Support for tcmalloc
 ifneq (,$(findstring gperftools,${subdirs}))
 	tcmalloc := third-party/gperftools-2.7/install/lib/libtcmalloc_minimal.a
+	#dependencies += ${tcmalloc}
 endif
 
 
@@ -127,7 +128,7 @@ ${builddir}/gfe_driver: ${objectdir}/main_driver.o ${dependencies} ${tcmalloc} |
 
 #############################################################################
 # Compiling the objects
-${archive}: ${objects} ${tcmalloc}
+${archive}: ${objects}
 	$(AR) $(AR_FLAGS) $@ $?
 
 # Objects from C files
@@ -180,7 +181,7 @@ check: ${testartifacts}
 		echo "!!! All tests passed !!!"; \
 	fi;
 
-${testartifacts}: ${dependencies} | ${gtestlibs}
+${testartifacts}: ${dependencies} ${tcmalloc} | ${gtestlibs}
 ${testartifacts}: % : %.cpp | ${testbindir} ${testgraphs}
 	${CXX} $(ALL_CXXFLAGS) -I ${srcdir}/third-party/googletest/googletest/include $< ${dependencies} ${gtestlibs} ${LDFLAGS} -o $@
 
