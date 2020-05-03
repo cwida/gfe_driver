@@ -305,11 +305,11 @@ AC_DEFUN([AX_SUBDIRS_CONFIGURE],
 
           # Always prepend --prefix to ensure using the same prefix
           # in subdir configurations.
-          ax_arg="--prefix=$prefix"
+          ax_arg="--prefix=$prefix" # ma anche no!
           case $ax_arg in
             *\'*) ax_arg=$(AS_ECHO(["$ax_arg"]) | sed "s/'/'\\\\\\\\''/g");;
           esac
-          ax_sub_configure_args="'$ax_arg' $ax_sub_configure_args"
+          ax_sub_configure_args="$ax_sub_configure_args"
           if test "$silent" = yes; then
             ax_sub_configure_args="--silent $ax_sub_configure_args"
           fi

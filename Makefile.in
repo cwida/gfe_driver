@@ -10,6 +10,7 @@ objectdir := objects
 srcdir := @srcdir@
 VPATH := @srcdir@
 top_srcdir := @top_srcdir@
+subdirs := @subdirs@ 
 
 # Compiler programs & flags
 # !!! It assumes that ${top_srcdir} has been defined in the container file !!!
@@ -98,6 +99,12 @@ ifneq (,$(findstring -DHAVE_TESEO,${ALL_CPPFLAGS}))
 	sources += $(addprefix library/teseo/, teseo_driver.cpp)
 endif	
 
+# Support for tcmalloc
+ifneq (,$(findstring gperftools,${subdirs}))
+	tcmalloc := third-party/gperftools-2.7/install/lib/libtcmalloc_minimal.a
+endif
+
+
 #############################################################################
 # Helper variables
 makedepend_c = @$(CC) -MM $(ALL_CFLAGS) -MP -MT $@ -MF $(basename $@).d $<
@@ -115,12 +122,12 @@ all: ${builddir}/gfe_driver
 
 #############################################################################
 # Artifacts to build
-${builddir}/gfe_driver: ${objectdir}/main_driver.o ${dependencies} | ${builddir}
+${builddir}/gfe_driver: ${objectdir}/main_driver.o ${dependencies} ${tcmalloc} | ${builddir}
 	${CXX} $^ ${LDFLAGS} -o $@
 
 #############################################################################
 # Compiling the objects
-${archive}: ${objects}
+${archive}: ${objects} ${tcmalloc}
 	$(AR) $(AR_FLAGS) $@ $?
 
 # Objects from C files
@@ -185,6 +192,11 @@ ${gtestdir}:
 	
 ${testgraphs}: | ${testbindir}
 	ln -s $(abspath ${srcdir})/tests/graphs $@
+
+#############################################################################
+# Support for tcmalloc	
+${tcmalloc}: third-party/gperftools-2.7
+	$(MAKE) -C $< install
 
 #############################################################################
 # Build directories
