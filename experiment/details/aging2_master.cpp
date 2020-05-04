@@ -267,8 +267,8 @@ void Aging2Master::wait_and_record() {
 
         if(!done){ m_results.m_progress.push_back(num_operations_sofar()); }
 
-    //} while(!done && m_results.m_progress.size() < 14400 /* 4 h */);
-    } while(!done && m_results.m_progress.size() < 86400 /* 24 h */);
+    } while(!done && m_results.m_progress.size() < 14400 /* 4 h */);
+//    } while(!done && m_results.m_progress.size() < 86400 /* 24 h */);
 
     if(!done){
         // forcedly stop the experiment
