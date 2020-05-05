@@ -180,6 +180,60 @@ chrono::microseconds InsertOnly::execute() {
     return chrono::microseconds{ m_time_insert + m_time_build };
 }
 
+void InsertOnly::validate(){
+    LOG("Validation started");
+
+    int num_threads = thread::hardware_concurrency();
+    m_interface->on_main_init(num_threads);
+    atomic<int64_t> num_errors = 0;
+
+    auto routine = [this, &num_errors](int thread_id, uint64_t from, uint64_t to){
+        auto interface = m_interface.get();
+        auto stream = m_stream.get();
+        interface->on_thread_init(thread_id);
+
+        for(uint64_t i = from; i < to; i++){
+            auto edge = stream->get(i);
+            auto w1 = m_interface->get_weight(edge.source(), edge.destination());
+            if(w1 != edge.m_weight){
+                LOG("ERROR [" << i << "] Edge mismatch " << edge.source() << " -> " << edge.destination() << ", retrieved weight: " << w1 << ", expected: " << edge.weight());
+                num_errors++;
+            }
+            if(m_interface->is_undirected()){
+                auto w2 = m_interface->get_weight(edge.destination(), edge.source());
+                if(w2 != edge.m_weight){
+                    LOG("ERROR [" << i << "] Edge mismatch " << edge.source() << " <- " << edge.destination() << ", retrieved weight: " << w1 << ", expected: " << edge.weight());
+                    num_errors++;
+                }
+            }
+        }
+        interface->on_thread_destroy(thread_id);
+    };
+
+
+    uint64_t edges_per_thread = m_stream->num_edges() / num_threads;
+    uint64_t odd_threads = m_stream->num_edges() % num_threads;
+
+    vector<thread> threads;
+    uint64_t from = 0;
+    for(int i = 0; i < num_threads; i++){
+        uint64_t to = from + edges_per_thread + (i < odd_threads);
+        threads.emplace_back(routine, i, from, to);
+        from = to;
+    }
+
+    for(auto& t: threads) t.join();
+
+    m_interface->on_main_destroy();
+
+    m_num_validation_errors = num_errors;
+    if(num_errors == 0){
+        LOG("Validation succeeded");
+    } else {
+        LOG("Number of validation errors: " << num_errors);
+    }
+}
+
 void InsertOnly::save() {
     assert(configuration().db() != nullptr);
     auto db = configuration().db()->add("insert_only");
@@ -190,6 +244,7 @@ void InsertOnly::save() {
     db.add("num_edges", m_stream->num_edges());
     db.add("num_snapshots_created", m_interface->num_levels());
     db.add("num_build_invocations", m_num_build_invocations);
+    db.add("num_validation_errors", m_num_validation_errors);
     // missing revision: until 25/Nov/2019
     // version 20191125: build thread, build frequency taken into account, scheduler set to round_robin, removed batch updates
     // version 20191210: difference between num_build_invocations (explicit invocations to #build()) and num_snapshots_created (actual number of deltas created by the impl)

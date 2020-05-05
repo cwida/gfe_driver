@@ -81,6 +81,7 @@ class Configuration {
     uint64_t m_timeout_seconds { 3600 }; // max time to complete an operation, in seconds (0 => indefinite)
     std::string m_update_log; // aging experiment through the log file
     std::unique_ptr<library::Interface> (*m_library_factory)(bool directed) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
+    bool m_validate_inserts = false; // whether to validate the edges inserted
     bool m_validate_output = false; // whether to validate the execution results of the Graphalytics algorithms
 
     void set_aging_step_size(double value); // The step in each recording in the progress for the Agin2 experiment. In (0, 1].
@@ -130,6 +131,9 @@ public:
 
     // Whether to validate the execution results of the Graphalytics algorithms
     bool validate_output() const { return m_validate_output; }
+
+    // Whether to validate the edges inserted
+    bool validate_inserts() const { return m_validate_inserts; }
 
     // Coefficient for the surplus of updates to perform (noise) w.r.t. the final graph  to load
     double coefficient_aging() const{ return m_coeff_aging; }

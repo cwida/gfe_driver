@@ -87,6 +87,10 @@ static void run_standalone(int argc, char* argv[]){
             experiment.set_scheduler_granularity(1ull < 20);
             experiment.execute();
             if(configuration().has_database()) experiment.save();
+
+            if(configuration().validate_inserts()){
+                experiment.validate();
+            }
         } else { // Aging experiment, without the graphlog
             if(configuration().measure_latency()) ERROR("[driver] Aging1, latency measurements not implemented");
 

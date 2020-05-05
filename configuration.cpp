@@ -222,6 +222,7 @@ void Configuration::initialiase(int argc, char* argv[]){
         }
 
         if( result["validate"].count() > 0 ){
+            m_validate_inserts = true;
             m_validate_output = true;
         }
 
@@ -433,6 +434,7 @@ void Configuration::save_parameters() {
         params.push_back(P{"log", get_update_log()});
     }
     params.push_back(P{"role", "standalone"});
+    params.push_back(P{"validate_inserts", to_string(validate_inserts())});
     params.push_back(P{"validate_output", to_string(validate_output())});
 
     if(!m_blacklist.empty()){
