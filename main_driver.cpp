@@ -16,6 +16,7 @@
  */
 #include <iostream>
 
+#include "common/database.hpp"
 #include "common/error.hpp"
 #include "common/system.hpp"
 //#include "common/timer.hpp"
@@ -23,6 +24,7 @@
 #include "experiment/aging2_experiment.hpp"
 #include "experiment/insert_only.hpp"
 #include "experiment/graphalytics.hpp"
+#include "experiment/validate.hpp"
 #include "graph/edge_stream.hpp"
 #include "library/interface.hpp"
 #include "third-party/cxxopts/cxxopts.hpp"
@@ -73,6 +75,7 @@ static void run_standalone(int argc, char* argv[]){
     LOG("[driver] The library is set for a directed graph: " << (configuration().is_graph_directed() ? "yes" : "no"));
 
     uint64_t random_vertex = 0;
+    int64_t num_validation_errors = -1; // -1 => no validation performed
     if(configuration().get_update_log().empty()){
         LOG("[driver] Loading the graph from " << path_graph);
         auto stream = make_shared<graph::WeightedEdgeStream> ( configuration().get_path_graph() );
@@ -82,14 +85,15 @@ static void run_standalone(int argc, char* argv[]){
         LOG("[driver] Number of concurrent threads: " << configuration().num_threads(THREADS_WRITE) );
 
         if(configuration().coefficient_aging() == 0.0){ // insert the elements in the graph one by one
-            InsertOnly experiment { impl_upd, move(stream), configuration().num_threads(THREADS_WRITE), configuration().measure_latency() };
+            InsertOnly experiment { impl_upd, stream, configuration().num_threads(THREADS_WRITE), configuration().measure_latency() };
             experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
             experiment.set_scheduler_granularity(1ull < 20);
             experiment.execute();
             if(configuration().has_database()) experiment.save();
 
+
             if(configuration().validate_inserts()){
-                experiment.validate();
+                num_validation_errors = validate_updates(impl_upd, stream);
             }
         } else { // Aging experiment, without the graphlog
             if(configuration().measure_latency()) ERROR("[driver] Aging1, latency measurements not implemented");
@@ -121,6 +125,18 @@ static void run_standalone(int argc, char* argv[]){
         auto result = experiment.execute();
         if(configuration().has_database()) result.save(configuration().db());
         random_vertex = result.get_random_vertex_id();
+
+        if(configuration().validate_inserts()){
+            LOG("[driver] Validation of updates requested, loading the original graph from: " << path_graph);
+            auto stream = make_shared<graph::WeightedEdgeStream> ( configuration().get_path_graph() );
+            num_validation_errors = validate_updates(impl_upd, stream);
+        }
+    }
+
+    if(configuration().has_database()){
+        vector<pair<string, string>> params;
+        params.push_back(make_pair("num_validation_errors", to_string(num_validation_errors)));
+        configuration().db()->store_parameters(params);
     }
 
     if(configuration().num_repetitions() > 0){

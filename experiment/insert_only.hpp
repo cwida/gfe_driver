@@ -45,7 +45,6 @@ class InsertOnly {
     uint64_t m_time_build = 0; // the amount of time to build the last snapshot/delta/level in the library, in microseconds
     uint64_t m_num_build_invocations = 0; // number of times the method #build() has been invoked
     details::LatencyStatistics m_latencies; // the latencies measured in the experiment
-    int64_t m_num_validation_errors = -1; // number of mismatches found by the validate routine
 
     // Execute the experiment with the round robin scheduler
     void execute_round_robin(void* /* opaque */ cb, uint64_t* latencies);
@@ -71,9 +70,6 @@ public:
 
     // Store the results into the database
     void save();
-
-    // Check that graph contains all the edges inserted
-    void validate();
 };
 
 } // namespace experiment

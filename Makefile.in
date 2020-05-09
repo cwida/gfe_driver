@@ -60,6 +60,7 @@ sources := \
 	experiment/graphalytics.cpp \
 	experiment/insert_only.cpp \
 	experiment/statistics.cpp \
+	experiment/validate.cpp \
 	graph/cbytearray.cpp \
 	graph/edge.cpp \
 	graph/edge_stream.cpp \
