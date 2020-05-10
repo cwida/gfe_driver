@@ -110,7 +110,7 @@ static void run_standalone(int argc, char* argv[]){
 
     } else {
         LOG("[driver] Number of concurrent threads: " << configuration().num_threads(THREADS_WRITE) );
-        LOG("[driver] Aging2, path to log of updates: " << configuration().get_update_log());
+        LOG("[driver] Aging2, path to the log of updates: " << configuration().get_update_log());
         Aging2Experiment experiment;
         experiment.set_library(impl_upd);
         experiment.set_log(configuration().get_update_log());
