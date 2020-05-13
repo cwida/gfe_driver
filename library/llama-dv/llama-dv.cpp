@@ -90,6 +90,7 @@
 #include <iostream>
 #include <mutex>
 #include <set>
+#include <shared_mutex> // shared_lock
 
 #include "common/timer.hpp"
 #include "utility/timeout_service.hpp"
@@ -164,17 +165,17 @@ LLAMA_DV::~LLAMA_DV(){
  *                                                                            *
  *****************************************************************************/
 uint64_t LLAMA_DV::num_edges() const {
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     return m_num_edges;
 }
 
 uint64_t LLAMA_DV::num_vertices() const {
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     return m_db->graph()->max_nodes();
 }
 
 uint64_t LLAMA_DV::num_levels() const{
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     return m_db->graph()->ro_graph().num_levels();
 }
 
@@ -229,14 +230,14 @@ ll_mlcsr_ro_graph LLAMA_DV::get_snapshot() const {
  *                                                                            *
  *****************************************************************************/
 bool LLAMA_DV::add_vertex(uint64_t vertex_id){
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("vertex_id: " << vertex_id);
 
     return m_db->graph()->add_node(vertex_id);
 }
 
 bool LLAMA_DV::remove_vertex(uint64_t vertex_id){
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("vertex_id: " << vertex_id);
 
     m_db->graph()->delete_node(vertex_id);
@@ -244,7 +245,7 @@ bool LLAMA_DV::remove_vertex(uint64_t vertex_id){
 }
 
 bool LLAMA_DV::add_edge(graph::WeightedEdge e){
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("edge: " << e);
 
     uint64_t source = e.source();
@@ -272,7 +273,7 @@ bool LLAMA_DV::add_edge(graph::WeightedEdge e){
 
 bool LLAMA_DV::remove_edge(graph::Edge e){
     COUT_DEBUG("edge: " << e);
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
 
     uint64_t source = e.source();
     uint64_t destination = e.destination();
@@ -289,7 +290,7 @@ bool LLAMA_DV::remove_edge(graph::Edge e){
 }
 
 void LLAMA_DV::build(){
-    scoped_lock<shared_mutex> xlock(m_lock_checkpoint);
+    scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
     COUT_DEBUG("build");
 
     assert((static_cast<int64_t>(m_num_edges) + m_db->graph()->get_num_edges_diff() >= 0) && "Underflow");
@@ -306,12 +307,12 @@ void LLAMA_DV::build(){
  *****************************************************************************/
 
 void LLAMA_DV::dump_ostream(std::ostream& out) const {
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     dump_impl(out, *(m_db->graph()));
 }
 
 void LLAMA_DV::dump_ostream(std::ostream& out, int level) const {
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
 
     // some sanity checks
     if(level < 0){

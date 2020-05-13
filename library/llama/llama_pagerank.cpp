@@ -20,6 +20,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <shared_mutex> // shared_lock
 
 #include "common/timer.hpp"
 #include "third-party/libcuckoo/cuckoohash_map.hh"
@@ -56,7 +57,7 @@ void LLAMAClass::pagerank(uint64_t num_iterations, double damping_factor, const 
     Timer timer; timer.start();
 
     // retrieve the latest snapshot
-    shared_lock<shared_mutex> slock(m_lock_checkpoint);
+    shared_lock<shared_mutex_t> slock(m_lock_checkpoint);
     auto graph = get_snapshot();
 //    dump_snapshot(graph);
     auto current_num_vertices = num_vertices();

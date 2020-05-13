@@ -48,6 +48,7 @@
 #include <fstream>
 #include <memory>
 #include <iostream>
+#include <shared_mutex> // shared_lock
 
 using namespace common;
 using namespace gfe::utility;
@@ -192,7 +193,7 @@ void LLAMAClass::sssp(uint64_t external_source_vertex_id, const char* dump2file)
     Timer timer; timer.start();
 
     // retrieve the latest snapshot the internal source_vertex_id
-    shared_lock<shared_mutex> slock(m_lock_checkpoint);
+    shared_lock<shared_mutex_t> slock(m_lock_checkpoint);
     auto graph = get_snapshot();
 //    dump_snapshot(graph);
     int64_t llama_source_vertex_id = get_internal_vertex_id(external_source_vertex_id);

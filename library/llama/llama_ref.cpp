@@ -21,6 +21,7 @@
 #include <fstream>
 #include <limits>
 #include <mutex>
+#include <shared_mutex> // shared_lock
 
 #include "common/system.hpp"
 #include "common/timer.hpp"
@@ -310,7 +311,7 @@ void LLAMARef::bfs(uint64_t external_source_vertex_id, const char* dump2file){
     common::Timer timer; timer.start();
 
     // retrieve the latest snapshot the internal source_vertex_id
-    shared_lock<shared_mutex> slock(m_lock_checkpoint);
+    shared_lock<shared_mutex_t> slock(m_lock_checkpoint);
     auto graph = get_snapshot();
     int64_t llama_source_vertex_id = get_internal_vertex_id(external_source_vertex_id);
     uint64_t num_edges = 0;
@@ -436,7 +437,7 @@ void LLAMARef::pagerank(uint64_t num_iterations, double damping_factor, const ch
     common::Timer timer; timer.start();
 
     // retrieve the latest snapshot
-    shared_lock<shared_mutex> slock(m_lock_checkpoint);
+    shared_lock<shared_mutex_t> slock(m_lock_checkpoint);
     auto graph = get_snapshot();
 //    dump_snapshot(graph);
     auto current_num_vertices = num_vertices();
@@ -568,7 +569,7 @@ void LLAMARef::wcc(const char* dump2file) {
     common::Timer timer; timer.start();
 
     // retrieve the latest snapshot the internal source_vertex_id
-    shared_lock<shared_mutex> slock(m_lock_checkpoint);
+    shared_lock<shared_mutex_t> slock(m_lock_checkpoint);
     auto graph = get_snapshot();
     slock.unlock();
 
@@ -736,7 +737,7 @@ void LLAMARef::sssp(uint64_t external_source_vertex_id, const char* dump2file){
     common::Timer timer; timer.start();
 
     // retrieve the latest snapshot the internal source_vertex_id
-    shared_lock<shared_mutex> slock(m_lock_checkpoint);
+    shared_lock<shared_mutex_t> slock(m_lock_checkpoint);
     auto graph = get_snapshot();
 //    dump_snapshot(graph);
     int64_t llama_source_vertex_id = get_internal_vertex_id(external_source_vertex_id);

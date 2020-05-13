@@ -20,6 +20,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <shared_mutex> // shared_lock
 #include <unordered_map>
 
 #include "common/timer.hpp"
@@ -56,7 +57,7 @@ void LLAMAClass::cdlp(uint64_t max_iterations, const char* dump2file){
     Timer timer; timer.start();
 
     // retrieve the latest snapshot the internal source_vertex_id
-    shared_lock<shared_mutex> slock(m_lock_checkpoint);
+    shared_lock<shared_mutex_t> slock(m_lock_checkpoint);
     auto graph = get_snapshot();
 //    dump_snapshot(graph);
     slock.unlock(); // here we lose the ability to refer to m_vmap_read_only from now on

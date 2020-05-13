@@ -81,6 +81,7 @@
 #include <fstream>
 #include <iostream>
 #include <set>
+#include <shared_mutex> // shared_lock
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -334,7 +335,7 @@ void LLAMAClass::wcc(const char* dump2file){
     Timer timer; timer.start();
 
     // retrieve the latest snapshot the internal source_vertex_id
-    shared_lock<shared_mutex> slock(m_lock_checkpoint);
+    shared_lock<shared_mutex_t> slock(m_lock_checkpoint);
     auto graph = get_snapshot();
 //    dump_snapshot(graph);
     slock.unlock();

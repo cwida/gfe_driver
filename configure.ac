@@ -499,6 +499,7 @@ dnl add the definition HAVE_LLAMA into the list of preprocessor variables $CPPFL
 if( test x"${with_llama}" != x"no" ); then
     AC_MSG_NOTICE([llama support enabled])
     AS_VAR_APPEND([CPPFLAGS], [" -DHAVE_LLAMA"])
+    AS_VAR_APPEND([CPPFLAGS], [" -DLLAMA_FAIR_SHARED_MUTEX"])
 fi
 
 #############################################################################

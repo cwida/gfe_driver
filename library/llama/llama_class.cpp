@@ -21,6 +21,7 @@
 #include <cmath>
 #include <iostream>
 #include <mutex>
+#include <shared_mutex> // shared_lock
 
 using namespace common;
 using namespace std;
@@ -114,7 +115,7 @@ uint64_t LLAMAClass::num_vertices() const {
 }
 
 uint64_t LLAMAClass::num_levels() const{
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     return m_db->graph()->ro_graph().num_levels();
 }
 
@@ -270,7 +271,7 @@ ll_mlcsr_ro_graph LLAMAClass::get_snapshot() const {
  *****************************************************************************/
 
 bool LLAMAClass::add_vertex(uint64_t vertex_id_ext){
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("vertex_id: " << vertex_id_ext);
 
 #if defined(LLAMA_HASHMAP_WITH_TBB)
@@ -316,7 +317,7 @@ bool LLAMAClass::add_vertex(uint64_t vertex_id_ext){
 }
 
 bool LLAMAClass::remove_vertex(uint64_t vertex_id_ext){
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("vertex_id: " << vertex_id_ext);
 
 #if defined(LLAMA_HASHMAP_WITH_TBB)
@@ -359,7 +360,7 @@ bool LLAMAClass::remove_vertex(uint64_t vertex_id_ext){
 }
 
 bool LLAMAClass::add_edge(graph::WeightedEdge e){
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("edge: " << e);
 
     node_t llama_source_id { -1 }, llama_destination_id { -1 };
@@ -409,7 +410,7 @@ bool LLAMAClass::add_edge(graph::WeightedEdge e){
 }
 
 bool LLAMAClass::remove_edge(graph::Edge e){
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("edge: " << e);
 
     node_t llama_source_id { -1 }, llama_destination_id { -1 };
@@ -450,7 +451,7 @@ bool LLAMAClass::remove_edge(graph::Edge e){
 }
 
 void LLAMAClass::build(){
-    scoped_lock<shared_mutex> xlock(m_lock_checkpoint);
+    scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
     COUT_DEBUG("build");
 
 #if !defined(LLAMA_HASHMAP_WITH_TBB)
@@ -486,12 +487,12 @@ void LLAMAClass::build(){
  *****************************************************************************/
 
 void LLAMAClass::dump_ostream(std::ostream& out) const {
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     dump_impl(out, *(m_db->graph()));
 }
 
 void LLAMAClass::dump_ostream(std::ostream& out, int level) const {
-    shared_lock<shared_mutex> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
 
     // some sanity checks
     if(level < 0){

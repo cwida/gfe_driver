@@ -24,7 +24,6 @@
 
 #include <atomic>
 #include <chrono>
-#include <shared_mutex>
 
 #include "common/spinlock.hpp"
 #include "library/interface.hpp"
@@ -32,6 +31,11 @@
 #include "tbb/concurrent_hash_map.h"
 #else
 #include "third-party/libcuckoo/cuckoohash_map.hh"
+#endif
+#if defined(LLAMA_FAIR_SHARED_MUTEX)
+#include "llama_mutex.hpp"
+#else
+#include <shared_mutex>
 #endif
 
 class ll_database; // forward declaration
@@ -49,12 +53,17 @@ class LLAMAClass : public virtual UpdateInterface, public virtual GraphalyticsIn
 protected:
     LLAMAClass(const LLAMAClass&) = delete;
     LLAMAClass& operator=(const LLAMAClass&) = delete;
+#if defined(LLAMA_FAIR_SHARED_MUTEX)
+    using shared_mutex_t = llama_details::FairSharedMutex;
+#else
+    using shared_mutex_t = std::shared_mutex;
+#endif
 
     const bool m_is_directed; // is the graph directed
     ll_database* m_db { nullptr };
     uint64_t m_num_edges { 0 }; // the current number of edges contained
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
-    mutable std::shared_mutex m_lock_checkpoint; // invoking #build(), that is creating a new snapshot, must be done without any other interference from other writers
+    mutable shared_mutex_t m_lock_checkpoint; // invoking #build(), that is creating a new snapshot, must be done without any other interference from other writers
 
 #if defined(LLAMA_HASHMAP_WITH_TBB)
     tbb::concurrent_hash_map<uint64_t, /* node_t */ int64_t> m_vmap; // vertex dictionary, from external vertex ID to internal vertex ID

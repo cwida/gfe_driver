@@ -18,7 +18,13 @@
 #pragma once
 
 #include <chrono>
+
+#if defined(LLAMA_FAIR_SHARED_MUTEX)
+#include "../llama/llama_mutex.hpp"
+#else
 #include <shared_mutex>
+#endif
+
 
 #include "library/interface.hpp"
 
@@ -39,13 +45,17 @@ namespace gfe::library {
 class LLAMA_DV : public virtual UpdateInterface, public virtual GraphalyticsInterface {
     LLAMA_DV(const LLAMA_DV&) = delete;
     LLAMA_DV& operator=(const LLAMA_DV&) = delete;
+#if defined(LLAMA_FAIR_SHARED_MUTEX)
+    using shared_mutex_t = llama_details::FairSharedMutex;
+#else
+    using shared_mutex_t = std::shared_mutex;
+#endif
 
     const bool m_is_directed; // is the graph directed
     const bool m_blind_writes; // blind writes ?
     ll_database* m_db { nullptr }; // handle to the llama implementation
     uint64_t m_num_edges { 0 }; // the current number of edges contained in the read-only store
-    mutable std::shared_mutex m_lock_checkpoint; // invoking #build(), that is creating a new snapshot, must be done without any other interference from other writers
-
+    mutable shared_mutex_t m_lock_checkpoint; // invoking #build(), that is creating a new snapshot, must be done without any other interference from other writers
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
 
     // Retrieve the outgoing degree (# outgoing edges) for the given logical vertex_id, starting from the write store

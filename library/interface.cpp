@@ -175,10 +175,10 @@ vector<ImplementationManifest> implementations() {
 
 #if defined(HAVE_LLAMA)
     // v2 25/11/2019: better scalability for the llama dictionary
-    result.emplace_back("llama3", "LLAMA library", &generate_llama);
-    result.emplace_back("llama-dv", "LLAMA with dense vertices", &generate_llama_dv);
-    result.emplace_back("llama-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
-    result.emplace_back("llama3-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
+    result.emplace_back("llama4", "LLAMA library", &generate_llama);
+    result.emplace_back("llama4-dv", "LLAMA with dense vertices", &generate_llama_dv);
+    result.emplace_back("llama4-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
+    result.emplace_back("llama4-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
 #endif
 
 #if defined(HAVE_STINGER)
@@ -196,7 +196,6 @@ vector<ImplementationManifest> implementations() {
     result.emplace_back("g1-bw-dv-ignore-build", "GraphOne, blind writes, dense vertices, new deltas/levels cannot be explicitly created", &generate_graphone_bw_dv_ignore_build);
     result.emplace_back("g1-ref", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref);
     result.emplace_back("g1-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
-    result.emplace_back("g1.nobugfix-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
 #endif
 
 #if defined(HAVE_TESEO)
