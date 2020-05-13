@@ -20,6 +20,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <string>
 
 #include "aging2_result.hpp"
 

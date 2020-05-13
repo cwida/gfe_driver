@@ -142,7 +142,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
 
                 if(m_validate_output_enabled){
                     string path_reference = get_validation_path("BFS");
-                    if(filesystem::exists(path_reference)){
+                    if(common::filesystem::exists(path_reference)){
                         GraphalyticsValidate::bfs(path_tmp, path_reference, max_num_errors);
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("bfs", ValidationResult::SUCCEEDED);
@@ -175,7 +175,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
 
                 if(m_validate_output_enabled){
                     string path_reference = get_validation_path("CDLP");
-                    if(filesystem::exists(path_reference)){
+                    if(common::filesystem::exists(path_reference)){
                         GraphalyticsValidate::cdlp(path_tmp, path_reference, max_num_errors);
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("cdlp", ValidationResult::SUCCEEDED);
@@ -208,7 +208,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
 
                 if(m_validate_output_enabled){
                     string path_reference = get_validation_path("LCC");
-                    if(filesystem::exists(path_reference)){
+                    if(common::filesystem::exists(path_reference)){
                         GraphalyticsValidate::lcc(path_tmp, path_reference, max_num_errors);
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("lcc", ValidationResult::SUCCEEDED);
@@ -241,7 +241,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
 
                 if(m_validate_output_enabled){
                     string path_reference = get_validation_path("PR");
-                    if(filesystem::exists(path_reference)){
+                    if(common::filesystem::exists(path_reference)){
                         GraphalyticsValidate::pagerank(path_tmp, path_reference, max_num_errors);
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("pagerank", ValidationResult::SUCCEEDED);
@@ -274,7 +274,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
 
                 if(m_validate_output_enabled){
                     string path_reference = get_validation_path("SSSP");
-                    if(filesystem::exists(path_reference)){
+                    if(common::filesystem::exists(path_reference)){
                         GraphalyticsValidate::sssp(path_tmp, path_reference, max_num_errors);
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("sssp", ValidationResult::SUCCEEDED);
@@ -306,7 +306,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
 
                 if(m_validate_output_enabled){
                     string path_reference = get_validation_path("WCC");
-                    if(filesystem::exists(path_reference)){
+                    if(common::filesystem::exists(path_reference)){
                         GraphalyticsValidate::wcc(path_tmp, path_reference, max_num_errors);
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("wcc", ValidationResult::SUCCEEDED);

@@ -31,7 +31,7 @@ uint64_t validate_updates(shared_ptr<gfe::library::UpdateInterface> ptr_interfac
 
     LOG("Validation started");
 
-    int num_threads = thread::hardware_concurrency();
+    uint64_t num_threads = thread::hardware_concurrency();
     interface->on_main_init(num_threads);
     atomic<int64_t> num_errors = 0;
 
@@ -62,7 +62,7 @@ uint64_t validate_updates(shared_ptr<gfe::library::UpdateInterface> ptr_interfac
 
     vector<thread> threads;
     uint64_t from = 0;
-    for(int i = 0; i < num_threads; i++){
+    for(uint64_t i = 0; i < num_threads; i++){
         uint64_t to = from + edges_per_thread + (i < odd_threads);
         threads.emplace_back(routine, i, from, to);
         from = to;
