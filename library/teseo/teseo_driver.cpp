@@ -20,6 +20,7 @@
 #include <fstream>
 #include <iomanip>
 #include <mutex>
+#include <omp.h>
 
 #include "common/timer.hpp"
 #include "third-party/gapbs/gapbs.hpp"
@@ -175,6 +176,33 @@ void TeseoDriver::dump_ostream(std::ostream& out) const {
     memstore->dump();
 }
 
+
+/*****************************************************************************
+ *                                                                           *
+ *  OpenMP machinery                                                         *
+ *                                                                           *
+ *****************************************************************************/
+namespace {
+struct RegisterThread {
+    RegisterThread& operator=(const RegisterThread&) = delete;
+    Teseo* m_teseo;
+
+public:
+    RegisterThread(Teseo* teseo) : m_teseo(teseo){
+        assert(teseo != nullptr);
+        assert(omp_get_thread_num() == 0 && "Expected to be initialised in the master thread");
+    }
+
+    RegisterThread(const RegisterThread& rt) : m_teseo(rt.m_teseo){
+        if(omp_get_thread_num() > 0){ m_teseo->register_thread(); }
+    }
+
+    ~RegisterThread(){
+        if(omp_get_thread_num() > 0){ m_teseo->unregister_thread(); }
+    }
+};
+} // namespace
+
 /*****************************************************************************
  *                                                                           *
  *  BFS                                                                      *
@@ -243,6 +271,7 @@ unique_ptr<double[]> teseo_pagerank(teseo::Teseo* teseo, teseo::Transaction& tra
     // init
     const uint64_t num_vertices = transaction.num_vertices();
     COUT_DEBUG("num vertices: " << num_vertices);
+    RegisterThread register_thread { teseo };
 
     auto iterator = transaction.iterator();
     const double init_score = 1.0 / num_vertices;
@@ -263,48 +292,31 @@ unique_ptr<double[]> teseo_pagerank(teseo::Teseo* teseo, teseo::Transaction& tra
         // for each node, precompute its contribution to all of its outgoing neighbours and, if it's a sink,
         // add its rank to the `dangling sum' (to be added to all nodes).
 
-        #pragma omp parallel
-        {
-            teseo->register_thread();
-
-           #pragma omp for reduction(+:dangling_sum)
-           for(uint64_t v = 0; v < num_vertices; v++){
-               //uint64_t out_degree = view->get_degree_out(v);
-               uint64_t out_degree = transaction.degree(v, /* logical */ true);
-               if(out_degree == 0){ // this is a sink
-                   dangling_sum += scores[v];
-               } else {
-                   outgoing_contrib[v] = scores[v] / out_degree;
-               }
-           }
-
-           teseo->unregister_thread();
+        #pragma omp parallel for reduction(+:dangling_sum) firstprivate(register_thread)
+        for(uint64_t v = 0; v < num_vertices; v++){
+            //uint64_t out_degree = view->get_degree_out(v);
+            uint64_t out_degree = transaction.degree(v, /* logical */ true);
+            if(out_degree == 0){ // this is a sink
+                dangling_sum += scores[v];
+            } else {
+                outgoing_contrib[v] = scores[v] / out_degree;
+            }
         }
-
-
 
         dangling_sum /= num_vertices;
 
         // compute the new score for each node in the graph
-        #pragma omp parallel
-        {
-            teseo->register_thread();
+        #pragma omp parallel for schedule(dynamic, 64) firstprivate(register_thread)
+        for(uint64_t v = 0; v < num_vertices; v++){
 
-            #pragma omp for schedule(dynamic, 64)
-            for(uint64_t v = 0; v < num_vertices; v++){
+            double incoming_total = 0;
+            iterator.edges(v, /* logical ? */ true, [&incoming_total, &outgoing_contrib](uint64_t destination, double weight){
+               incoming_total += outgoing_contrib[destination];
+               return true;
+            });
 
-                double incoming_total = 0;
-                iterator.edges(v, /* logical ? */ true, [&incoming_total, &outgoing_contrib](uint64_t destination, double weight){
-                   incoming_total += outgoing_contrib[destination];
-                   return true;
-                });
-
-                // update the score
-                scores[v] = base_score + damping_factor * (incoming_total + dangling_sum);
-            }
-
-
-            teseo->unregister_thread();
+            // update the score
+            scores[v] = base_score + damping_factor * (incoming_total + dangling_sum);
         }
     }
 
@@ -312,6 +324,8 @@ unique_ptr<double[]> teseo_pagerank(teseo::Teseo* teseo, teseo::Transaction& tra
 }
 
 void TeseoDriver::pagerank(uint64_t num_iterations, double damping_factor, const char* dump2file) {
+    TESEO->register_thread(); // in case it doesn't already exist
+
     // Init
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
@@ -323,7 +337,6 @@ void TeseoDriver::pagerank(uint64_t num_iterations, double damping_factor, const
 
     // store the results in the given file
     if(dump2file != nullptr){
-        TESEO->register_thread();
 
         COUT_DEBUG("save the results to: " << dump2file);
         fstream handle(dump2file, ios_base::out);
