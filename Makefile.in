@@ -194,6 +194,19 @@ ${gtestdir}:
 	
 ${testgraphs}: | ${testbindir}
 	ln -s $(abspath ${srcdir})/tests/graphs $@
+	
+	
+#############################################################################
+# Tool ./bm
+bmdir := ${objectdir}/tools
+bmobjects := $(addprefix ${objectdir}/, $(patsubst %.cpp, %.o, ${bmsources}))
+
+bm: ${objectdir}/tools/bm.o ${dependencies} 
+	${CXX} $^ ${LDFLAGS} -o $@
+	
+${objectdir}/tools/bm.o: tools/bm.cpp | ${bmdir}
+	${makedepend_cxx}
+	$(CXX) -c $(ALL_CXXFLAGS) $< -o $@
 
 #############################################################################
 # Support for tcmalloc	
@@ -202,7 +215,7 @@ ${tcmalloc}: third-party/gperftools-2.7
 
 #############################################################################
 # Build directories
-${builddir} ${objectdirs} ${testbindir}:
+${builddir} ${objectdirs} ${testbindir} ${bmdir}:
 	mkdir -pv $@
 	
 #############################################################################
@@ -241,6 +254,7 @@ clean:
 	rm -rf ${builddir}/third-party/libgmp-*
 	rm -rf ${gtestdir}
 	rm -rf ${testbindir}
+	rm -rf ${bmdir}
 	
 #############################################################################
 # Regenerate the Makefile when the configuration has been changed
@@ -256,3 +270,4 @@ Makefile: Makefile.in config.status
 #############################################################################
 # Dependencies to update the translation units if a header has been altered
 -include ${objects:.o=.d}
+-include ${bmobjects:.o=.d}

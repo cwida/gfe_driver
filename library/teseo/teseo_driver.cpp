@@ -74,6 +74,10 @@ void TeseoDriver::on_thread_destroy(int thread_id){
     TESEO->unregister_thread();
 }
 
+void* TeseoDriver::handle_impl(){
+    return m_pImpl;
+}
+
 /*****************************************************************************
  *                                                                           *
  *  Updates & point look ups                                                 *
