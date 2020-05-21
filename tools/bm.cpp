@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -98,9 +99,11 @@ static void run();
 static void print_results();
 static void save_results(const std::string& where);
 static string string_usage(char* program_name);
+template <typename Duration> static string to_string(Duration duration);
 static void validate_sum_degree(uint64_t sum);
 static void validate_sum_point_lookups(uint64_t sum);
 static void validate_sum_scan(uint64_t sum);
+
 
 int main(int argc, char* argv[]){
     parse_args(argc, argv);
@@ -614,30 +617,37 @@ static void load(){
 
     }
 
-    LOG("[driver] Loading the graph from " << g_path_graph);
+    LOG("Loading the graph from " << g_path_graph << " ...");
     auto edges = make_shared<gfe::graph::WeightedEdgeStream> ( g_path_graph );
     edges->permute();
 
-    // list of vertices
-    auto vertices = edges->vertex_list();
-    vertices->permute();
-    g_vertices_unsorted.reserve(vertices->num_vertices());
-    for(uint64_t i = 0, end = vertices->num_vertices(); i < end; i++){
-        g_vertices_unsorted.push_back(vertices->get(i));
-    }
-    g_vertices_sorted = g_vertices_unsorted;
-    sort(g_vertices_sorted.begin(), g_vertices_sorted.end());
+    { // list of vertices
+        LOG("Loading the list of vertices...");
+        common::Timer timer;
+        timer.start();
 
-    { // permutation of the logical IDs
+        // it seems just quicker to read it from the file
+        reader::GraphalyticsReader reader ( g_path_graph );
+        uint64_t vertex;
+        while( reader.read_vertex(vertex) ) { g_vertices_sorted.push_back(vertex); }
+
+        // permute the list
         auto ptr_logical_vertices = make_unique<uint64_t[]>(g_vertices_sorted.size());
         common::permute(ptr_logical_vertices.get(), g_vertices_sorted.size(), /* seed */ 42);
         g_vertices_logical.reserve(g_vertices_sorted.size());
+        g_vertices_unsorted.reserve(g_vertices_logical.size());
         for(uint64_t i = 0, end = g_vertices_sorted.size(); i < end; i++){
             g_vertices_logical.emplace_back(ptr_logical_vertices[i]);
+            g_vertices_unsorted.emplace_back(g_vertices_sorted[ptr_logical_vertices[i]]);
         }
+        sort(g_vertices_sorted.begin(), g_vertices_sorted.end());
+
+        timer.stop();
+        LOG("List of vertices loaded in " << timer);
     }
 
 
+    LOG("Inserting " << edges->num_edges() << " edges into `" << g_library << "' ...");
     gfe::experiment::InsertOnly insert(dynamic_pointer_cast<gfe::library::UpdateInterface>(g_interface), edges, thread::hardware_concurrency(), false);
     insert.execute();
 }
@@ -694,11 +704,11 @@ static void parse_args(int argc, char* argv[]) {
             int start = -1;
             int end = 0;
             string str_digit;
-            for(int pos = 0, len = strlen(optarg); pos < len; pos++){
+            int pos = 0;
+            bool stop = false;
+            while(!stop){
                 if(isdigit(optarg[pos])){
                     str_digit += optarg[pos];
-                } else if(isspace(pos)) { // ignore spaces
-                    continue;
                 } else if(optarg[pos] == '-'){
                     if(str_digit.empty() || start > 0){
                         cerr << "ERROR: Invalid format: `" << optarg << "'" << endl;
@@ -707,7 +717,7 @@ static void parse_args(int argc, char* argv[]) {
                     start = stoi(str_digit);
                     end = -1;
                     str_digit.clear();
-                } else if(optarg[pos] == ','){
+                } else if(optarg[pos] == ',' || optarg[pos] == '\0'){
                     if(str_digit.empty()){
                         cerr << "ERROR: Invalid format: `" << optarg << "'" << endl;
                         exit(EXIT_FAILURE);
@@ -726,7 +736,17 @@ static void parse_args(int argc, char* argv[]) {
                     start = -1;
                     end = -1;
                     str_digit.clear();
+
+                    stop = (optarg[pos] == '\0');
+                } else if(isspace(optarg[pos])){
+                    /* nop, ignore spaces */
+                } else {
+                    cerr << "ERROR: Invalid format: `" << optarg << "'" << endl;
+                    exit(EXIT_FAILURE);
                 }
+
+                // next iteration
+                pos++;
             }
 
         } break;
@@ -778,7 +798,7 @@ static string string_usage(char* program_name) {
     return ss.str();
 }
 
-static const int column_sz = 15;
+static const int column_sz = 20;
 
 static void print_line(){
     printf("+");
@@ -813,6 +833,13 @@ static int64_t get_median(const std::string& experiment, int num_threads){
     }
 }
 
+static string get_scalability(uint64_t t1, uint64_t tn){
+    double res = static_cast<double>(t1) / tn;
+    char buffer[256];
+    sprintf(buffer, "%.2f", res);
+    return buffer;
+}
+
 static void print_results() {
     print_line();
     print_header();
@@ -822,15 +849,19 @@ static void print_results() {
 
         for(uint64_t i = 0; i < g_num_threads.size(); i++){
             int num_threads = g_num_threads[i];
-            string result = to_string(get_median(experiment, num_threads));
+            string result = to_string(chrono::microseconds{ get_median(experiment, num_threads) } );
+            if(i > 0 && g_num_threads[0] == 1){
+                result += " (";
+                result += get_scalability(get_median(experiment, 1), get_median(experiment, num_threads));
+                result += "x)";
+            }
+
             printf("%*s|", column_sz, result.c_str());
         }
 
         printf("\n");
         print_line();
     }
-
-    cout << "Reported results are in microseconds.\n";
 }
 
 // https://stackoverflow.com/questions/16357999/current-date-and-time-as-string
@@ -872,6 +903,121 @@ static void save_results(const std::string& where) {
     out << "] }";
 
     out.close();
+}
+
+
+// Time
+template <typename D>
+static string to_nanoseconds(D duration){
+    using namespace std::chrono;
+    stringstream result;
+    result << (uint64_t) duration_cast<chrono::nanoseconds>(duration).count() << " ns";
+    return result.str();
+}
+
+template <typename D>
+static string to_microseconds(D duration){
+    using namespace std::chrono;
+    uint64_t time_in_nanosecs = (uint64_t) duration_cast<chrono::nanoseconds>(duration).count();
+    uint64_t time_in_microsecs = time_in_nanosecs / 1000;
+
+    stringstream result;
+    if(time_in_microsecs >= 3){
+        result << time_in_microsecs << " us";
+    } else {
+        char buffer[128];
+        snprintf(buffer, 128, "%.3d", (int) (time_in_nanosecs % 1000));
+        result << time_in_microsecs << "." << buffer << " us";
+    }
+
+    return result.str();
+}
+
+template <typename D>
+static string to_milliseconds(D duration){
+    using namespace std::chrono;
+    uint64_t time_in_microsecs = (uint64_t) duration_cast<chrono::microseconds>(duration).count();
+    uint64_t time_in_millisecs = time_in_microsecs / 1000;
+
+    stringstream result;
+    if(time_in_microsecs >= 3){
+        result << time_in_millisecs << " ms";
+    } else {
+        char buffer[128];
+        snprintf(buffer, 128, "%.3d", (int) (time_in_microsecs % 1000));
+        result << time_in_millisecs << "." << buffer << " ms";
+    }
+
+    return result.str();
+}
+
+template <typename D>
+static string to_seconds(D duration){
+    using namespace std::chrono;
+    uint64_t time_in_millisecs = (uint64_t) duration_cast<chrono::milliseconds>(duration).count();
+    uint64_t time_in_seconds = time_in_millisecs / 1000;
+
+    stringstream result;
+    char buffer[128];
+    snprintf(buffer, 128, "%.3d", (int) (time_in_millisecs % 1000));
+    result << time_in_seconds << "." << buffer << " s";
+
+    return result.str();
+}
+
+template <typename D>
+static string to_minutes(D duration){
+    using namespace std::chrono;
+    uint64_t seconds = ((uint64_t) duration_cast<chrono::seconds>(duration).count()) % 60ull;
+    uint64_t minutes = (uint64_t) duration_cast<chrono::minutes>(duration).count();
+
+    char buffer[128];
+    snprintf(buffer, 128, "%" PRIu64 ":%02" PRIu64 " mins", minutes, seconds);
+    return string(buffer);
+}
+
+template <typename D>
+static string to_hours(D duration){
+    using namespace std::chrono;
+    uint64_t seconds = ((uint64_t) duration_cast<chrono::seconds>(duration).count()) % 60ull;
+    uint64_t minutes = (uint64_t) duration_cast<chrono::minutes>(duration).count() % 60ull;
+    uint64_t hours = (uint64_t) duration_cast<chrono::hours>(duration).count();
+
+    char buffer[128];
+    snprintf(buffer, 128, "%" PRIu64 ":%02" PRIu64 ":%02" PRIu64 " hours", hours, minutes, seconds);
+    return string(buffer);
+}
+
+template <typename D>
+static string to_days(D duration){
+    using namespace std::chrono;
+    uint64_t seconds = ((uint64_t) duration_cast<chrono::seconds>(duration).count()) % 60ull;
+    uint64_t minutes = (uint64_t) duration_cast<chrono::minutes>(duration).count() % 60ull;
+    uint64_t hours = (uint64_t) duration_cast<chrono::hours>(duration).count() % 24ull;
+    uint64_t days = (uint64_t) duration_cast<chrono::hours>(duration).count() / 24;
+
+    char buffer[128];
+    snprintf(buffer, 128, "%" PRIu64 " day(s) and %" PRIu64 ":%02" PRIu64 ":%02" PRIu64 " hours", days, hours, minutes, seconds);
+    return string(buffer);
+}
+
+
+template <typename Duration>
+static string to_string(Duration d){
+    uint64_t time_in_nanosecs = (uint64_t) chrono::duration_cast<chrono::nanoseconds>(d).count();
+    if(time_in_nanosecs <= 1000){
+        return to_nanoseconds(d);
+    } else if(time_in_nanosecs <= (uint64_t) pow(10, 6)){
+        return to_microseconds(d);
+    } else if(time_in_nanosecs <= (uint64_t) pow(10, 9)) {
+        return to_milliseconds(d);
+    } else if(time_in_nanosecs <= (uint64_t) pow(10, 9) * 90){ // 90 seconds
+        return to_seconds(d);
+    } else if(time_in_nanosecs < (uint64_t) pow(10, 9) * 60 * 60){
+        return to_minutes(d);
+    } else {
+        return to_hours(d);
+    }
 }
 
 
