@@ -26,6 +26,7 @@
 #include <iostream>
 #include <memory>
 #include <omp.h>
+#include <shared_mutex>
 #include <sstream>
 #include <vector>
 
@@ -58,6 +59,12 @@
 #if defined(HAVE_GRAPHONE)
 #include "library/graphone/graphone.hpp"
 #include "library/graphone/internal.hpp"
+#endif
+
+// llama
+#if defined(HAVE_LLAMA)
+#include "library/llama/llama_ref.hpp"
+#include "library/llama/llama_internal.hpp"
 #endif
 
 using namespace gfe;
@@ -96,6 +103,7 @@ static void parse_args(int argc, char* argv[]);
 static void run();
 [[maybe_unused]] static void run_teseo();
 [[maybe_unused]] static void run_graphone();
+[[maybe_unused]] static void run_llama();
 static void print_results();
 static void save_results(const std::string& where);
 static string string_usage(char* program_name);
@@ -126,6 +134,9 @@ int main(int argc, char* argv[]){
 }
 
 static void run(){
+    common::Timer timer;
+    timer.start();
+
     if(g_library == "teseo"){
 #if defined(HAVE_TESEO)
         run_teseo();
@@ -138,9 +149,18 @@ static void run(){
 #else
         assert(0 && "Support for graphone disabled");
 #endif
+    } else if(g_library == "llama"){
+#if defined(HAVE_LLAMA)
+        run_llama();
+#else
+        assert(0 && "Support for llama disabled");
+#endif
     } else {
         assert(0 && "Invalid library");
     }
+
+    timer.stop();
+    LOG("Experimented completed in " << timer);
 }
 
 #if defined(HAVE_TESEO)
@@ -350,13 +370,10 @@ static void run_teseo(){
 
         }
     }
-
-    LOG("Experiment completed");
 }
 #endif
 
 #if defined(HAVE_GRAPHONE)
-
 static void run_graphone(){
     auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK & PRIVATE_MASK); // global
 
@@ -389,8 +406,6 @@ static void run_graphone(){
             timer.stop();
             validate_sum_degree(sum);
             g_samples.emplace_back("degree_logical_unsorted", num_threads, timer.microseconds());
-
-            g_sum_point_lookups = 0; // reset
 
             // point lookups, logical vertices, sorted
             timer.start();
@@ -519,10 +534,115 @@ static void run_graphone(){
     }
 
     delete_static_view(view);
+}
+#endif
 
-    LOG("Experiment completed");
+#if defined(HAVE_LLAMA)
+static void _bm_run_llama(){
+    auto instance = dynamic_cast<library::LLAMAClass*>(g_interface.get());
+    shared_lock<library::LLAMAClass::shared_mutex_t> slock(instance->m_lock_checkpoint);
+    auto graph = instance->get_snapshot();
+
+    const uint64_t num_vertices = g_vertices_sorted.size();
+    common::Timer timer;
+
+    for(int r = 0; r < g_num_repetitions; r++){
+        LOG("Repetition: " << (r +1) << "/" << g_num_repetitions);
+        for(auto num_threads: g_num_threads){
+            LOG("    num threads: " << num_threads);
+
+            // degree, logical identifiers, sorted
+            timer.start();
+            uint64_t sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                sum += graph.out_degree(i);
+            }
+            timer.stop();
+            validate_sum_degree(sum);
+            g_samples.emplace_back("degree_logical_sorted", num_threads, timer.microseconds());
+
+            // degree, logical identifiers, unsorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                sum += graph.out_degree(g_vertices_logical[i]);
+            }
+            timer.stop();
+            validate_sum_degree(sum);
+            g_samples.emplace_back("degree_logical_unsorted", num_threads, timer.microseconds());
+
+            // point lookups, logical vertices, sorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                ll_edge_iterator iterator;
+                graph.out_iter_begin(iterator, i);
+                edge_t e = graph.out_iter_next(iterator);
+                if(e != LL_NIL_EDGE){
+                    sum += LL_ITER_OUT_NEXT_NODE(IGNORED, iterator, e);
+                }
+            }
+            timer.stop();
+            validate_sum_point_lookups(sum);
+            g_samples.emplace_back("point_logical_sorted", num_threads, timer.microseconds());
+
+            // point lookups, logical, unsorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                ll_edge_iterator iterator;
+                graph.out_iter_begin(iterator, g_vertices_logical[i]);
+                edge_t e = graph.out_iter_next(iterator);
+                if(e != LL_NIL_EDGE){
+                    sum += LL_ITER_OUT_NEXT_NODE(IGNORED, iterator, e);
+                }
+            }
+            timer.stop();
+            validate_sum_point_lookups(sum);
+            g_samples.emplace_back("point_logical_unsorted", num_threads, timer.microseconds());
+
+            // scan, logical vertices, sorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                ll_edge_iterator iterator;
+                graph.out_iter_begin(iterator, i);
+                for (edge_t e = graph.out_iter_next(iterator); e != LL_NIL_EDGE; e = graph.out_iter_next(iterator)) {
+                    node_t n = LL_ITER_OUT_NEXT_NODE(IGNORED, iterator, e);
+                    sum += n;
+                }
+            }
+            timer.stop();
+            validate_sum_scan(sum);
+            g_samples.emplace_back("scan_logical_sorted", num_threads, timer.microseconds());
+
+            // scan, logical vertices, unsorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                ll_edge_iterator iterator;
+                graph.out_iter_begin(iterator, g_vertices_logical[i]);
+                for (edge_t e = graph.out_iter_next(iterator); e != LL_NIL_EDGE; e = graph.out_iter_next(iterator)) {
+                    node_t n = LL_ITER_OUT_NEXT_NODE(IGNORED, iterator, e);
+                    sum += n;
+                }
+            }
+            timer.stop();
+            validate_sum_scan(sum);
+            g_samples.emplace_back("scan_logical_unsorted", num_threads, timer.microseconds());
+        }
+    }
 }
 
+static void run_llama(){
+    _bm_run_llama();
+}
 #endif
 
 static void validate_sum_degree(uint64_t sum) {
@@ -614,7 +734,13 @@ static void load(){
         cerr << "ERROR: gfe configured and built without linking the library graphone\n";
         exit(EXIT_FAILURE);
 #endif
-
+    } else if(g_library == "llama"){
+#if defined(HAVE_LLAMA)
+        g_interface.reset( new library::LLAMARef(/* directed ? */ false) );
+#else
+        cerr << "ERROR: gfe configured and built without linking the library llama\n";
+        exit(EXIT_FAILURE);
+#endif
     }
 
     LOG("Loading the graph from " << g_path_graph << " ...");
@@ -688,8 +814,8 @@ static void parse_args(int argc, char* argv[]) {
         } break;
         case 'l': {
             string library = optarg;
-            if(library != "teseo" && library != "graphone"){
-                cerr << "ERROR: Invalid library: `" << library << "'. Only \"teseo\" and \"graphone\" are supported." << endl;
+            if(library != "teseo" && library != "graphone" && library != "llama"){
+                cerr << "ERROR: Invalid library: `" << library << "'. Only \"teseo\", \"graphone\" and \"llama\" are supported." << endl;
             }
             g_library = library;
         } break;
@@ -792,7 +918,7 @@ static string string_usage(char* program_name) {
     ss << "Usage: " << program_name << " -G <graph> [-t <num_threads>] [-l <library>] [-R <num_repetitions>]\n";
     ss << "Where: \n";
     ss << "  -G <graph> is an .properties file of an undirected graph from the Graphalytics data set\n";
-    ss << "  -l <library> is the library to execute. Only \"teseo\" (default) and \"graphone\" are supported\n";
+    ss << "  -l <library> is the library to execute. Only \"teseo\" (default), \"graphone\" and \"llama\" are supported\n";
     ss << "  -R <num_repetitions> is the number of repetitions the same micro benchmarks need to be performed\n";
     ss << "  -t <num_threads> follows the page range format, e.g. 1-16,32\n";
     return ss.str();
