@@ -254,7 +254,7 @@ clean:
 	rm -rf ${builddir}/third-party/libgmp-*
 	rm -rf ${gtestdir}
 	rm -rf ${testbindir}
-	rm -f bm
+	rm -rf ${bmdir}
 	
 #############################################################################
 # Regenerate the Makefile when the configuration has been changed

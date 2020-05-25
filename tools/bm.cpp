@@ -52,7 +52,6 @@
 #include "library/teseo/teseo_driver.hpp"
 #include "teseo/context/global_context.hpp"
 #include "teseo/memstore/memstore.hpp"
-#include "teseo/util/thread.hpp"
 #include "teseo.hpp"
 #endif
 
@@ -171,33 +170,19 @@ namespace {
 struct RegisterThread {
     RegisterThread& operator=(const RegisterThread&) = delete;
     teseo::Teseo* m_teseo;
-    int m_cpu0 {-1};
-    int m_node0 {-1};
-    int m_cpu1 {-1};
-    int m_node1 {-1};
 
 public:
     RegisterThread(teseo::Teseo* teseo) : m_teseo(teseo){
         assert(teseo != nullptr);
         assert(omp_get_thread_num() == 0 && "Expected to be initialised in the master thread");
-
-        m_cpu0 = teseo::util::Thread::get_cpu_id();
-        m_node0 = teseo::util::Thread::get_numa_id();
     }
 
     RegisterThread(const RegisterThread& rt) : m_teseo(rt.m_teseo){
         if(omp_get_thread_num() > 0){ m_teseo->register_thread(); }
-
-        m_cpu0 = teseo::util::Thread::get_cpu_id();
-        m_node0 = teseo::util::Thread::get_numa_id();
     }
 
     ~RegisterThread(){
         if(omp_get_thread_num() > 0){ m_teseo->unregister_thread(); }
-
-        m_cpu1 = teseo::util::Thread::get_cpu_id();
-        m_node1 = teseo::util::Thread::get_numa_id();
-        LOG("        -  omp thread: " << omp_get_thread_num() << " start: " << m_cpu0 << "/" << m_node0 << ", end: " << m_cpu1 << "/" << m_node1);
     }
 };
 
@@ -218,9 +203,7 @@ static void run_teseo(){
         for(auto num_threads: g_num_threads){
             LOG("    num threads: " << num_threads);
 
-
             // vertices, sorted, vertex identifiers
-            LOG("        degree_vtx_sorted");
             timer.start();
             uint64_t sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
@@ -233,7 +216,6 @@ static void run_teseo(){
             g_samples.emplace_back("degree_vtx_sorted", num_threads, timer.microseconds());
 
             // vertices, unsorted, vertex identifiers
-            LOG("        degree_vtx_unsorted");
             timer.start();
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
@@ -245,7 +227,6 @@ static void run_teseo(){
             g_samples.emplace_back("degree_vtx_unsorted", num_threads, timer.microseconds());
 
             // vertices, logical identifiers, sorted
-            LOG("        degree_logical_sorted");
             timer.start();
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
@@ -257,7 +238,6 @@ static void run_teseo(){
             g_samples.emplace_back("degree_logical_sorted", num_threads, timer.microseconds());
 
             // vertices, logical identifiers, unsorted
-            LOG("        degree_logical_unsorted");
             timer.start();
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
@@ -271,7 +251,6 @@ static void run_teseo(){
             g_sum_point_lookups = 0; // reset
 
             // point lookups, real vertices, sorted
-            LOG("        point_vtx_sorted");
             timer.start();
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
@@ -286,7 +265,6 @@ static void run_teseo(){
             g_samples.emplace_back("point_vtx_sorted", num_threads, timer.microseconds());
 
             // point lookups, real vertices, unsorted
-            LOG("        point_vtx_unsorted");
             timer.start();
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
@@ -303,7 +281,6 @@ static void run_teseo(){
             g_sum_point_lookups = 0; // reset
 
             // point lookups, logical vertices, sorted
-            LOG("        point_logical_sorted");
             timer.start();
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
@@ -317,7 +294,6 @@ static void run_teseo(){
             validate_sum_point_lookups(sum);
             g_samples.emplace_back("point_logical_sorted", num_threads, timer.microseconds());
 
-            LOG("        point_logical_unsorted");
             timer.start();
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
@@ -334,7 +310,6 @@ static void run_teseo(){
             g_sum_scan = 0; // reset
 
             // scan, real vertices, sorted
-            LOG("        scan_vtx_sorted");
             timer.start();
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
@@ -349,7 +324,6 @@ static void run_teseo(){
             g_samples.emplace_back("scan_vtx_sorted", num_threads, timer.microseconds());
 
             // scan, real vertices, unsorted
-            LOG("        scan_vtx_unsorted");
             timer.start();
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
@@ -366,7 +340,6 @@ static void run_teseo(){
             g_sum_scan = 0; // reset
 
             // scan, logical vertices, sorted
-            LOG("        scan_logical_sorted");
             timer.start();
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
@@ -382,7 +355,6 @@ static void run_teseo(){
 
 
             // scan, logical vertices, unsorted
-            LOG("        scan_logical_unsorted");
             timer.start();
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
@@ -395,6 +367,7 @@ static void run_teseo(){
             timer.stop();
             validate_sum_scan(sum);
             g_samples.emplace_back("scan_logical_unsorted", num_threads, timer.microseconds());
+
         }
     }
 }
@@ -946,7 +919,7 @@ static string string_usage(char* program_name) {
     ss << "Where: \n";
     ss << "  -G <graph> is an .properties file of an undirected graph from the Graphalytics data set\n";
     ss << "  -l <library> is the library to execute. Only \"teseo\" (default), \"graphone\" and \"llama\" are supported\n";
-    ss << "  -R <num_repetitions> is the number of repetitions the same micro benchmarks need to be performed. The default is 5.\n";
+    ss << "  -R <num_repetitions> is the number of repetitions the same micro benchmarks need to be performed\n";
     ss << "  -t <num_threads> follows the page range format, e.g. 1-16,32\n";
     return ss.str();
 }
