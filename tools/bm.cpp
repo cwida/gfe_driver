@@ -206,7 +206,7 @@ static void run_teseo(){
             // vertices, sorted, vertex identifiers
             timer.start();
             uint64_t sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, tx_ro, iter_ro)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += tx_ro.degree(g_vertices_sorted[i], false);
             }
@@ -218,7 +218,7 @@ static void run_teseo(){
             // vertices, unsorted, vertex identifiers
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, tx_ro, iter_ro)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += tx_ro.degree(g_vertices_unsorted[i], false);
             }
@@ -229,7 +229,7 @@ static void run_teseo(){
             // vertices, logical identifiers, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, tx_ro, iter_ro)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += tx_ro.degree(i, true);
             }
@@ -240,7 +240,7 @@ static void run_teseo(){
             // vertices, logical identifiers, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, tx_ro, iter_ro)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += tx_ro.degree(g_vertices_logical[i], true);
             }
@@ -253,7 +253,7 @@ static void run_teseo(){
             // point lookups, real vertices, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, tx_ro, iter_ro)
             for(uint64_t i = 0; i < num_vertices; i++){
                 iter_ro.edges(g_vertices_sorted[i], false, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -267,7 +267,7 @@ static void run_teseo(){
             // point lookups, real vertices, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, tx_ro, iter_ro)
             for(uint64_t i = 0; i < num_vertices; i++){
                 iter_ro.edges(g_vertices_unsorted[i], false, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -283,7 +283,7 @@ static void run_teseo(){
             // point lookups, logical vertices, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, tx_ro, iter_ro)
             for(uint64_t i = 0; i < num_vertices; i++){
                 iter_ro.edges(i, true, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -296,7 +296,7 @@ static void run_teseo(){
 
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, tx_ro, iter_ro)
             for(uint64_t i = 0; i < num_vertices; i++){
                 iter_ro.edges(g_vertices_logical[i], true, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -312,7 +312,7 @@ static void run_teseo(){
             // scan, real vertices, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, tx_ro, iter_ro)
             for(uint64_t i = 0; i < num_vertices; i++){
                 iter_ro.edges(g_vertices_sorted[i], false, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -326,7 +326,7 @@ static void run_teseo(){
             // scan, real vertices, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, tx_ro, iter_ro)
             for(uint64_t i = 0; i < num_vertices; i++){
                 iter_ro.edges(g_vertices_unsorted[i], false, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -342,7 +342,7 @@ static void run_teseo(){
             // scan, logical vertices, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, tx_ro, iter_ro)
             for(uint64_t i = 0; i < num_vertices; i++){
                 iter_ro.edges(i, true, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -357,7 +357,7 @@ static void run_teseo(){
             // scan, logical vertices, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, iter_ro)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(rt, tx_ro, iter_ro)
             for(uint64_t i = 0; i < num_vertices; i++){
                 iter_ro.edges(g_vertices_logical[i], true, [&sum](uint64_t destination, double weight){
                     sum += destination;
