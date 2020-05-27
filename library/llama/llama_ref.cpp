@@ -411,14 +411,14 @@ pvector<double> do_pagerank(ll_mlcsr_ro_graph& graph, uint64_t current_num_verti
             ll_edge_iterator iterator;
             graph.in_iter_begin_fast(iterator, v);
             for (edge_t e = graph.in_iter_next_fast(iterator); e != LL_NIL_EDGE; e = graph.in_iter_next_fast(iterator)) {
-                node_t n = LL_ITER_OUT_NEXT_NODE(*G, iterator, e);
+                node_t n = LL_ITER_OUT_NEXT_NODE(IGNORED, iterator, e);
                 incoming_total += outgoing_contrib[n];
             }
 
             if(!is_directed){ // the actual set of edges in undirected graphs is composed by both LLAMA's incoming and outgoing edges
                 graph.out_iter_begin(iterator, v);
                 for (edge_t e = graph.out_iter_next(iterator); e != LL_NIL_EDGE; e = graph.out_iter_next(iterator)) {
-                    node_t n = LL_ITER_OUT_NEXT_NODE(*G, iterator, e);
+                    node_t n = LL_ITER_OUT_NEXT_NODE(IGNORED, iterator, e);
                     incoming_total += outgoing_contrib[n];
                 }
             }
@@ -437,7 +437,8 @@ void LLAMARef::pagerank(uint64_t num_iterations, double damping_factor, const ch
     common::Timer timer; timer.start();
 
     // retrieve the latest snapshot
-    shared_lock<shared_mutex_t> slock(m_lock_checkpoint);
+    shared_lock<shared_mutex_t>
+    slock(m_lock_checkpoint);
     auto graph = get_snapshot();
 //    dump_snapshot(graph);
     auto current_num_vertices = num_vertices();

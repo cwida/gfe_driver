@@ -40,6 +40,9 @@
 #if defined(HAVE_GRAPHONE)
 #include "library/graphone/graphone.hpp"
 #endif
+#if defined(HAVE_TESEO)
+#include "library/teseo/teseo_driver.hpp"
+#endif
 #include "library/interface.hpp"
 #include "reader/graphalytics_reader.hpp"
 #include "utility/graphalytics_validate.hpp"
@@ -367,3 +370,10 @@ TEST(GraphOneRef, GraphalyticsUndirected){
 }
 #endif
 
+#if defined(HAVE_TESEO)
+TEST(Teseo, GraphalyticsUndirected){
+    auto graph = make_unique<TeseoDriver>(/* directed */ false);
+    load_graph(graph.get(), path_example_undirected);
+    validate(graph.get(), path_example_undirected);
+}
+#endif

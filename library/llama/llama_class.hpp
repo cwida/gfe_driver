@@ -41,6 +41,7 @@
 class ll_database; // forward declaration
 class ll_mlcsr_ro_graph; // forward declaration
 namespace gfe::utility { class TimeoutService; } // forward declaration
+[[maybe_unused]] static void _bm_run_llama(); // bm tool
 
 namespace gfe::library {
 
@@ -50,6 +51,7 @@ namespace gfe::library {
  * All methods except dump() & family are thread safe.
  */
 class LLAMAClass : public virtual UpdateInterface, public virtual GraphalyticsInterface {
+    friend void ::_bm_run_llama(); // bm tool
 protected:
     LLAMAClass(const LLAMAClass&) = delete;
     LLAMAClass& operator=(const LLAMAClass&) = delete;

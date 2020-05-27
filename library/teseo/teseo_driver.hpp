@@ -25,7 +25,7 @@ namespace gfe::library {
 /**
  * Wrapper to evaluate the GraphOne library
  */
-class TeseoDriver : public virtual UpdateInterface {
+class TeseoDriver : public virtual UpdateInterface, public virtual GraphalyticsInterface {
     TeseoDriver(const TeseoDriver&) = delete;
     TeseoDriver& operator=(const TeseoDriver&) = delete;
 
@@ -117,7 +117,53 @@ public:
      */
     virtual void on_thread_destroy(int thread_id);
 
+    /**
+     * Perform a BFS from source_vertex_id to all the other vertices in the graph.
+     * @param source_vertex_id the vertex where to start the search
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
+     */
+    virtual void bfs(uint64_t source_vertex_id, const char* dump2file = nullptr);
 
+    /**
+     * Execute the PageRank algorithm for the specified number of iterations.
+     *
+     * @param num_iterations the number of iterations to execute the algorithm
+     * @param damping_factor weight for the PageRank algorithm, it affects the score associated to the sink nodes in the graphs
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
+     */
+    virtual void pagerank(uint64_t num_iterations, double damping_factor = 0.85, const char* dump2file = nullptr);
+
+    /**
+     * Weakly connected components (WCC), associate each node to a connected component of the graph
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
+     */
+    virtual void wcc(const char* dump2file = nullptr);
+
+    /**
+     * Community Detection using Label-Propagation. Associate a label to each vertex of the graph, according to its neighbours.
+     * @param max_iterations max number of iterations to perform
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
+     */
+    virtual void cdlp(uint64_t max_iterations, const char* dump2file = nullptr);
+
+    /**
+     * Local clustering coefficient. Associate to each vertex the ratio between the number of its outgoing edges and the number of
+     * possible remaining edges.
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
+     */
+    virtual void lcc(const char* dump2file = nullptr);
+
+    /**
+     * Single-source shortest paths. Compute the weight related to the shortest path from the source to any other vertex in the graph.
+     * @param source_vertex_id the vertex where to start the search
+     * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
+     */
+    virtual void sssp(uint64_t source_vertex_id, const char* dump2file = nullptr);
+
+    /**
+     * Retrieve the handle to the implementation, for debugging pruposes
+     */
+    void* handle_impl();
 };
 
 }
