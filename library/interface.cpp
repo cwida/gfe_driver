@@ -199,7 +199,7 @@ vector<ImplementationManifest> implementations() {
 #endif
 
 #if defined(HAVE_TESEO)
-    result.emplace_back("teseo.2", "Teseo", &generate_teseo);
+    result.emplace_back("teseo.3", "Teseo", &generate_teseo);
 #endif
 
     return result;
