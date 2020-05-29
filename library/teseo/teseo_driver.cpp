@@ -46,7 +46,7 @@ using namespace teseo;
  *  Debug                                                                    *
  *                                                                           *
  *****************************************************************************/
-#define DEBUG
+//#define DEBUG
 namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
 #define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::gfe::_log_mutex}; std::cout << "[TeseoDriver::" << __FUNCTION__ << "] " << msg << std::endl; }
 #if defined(DEBUG)
@@ -240,7 +240,8 @@ them in parent array as negative numbers. Thus the encoding of parent is:
 */
 
 static
-int64_t BUStep(RegisterThread& rt, teseo::Transaction transaction, pvector<int64_t>& distances, int64_t distance, Bitmap &front, Bitmap &next) {
+int64_t BUStep(Teseo* teseo, Transaction transaction, pvector<int64_t>& distances, int64_t distance, Bitmap &front, Bitmap &next) {
+    RegisterThread rt { teseo };
     const int64_t N = transaction.num_vertices();
     auto iterator = transaction.iterator();
     int64_t awake_count = 0;
@@ -267,7 +268,8 @@ int64_t BUStep(RegisterThread& rt, teseo::Transaction transaction, pvector<int64
 }
 
 static
-int64_t TDStep(RegisterThread& rt, teseo::Transaction transaction, pvector<int64_t>& distances, int64_t distance, SlidingQueue<int64_t>& queue) {
+int64_t TDStep(Teseo* teseo, Transaction transaction, pvector<int64_t>& distances, int64_t distance, SlidingQueue<int64_t>& queue) {
+    RegisterThread rt { teseo };
     int64_t scout_count = 0;
 
     #pragma omp parallel firstprivate(rt, transaction)
@@ -306,7 +308,7 @@ void QueueToBitmap(const SlidingQueue<int64_t> &queue, Bitmap &bm) {
 }
 
 static
-void BitmapToQueue(teseo::Transaction transaction, const Bitmap &bm, SlidingQueue<int64_t> &queue) {
+void BitmapToQueue(Transaction transaction, const Bitmap &bm, SlidingQueue<int64_t> &queue) {
     const int64_t N = transaction.num_vertices();
 
     #pragma omp parallel
@@ -322,7 +324,8 @@ void BitmapToQueue(teseo::Transaction transaction, const Bitmap &bm, SlidingQueu
 }
 
 static
-pvector<int64_t> InitDistances(RegisterThread& rt, teseo::Transaction transaction){
+pvector<int64_t> InitDistances(Teseo* teseo, Transaction transaction){
+    RegisterThread rt { teseo };
     pvector<int64_t> distances(transaction.num_vertices());
     const int64_t N = transaction.num_vertices();
     #pragma omp parallel for firstprivate(rt)
@@ -334,11 +337,11 @@ pvector<int64_t> InitDistances(RegisterThread& rt, teseo::Transaction transactio
 }
 
 static
-pvector<int64_t> do_bfs(RegisterThread& rt, teseo::Transaction& transaction, int64_t source, utility::TimeoutService& timer, int alpha = 15, int beta = 18) {
+pvector<int64_t> do_bfs(Teseo* teseo, Transaction& transaction, int64_t source, utility::TimeoutService& timer, int alpha = 15, int beta = 18) {
     // The implementation from GAP BS reports the parent (which indeed it should make more sense), while the one required by
     // Graphalytics only returns the distance
 
-    pvector<int64_t> distances = InitDistances(rt, transaction);
+    pvector<int64_t> distances = InitDistances(teseo, transaction);
     distances[source] = 0;
 
     SlidingQueue<int64_t> queue(transaction.num_vertices());
@@ -360,15 +363,15 @@ pvector<int64_t> do_bfs(RegisterThread& rt, teseo::Transaction& transaction, int
             queue.slide_window();
             do {
                 old_awake_count = awake_count;
-                awake_count = BUStep(rt, transaction, distances, distance, front, curr);
+                awake_count = BUStep(teseo, transaction, distances, distance, front, curr);
                 front.swap(curr);
                 distance++;
-            } while ((awake_count >= old_awake_count) || (awake_count > transaction.num_vertices() / beta));
+            } while ((awake_count >= old_awake_count) || (awake_count > static_cast<int64_t>(transaction.num_vertices()) / beta));
             BitmapToQueue(transaction, front, queue);
             scout_count = 1;
         } else {
             edges_to_check -= scout_count;
-            scout_count = TDStep(rt, transaction, distances, distance, queue);
+            scout_count = TDStep(teseo, transaction, distances, distance, queue);
             queue.slide_window();
             distance++;
         }
@@ -413,7 +416,7 @@ void TeseoDriver::bfs(uint64_t source_vertex_id, const char* dump2file){
 
     // execute the BFS algorithm
     auto transaction = TESEO->start_transaction(/* read only ? */ true);
-    auto result = do_bfs(rt, transaction, transaction.logical_id(source_vertex_id), tcheck);
+    auto result = do_bfs(TESEO, transaction, transaction.logical_id(source_vertex_id), tcheck);
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // translate from llama vertex ids to external vertex ids
@@ -493,8 +496,9 @@ updates in the pull direction to remove the need for atomics.
 */
 
 static
-unique_ptr<double[]> teseo_pagerank(RegisterThread& register_thread, teseo::Transaction& transaction, uint64_t num_iterations, double damping_factor, utility::TimeoutService& timer) {
+unique_ptr<double[]> teseo_pagerank(Teseo* teseo, Transaction transaction, uint64_t num_iterations, double damping_factor, utility::TimeoutService& timer) {
     // init
+    RegisterThread rt { teseo };
     const uint64_t num_vertices = transaction.num_vertices();
     COUT_DEBUG("num vertices: " << num_vertices);
 
@@ -516,7 +520,7 @@ unique_ptr<double[]> teseo_pagerank(RegisterThread& register_thread, teseo::Tran
 
         // for each node, precompute its contribution to all of its outgoing neighbours and, if it's a sink,
         // add its rank to the `dangling sum' (to be added to all nodes).
-        #pragma omp parallel for reduction(+:dangling_sum) firstprivate(register_thread)
+        #pragma omp parallel for reduction(+:dangling_sum) firstprivate(rt)
         for(uint64_t v = 0; v < num_vertices; v++){
             uint64_t out_degree = transaction.degree(v, /* logical */ true);
             if(out_degree == 0){ // this is a sink
@@ -529,7 +533,7 @@ unique_ptr<double[]> teseo_pagerank(RegisterThread& register_thread, teseo::Tran
         dangling_sum /= num_vertices;
 
         // compute the new score for each node in the graph
-        #pragma omp parallel for schedule(dynamic, 64) firstprivate(register_thread, iterator)
+        #pragma omp parallel for schedule(dynamic, 64) firstprivate(rt, iterator)
         for(uint64_t v = 0; v < num_vertices; v++){
 
             double incoming_total = 0;
@@ -556,7 +560,7 @@ void TeseoDriver::pagerank(uint64_t num_iterations, double damping_factor, const
 
     // Run the PageRank algorithm
     auto transaction = TESEO->start_transaction(/* read only ? */ true);
-    unique_ptr<double[]> ptr_rank = teseo_pagerank(register_thread, transaction, num_iterations, damping_factor, timeout);
+    unique_ptr<double[]> ptr_rank = teseo_pagerank(TESEO, transaction, num_iterations, damping_factor, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // retrieve the external node ids
@@ -656,8 +660,9 @@ more consistent performance for undirected graphs.
 // direction, so we use a min-max swap such that lower component IDs propagate
 // independent of the edge's direction.
 static // do_wcc
-unique_ptr<uint64_t[]> teseo_wcc(RegisterThread& rt, Transaction transaction, utility::TimeoutService& timer) {
+unique_ptr<uint64_t[]> teseo_wcc(Teseo* teseo, Transaction transaction, utility::TimeoutService& timer) {
     // init
+    RegisterThread rt { teseo };
     const uint64_t N = transaction.num_vertices();
     unique_ptr<uint64_t[]> ptr_components { new uint64_t[N] };
     uint64_t* comp = ptr_components.get();
@@ -712,7 +717,7 @@ void TeseoDriver::wcc(const char* dump2file) {
 
     // run wcc
     auto transaction = TESEO->start_transaction(/* read only */ true);
-    unique_ptr<uint64_t[]> ptr_components = teseo_wcc(rt, transaction, timeout);
+    unique_ptr<uint64_t[]> ptr_components = teseo_wcc(TESEO, transaction, timeout);
 
     // translate the vertex IDs
     cuckoohash_map</* external id */ uint64_t, /* component */ uint64_t> external_ids;
@@ -746,7 +751,8 @@ void TeseoDriver::wcc(const char* dump2file) {
  *                                                                           *
  *****************************************************************************/
 // same impl~ as the one done for llama
-static unique_ptr<uint64_t[]> teseo_cdlp(RegisterThread& rt, teseo::Transaction transaction, uint64_t max_iterations, utility::TimeoutService& timer){
+static unique_ptr<uint64_t[]> teseo_cdlp(Teseo* teseo, Transaction transaction, uint64_t max_iterations, utility::TimeoutService& timer){
+    RegisterThread rt { teseo };
     auto iterator = transaction.iterator();
     const uint64_t num_vertices = transaction.num_vertices();
     unique_ptr<uint64_t[]> ptr_labels0 { new uint64_t[num_vertices] };
@@ -810,7 +816,7 @@ void TeseoDriver::cdlp(uint64_t max_iterations, const char* dump2file) {
 
     // Run the CDLP algorithm
     auto transaction = TESEO->start_transaction(/* read only */ true);
-    unique_ptr<uint64_t[]> labels = teseo_cdlp(rt, transaction, max_iterations, timeout);
+    unique_ptr<uint64_t[]> labels = teseo_cdlp(TESEO, transaction, max_iterations, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs
@@ -851,7 +857,8 @@ void TeseoDriver::cdlp(uint64_t max_iterations, const char* dump2file) {
 #endif
 
 // loosely based on the impl~ made for Stinger
-static unique_ptr<double[]> teseo_lcc(RegisterThread& rt, teseo::Transaction transaction, utility::TimeoutService& timer){
+static unique_ptr<double[]> teseo_lcc(Teseo* teseo, Transaction transaction, utility::TimeoutService& timer){
+    RegisterThread rt { teseo };
     const uint64_t num_vertices = transaction.num_vertices();
     auto iterator = transaction.iterator();
 
@@ -913,7 +920,7 @@ void TeseoDriver::lcc(const char* dump2file) {
 
     // Run the LCC algorithm
     auto transaction = TESEO->start_transaction(/* read only */ true);
-    unique_ptr<double[]> scores = teseo_lcc(rt, transaction, timeout);
+    unique_ptr<double[]> scores = teseo_lcc(TESEO, transaction, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs
@@ -979,7 +986,8 @@ using NodeID = uint64_t;
 using WeightT = double;
 static const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 
-static gapbs::pvector<WeightT> teseo_sssp(RegisterThread& rt, teseo::Transaction transaction, uint64_t source, double delta, utility::TimeoutService& timer){
+static gapbs::pvector<WeightT> teseo_sssp(Teseo* teseo, Transaction transaction, uint64_t source, double delta, utility::TimeoutService& timer){
+    RegisterThread rt { teseo };
     const uint64_t num_vertices = transaction.num_vertices();
     const uint64_t num_edges = transaction.num_edges();
     auto iterator = transaction.iterator();
@@ -1080,7 +1088,7 @@ void TeseoDriver::sssp(uint64_t source_vertex_id, const char* dump2file) {
     // Run the SSSP algorithm
     auto transaction = TESEO->start_transaction(/* read only */ true);
     double delta = 2.0; // same value used in the GAPBS, at least for most graphs
-    auto distances = teseo_sssp(rt, transaction, transaction.logical_id(source_vertex_id), delta, timeout);
+    auto distances = teseo_sssp(TESEO, transaction, transaction.logical_id(source_vertex_id), delta, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs
