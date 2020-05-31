@@ -31,14 +31,16 @@ class TeseoDriver : public virtual UpdateInterface, public virtual GraphalyticsI
 
     void* m_pImpl; // pointer to the teseo library
     const bool m_is_directed; // whether the underlying graph is directed or undirected
+    const bool m_read_only; // whether to used read only transactions for graphalytics
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
 
 public:
     /**
      * Create an instance of Teseo
      * @param is_directed: whether the underlying graph should be directed or undirected
+     * @param read_only: whether to use read-only transactions for the algorithms in graphalytics
      */
-    TeseoDriver(bool is_directed);
+    TeseoDriver(bool is_directed, bool read_only = true);
 
     /**
      * Destructor

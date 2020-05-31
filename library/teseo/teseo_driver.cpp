@@ -62,7 +62,7 @@ namespace gfe::library {
  *  Init                                                                     *
  *                                                                           *
  *****************************************************************************/
-TeseoDriver::TeseoDriver(bool is_directed) : m_pImpl(new Teseo()), m_is_directed(is_directed) {
+TeseoDriver::TeseoDriver(bool is_directed, bool read_only) : m_pImpl(new Teseo()), m_is_directed(is_directed), m_read_only(read_only) {
     if(is_directed == true){ throw std::invalid_argument("Only undirected graphs are currently supported by the front-end"); }
 }
 
@@ -415,7 +415,7 @@ void TeseoDriver::bfs(uint64_t source_vertex_id, const char* dump2file){
     common::Timer timer; timer.start();
 
     // execute the BFS algorithm
-    auto transaction = TESEO->start_transaction(/* read only ? */ true);
+    auto transaction = TESEO->start_transaction(m_read_only);
     auto result = do_bfs(TESEO, transaction, transaction.logical_id(source_vertex_id), tcheck);
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
@@ -559,7 +559,7 @@ void TeseoDriver::pagerank(uint64_t num_iterations, double damping_factor, const
     Timer timer; timer.start();
 
     // Run the PageRank algorithm
-    auto transaction = TESEO->start_transaction(/* read only ? */ true);
+    auto transaction = TESEO->start_transaction(m_read_only);
     unique_ptr<double[]> ptr_rank = teseo_pagerank(TESEO, transaction, num_iterations, damping_factor, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
@@ -716,7 +716,7 @@ void TeseoDriver::wcc(const char* dump2file) {
     RegisterThread rt { TESEO };
 
     // run wcc
-    auto transaction = TESEO->start_transaction(/* read only */ true);
+    auto transaction = TESEO->start_transaction(m_read_only);
     unique_ptr<uint64_t[]> ptr_components = teseo_wcc(TESEO, transaction, timeout);
 
     // translate the vertex IDs
@@ -815,7 +815,7 @@ void TeseoDriver::cdlp(uint64_t max_iterations, const char* dump2file) {
     RegisterThread rt { TESEO };
 
     // Run the CDLP algorithm
-    auto transaction = TESEO->start_transaction(/* read only */ true);
+    auto transaction = TESEO->start_transaction(m_read_only);
     unique_ptr<uint64_t[]> labels = teseo_cdlp(TESEO, transaction, max_iterations, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
@@ -919,7 +919,7 @@ void TeseoDriver::lcc(const char* dump2file) {
     RegisterThread rt { TESEO };
 
     // Run the LCC algorithm
-    auto transaction = TESEO->start_transaction(/* read only */ true);
+    auto transaction = TESEO->start_transaction(m_read_only);
     unique_ptr<double[]> scores = teseo_lcc(TESEO, transaction, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
@@ -1086,7 +1086,7 @@ void TeseoDriver::sssp(uint64_t source_vertex_id, const char* dump2file) {
     RegisterThread rt { TESEO };
 
     // Run the SSSP algorithm
-    auto transaction = TESEO->start_transaction(/* read only */ true);
+    auto transaction = TESEO->start_transaction(m_read_only);
     double delta = 2.0; // same value used in the GAPBS, at least for most graphs
     auto distances = teseo_sssp(TESEO, transaction, transaction.logical_id(source_vertex_id), delta, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }

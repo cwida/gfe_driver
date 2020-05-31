@@ -101,7 +101,7 @@ static void compute_medians(); // populate g_medians
 static void load();
 static void parse_args(int argc, char* argv[]);
 static void run();
-[[maybe_unused]] static void run_teseo();
+[[maybe_unused]] static void run_teseo(bool read_only);
 [[maybe_unused]] static void run_graphone();
 [[maybe_unused]] static void run_llama();
 static void print_results();
@@ -139,7 +139,13 @@ static void run(){
 
     if(g_library == "teseo"){
 #if defined(HAVE_TESEO)
-        run_teseo();
+        run_teseo(/* read only ? */ true);
+#else
+        assert(0 && "Support for teseo disabled");
+#endif
+    } else if(g_library == "teseo-rw"){
+#if defined(HAVE_TESEO)
+        run_teseo(/* read only ? */ false);
 #else
         assert(0 && "Support for teseo disabled");
 #endif
@@ -188,11 +194,11 @@ public:
 
 } // anon
 
-static void run_teseo(){
+static void run_teseo(bool read_only){
     using namespace teseo;
     Teseo* teseo = reinterpret_cast<Teseo*>(dynamic_cast<library::TeseoDriver*>(g_interface.get())->handle_impl());
     teseo->register_thread();
-    auto tx_ro = teseo->start_transaction(/* read only ? */ true);
+    auto tx_ro = teseo->start_transaction(read_only);
     auto iter_ro = tx_ro.iterator();
     const uint64_t num_vertices = g_vertices_sorted.size();
     common::Timer timer;
@@ -711,7 +717,7 @@ static void compute_medians(){
 }
 
 static void load(){
-    if(g_library == "teseo"){
+    if(g_library == "teseo" || g_library == "teseo-rw"){
 #if defined(HAVE_TESEO)
         g_interface.reset( new gfe::library::TeseoDriver(/* directed ? */ false) );
 #else
@@ -814,7 +820,7 @@ static void parse_args(int argc, char* argv[]) {
         } break;
         case 'l': {
             string library = optarg;
-            if(library != "teseo" && library != "graphone" && library != "llama"){
+            if(library != "teseo" && library != "teseo-rw" && library != "graphone" && library != "llama"){
                 cerr << "ERROR: Invalid library: `" << library << "'. Only \"teseo\", \"graphone\" and \"llama\" are supported." << endl;
             }
             g_library = library;
@@ -918,7 +924,7 @@ static string string_usage(char* program_name) {
     ss << "Usage: " << program_name << " -G <graph> [-t <num_threads>] [-l <library>] [-R <num_repetitions>]\n";
     ss << "Where: \n";
     ss << "  -G <graph> is an .properties file of an undirected graph from the Graphalytics data set\n";
-    ss << "  -l <library> is the library to execute. Only \"teseo\" (default), \"graphone\" and \"llama\" are supported\n";
+    ss << "  -l <library> is the library to execute. Only \"teseo\" (default), \"teseo-rw\", \"graphone\" and \"llama\" are supported\n";
     ss << "  -R <num_repetitions> is the number of repetitions the same micro benchmarks need to be performed\n";
     ss << "  -t <num_threads> follows the page range format, e.g. 1-16,32\n";
     return ss.str();

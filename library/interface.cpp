@@ -165,6 +165,9 @@ std::unique_ptr<Interface> generate_graphone_ref_ignore_build(bool directed_grap
 std::unique_ptr<Interface> generate_teseo(bool directed_graph){
     return unique_ptr<Interface>{ new TeseoDriver(directed_graph) };
 }
+std::unique_ptr<Interface> generate_teseo_rw(bool directed_graph){
+    return unique_ptr<Interface>{ new TeseoDriver(directed_graph, /* read only tx ? */ false ) };
+}
 #endif
 
 vector<ImplementationManifest> implementations() {
@@ -200,6 +203,7 @@ vector<ImplementationManifest> implementations() {
 
 #if defined(HAVE_TESEO)
     result.emplace_back("teseo.3", "Teseo", &generate_teseo);
+    result.emplace_back("teseo-rw.3", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
 #endif
 
     return result;
