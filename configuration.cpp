@@ -307,7 +307,7 @@ void Configuration::set_num_repetitions(uint64_t value) {
 void Configuration::set_num_threads_omp(int value){
     ASSERT( value >= 0 );
 #if !defined(HAVE_OPENMP)
-    if(value > 0) ERROR("Cannot set the maximum number of threads to use with OpenMP, the driver has not configured with the support of OpenMP");
+    if(value > 0) ERROR("Cannot set the maximum number of threads to use with OpenMP: the driver was not configured with support of OpenMP");
 #endif
 
     m_num_threads_omp = value;
@@ -315,11 +315,15 @@ void Configuration::set_num_threads_omp(int value){
 
 void Configuration::set_num_threads_read(int value){
     ASSERT( value >= 0 );
+#if !defined(HAVE_OPENMP)
+    if(value > 0) ERROR("Cannot set the maximum number of threads to use: the driver was not configured with support of OpenMP");
+#endif
+
     m_num_threads_read = value;
 }
 
 void Configuration::set_num_threads_write(int value){
-    ASSERT( value >= 0 );
+    ASSERT( value > 0 );
     m_num_threads_write = value;
 }
 

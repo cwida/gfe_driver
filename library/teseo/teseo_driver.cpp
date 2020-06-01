@@ -336,8 +336,10 @@ pvector<int64_t> InitDistances(Teseo* teseo, Transaction transaction){
     return distances;
 }
 
+} // anon namespace
+
 static
-pvector<int64_t> do_bfs(Teseo* teseo, Transaction& transaction, int64_t source, utility::TimeoutService& timer, int alpha = 15, int beta = 18) {
+pvector<int64_t> teseo_bfs(Teseo* teseo, Transaction& transaction, int64_t source, utility::TimeoutService& timer, int alpha = 15, int beta = 18) {
     // The implementation from GAP BS reports the parent (which indeed it should make more sense), while the one required by
     // Graphalytics only returns the distance
 
@@ -380,8 +382,6 @@ pvector<int64_t> do_bfs(Teseo* teseo, Transaction& transaction, int64_t source, 
     return distances;
 }
 
-} // anon namespace
-
 static void save_bfs(cuckoohash_map<uint64_t, int64_t>& result, const char* dump2file){
     assert(dump2file != nullptr);
     COUT_DEBUG("save the results to: " << dump2file)
@@ -416,7 +416,7 @@ void TeseoDriver::bfs(uint64_t source_vertex_id, const char* dump2file){
 
     // execute the BFS algorithm
     auto transaction = TESEO->start_transaction(m_read_only);
-    auto result = do_bfs(TESEO, transaction, transaction.logical_id(source_vertex_id), tcheck);
+    auto result = teseo_bfs(TESEO, transaction, transaction.logical_id(source_vertex_id), tcheck);
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // translate from llama vertex ids to external vertex ids

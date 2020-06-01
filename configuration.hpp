@@ -72,7 +72,7 @@ class Configuration {
     bool m_measure_latency = false; // whether to measure the latency of the update operations (insert/deletion).
     uint64_t m_num_repetitions { 0 }; // when applicable, how many times the same experiment should be repeated
     int m_num_threads_omp { 0 }; // if different than 0, the max number of threads used by OpenMP
-    int m_num_threads_read { 1 }; // number of threads to use for the read operations
+    int m_num_threads_read { 0 }; // number of threads to use for the read operations. The value of 0 is the default of OpenMP.
     int m_num_threads_write { 1 }; // number of threads to use for the write (insert/update/delete) operations
     std::string m_path_graph_to_load; // the file must be accessible to the server
     uint64_t m_seed = 5051789ull; // random seed, used in various places in the experiments

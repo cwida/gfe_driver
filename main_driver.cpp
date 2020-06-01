@@ -140,6 +140,14 @@ static void run_standalone(int argc, char* argv[]){
     }
 
     if(configuration().num_repetitions() > 0){
+
+#if defined(HAVE_OPENMP)
+        if(configuration().num_threads(ThreadsType::THREADS_READ) != 0 ){
+            LOG("[driver] OpenMP, number of threads for the Graphalytics suite: " << configuration().num_threads(ThreadsType::THREADS_READ));
+            omp_set_num_threads(configuration().num_threads(ThreadsType::THREADS_READ));
+        }
+#endif
+
         // run the graphalytics suite
         GraphalyticsAlgorithms properties { path_graph };
 
