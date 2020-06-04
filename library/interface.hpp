@@ -141,6 +141,10 @@ public:
      * Impose a timeout on each graph computation. A computation that does not terminate by the given seconds will raise a TimeoutError.
      */
     virtual void set_timeout(uint64_t seconds) = 0;
+
+    // To assess the overhead of the compactation phase in LLAMA
+    virtual void updates_start();
+    virtual void updates_stop();
 };
 
 /**

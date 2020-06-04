@@ -26,6 +26,7 @@
 #include <chrono>
 
 #include "common/spinlock.hpp"
+#include "common/timer.hpp"
 #include "library/interface.hpp"
 #if defined(LLAMA_HASHMAP_WITH_TBB)
 #include "tbb/concurrent_hash_map.h"
@@ -66,6 +67,11 @@ protected:
     uint64_t m_num_edges { 0 }; // the current number of edges contained
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
     mutable shared_mutex_t m_lock_checkpoint; // invoking #build(), that is creating a new snapshot, must be done without any other interference from other writers
+
+    // Compute the overhead of executing the
+    bool m_experiment_running = false;
+    common::Timer<true> m_timer_experiment;
+    common::Timer<true> m_timer_compactation;
 
 #if defined(LLAMA_HASHMAP_WITH_TBB)
     tbb::concurrent_hash_map<uint64_t, /* node_t */ int64_t> m_vmap; // vertex dictionary, from external vertex ID to internal vertex ID
@@ -256,6 +262,10 @@ public:
      * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
      */
     virtual void sssp(uint64_t source_vertex_id, const char* dump2file = nullptr);
+
+    // Compactation overhead
+    virtual void updates_start();
+    virtual void updates_stop();
 };
 
 } // namespace
