@@ -143,6 +143,7 @@ chrono::microseconds InsertOnly::execute() {
 
     // Execute the insertions
     m_interface->on_main_init(m_num_threads /* build thread */ +1);
+    m_interface->updates_start();
     Timer timer;
     timer.start();
     BuildThread build_service { m_interface , static_cast<int>(m_num_threads), m_build_frequency };
@@ -158,6 +159,7 @@ chrono::microseconds InsertOnly::execute() {
     timer.start();
     m_interface->build();
     timer.stop();
+    m_interface->updates_stop();
 
     m_time_build = timer.microseconds();
     if(m_time_build > 0){
