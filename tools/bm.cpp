@@ -67,6 +67,11 @@
 #include "library/llama/llama_internal.hpp"
 #endif
 
+#if defined(HAVE_STINGER)
+#include "library/stinger/stinger.hpp"
+#include "stinger_core/stinger.h"
+#endif
+
 using namespace gfe;
 using namespace std;
 
@@ -104,6 +109,7 @@ static void run();
 [[maybe_unused]] static void run_teseo(bool read_only);
 [[maybe_unused]] static void run_graphone();
 [[maybe_unused]] static void run_llama();
+[[maybe_unused]] static void run_stinger();
 static void print_results();
 static void save_results(const std::string& where);
 static string string_usage(char* program_name);
@@ -160,6 +166,12 @@ static void run(){
         run_llama();
 #else
         assert(0 && "Support for llama disabled");
+#endif
+    } else if(g_library == "stinger"){
+#if defined(HAVE_STINGER)
+        run_stinger();
+#else
+        assert(0 && "Support for stinger disabled");
 #endif
     } else {
         assert(0 && "Invalid library");
@@ -651,6 +663,99 @@ static void run_llama(){
 }
 #endif
 
+
+#if defined(HAVE_STINGER)
+
+static uint64_t stinger_point_lookup(struct stinger* stinger, uint64_t vertex_id){
+    STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(stinger, vertex_id) {
+        return STINGER_EDGE_DEST;
+    } STINGER_FORALL_OUT_EDGES_OF_VTX_END();
+}
+
+static void run_stinger(){
+    auto stinger = reinterpret_cast<struct stinger*>(dynamic_cast<library::StingerRef*>(g_interface.get())->handle());
+    const uint64_t num_vertices = g_vertices_sorted.size();
+    common::Timer timer;
+
+    for(int r = 0; r < g_num_repetitions; r++){
+        LOG("Repetition: " << (r +1) << "/" << g_num_repetitions);
+        for(auto num_threads: g_num_threads){
+            LOG("    num threads: " << num_threads);
+
+            // degree, logical identifiers, sorted
+            timer.start();
+            uint64_t sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                sum += stinger_outdegree(stinger, i);
+            }
+            timer.stop();
+            validate_sum_degree(sum);
+            g_samples.emplace_back("degree_logical_sorted", num_threads, timer.microseconds());
+
+            // degree, logical identifiers, unsorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                sum += stinger_outdegree(stinger, g_vertices_logical[i]);
+            }
+            timer.stop();
+            validate_sum_degree(sum);
+            g_samples.emplace_back("degree_logical_unsorted", num_threads, timer.microseconds());
+
+            // point lookups, logical vertices, sorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                sum += stinger_point_lookup(stinger, i);
+            }
+            timer.stop();
+            validate_sum_point_lookups(sum);
+            g_samples.emplace_back("point_logical_sorted", num_threads, timer.microseconds());
+
+            // point lookups, logical, unsorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                sum += stinger_point_lookup(stinger, g_vertices_logical[i]);
+            }
+            timer.stop();
+            validate_sum_point_lookups(sum);
+            g_samples.emplace_back("point_logical_unsorted", num_threads, timer.microseconds());
+
+            // scan, logical vertices, sorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(stinger, i) {
+                    sum += STINGER_EDGE_DEST;
+                } STINGER_FORALL_OUT_EDGES_OF_VTX_END();
+            }
+            timer.stop();
+            validate_sum_scan(sum);
+            g_samples.emplace_back("scan_logical_sorted", num_threads, timer.microseconds());
+
+            // scan, logical vertices, unsorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(stinger, g_vertices_logical[i]) {
+                    sum += STINGER_EDGE_DEST;
+                } STINGER_FORALL_OUT_EDGES_OF_VTX_END();
+            }
+            timer.stop();
+            validate_sum_scan(sum);
+            g_samples.emplace_back("scan_logical_unsorted", num_threads, timer.microseconds());
+        }
+    }
+}
+#endif
+
 static void validate_sum_degree(uint64_t sum) {
     if(g_sum_degree == 0){
         g_sum_degree = sum;
@@ -747,6 +852,13 @@ static void load(){
         cerr << "ERROR: gfe configured and built without linking the library llama\n";
         exit(EXIT_FAILURE);
 #endif
+    } else if(g_library == "stinger"){
+#if defined(HAVE_STINGER)
+        g_interface.reset( new library::StingerRef(/* directed ? */ false) );
+#else
+        cerr << "ERROR: gfe configured and built without linking the library stinger\n";
+        exit(EXIT_FAILURE);
+#endif
     }
 
     LOG("Loading the graph from " << g_path_graph << " ...");
@@ -820,8 +932,8 @@ static void parse_args(int argc, char* argv[]) {
         } break;
         case 'l': {
             string library = optarg;
-            if(library != "teseo" && library != "teseo-rw" && library != "graphone" && library != "llama"){
-                cerr << "ERROR: Invalid library: `" << library << "'. Only \"teseo\", \"graphone\" and \"llama\" are supported." << endl;
+            if(library != "teseo" && library != "teseo-rw" && library != "graphone" && library != "llama" && library != "stinger"){
+                cerr << "ERROR: Invalid library: `" << library << "'. Only \"teseo\", \"graphone\", \"llama\" and \"stinger\" are supported." << endl;
             }
             g_library = library;
         } break;
@@ -924,7 +1036,7 @@ static string string_usage(char* program_name) {
     ss << "Usage: " << program_name << " -G <graph> [-t <num_threads>] [-l <library>] [-R <num_repetitions>]\n";
     ss << "Where: \n";
     ss << "  -G <graph> is an .properties file of an undirected graph from the Graphalytics data set\n";
-    ss << "  -l <library> is the library to execute. Only \"teseo\" (default), \"teseo-rw\", \"graphone\" and \"llama\" are supported\n";
+    ss << "  -l <library> is the library to execute. Only \"teseo\" (default), \"teseo-rw\", \"graphone\", \"llama\" and \"stinger\" are supported\n";
     ss << "  -R <num_repetitions> is the number of repetitions the same micro benchmarks need to be performed\n";
     ss << "  -t <num_threads> follows the page range format, e.g. 1-16,32\n";
     return ss.str();

@@ -236,6 +236,9 @@ void Stinger::set_timeout(uint64_t seconds) {
     m_timeout = seconds;
 }
 
+void* Stinger::handle(){
+    return m_stinger_graph;
+}
 
 /******************************************************************************
  *                                                                            *

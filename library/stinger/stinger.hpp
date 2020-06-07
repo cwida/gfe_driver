@@ -202,6 +202,11 @@ public:
      * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
      */
     virtual void sssp(uint64_t source_vertex_id, const char* dump2file = nullptr);
+
+    /**
+     * Retrieve the internal handle to the library implementation
+     */
+    void* handle();
 };
 
 /**
