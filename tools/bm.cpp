@@ -892,7 +892,9 @@ static void load(){
 
 
     LOG("Inserting " << edges->num_edges() << " edges into `" << g_library << "' ...");
-    gfe::experiment::InsertOnly insert(dynamic_pointer_cast<gfe::library::UpdateInterface>(g_interface), edges, thread::hardware_concurrency(), false);
+    gfe::experiment::InsertOnly insert(dynamic_pointer_cast<gfe::library::UpdateInterface>(g_interface), edges,
+            g_library == "stinger" ? 1 : thread::hardware_concurrency(),
+    false);
     insert.execute();
 }
 
