@@ -53,6 +53,10 @@ extern mutex _log_mutex [[maybe_unused]];
 namespace gfe::library {
 
 void LLAMAClass::cdlp(uint64_t max_iterations, const char* dump2file){
+#if defined(LL_COUNTERS)
+    ll_clear_counters();
+#endif
+
     TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
 
@@ -93,6 +97,10 @@ void LLAMAClass::cdlp(uint64_t max_iterations, const char* dump2file){
     if(timeout.is_timeout()){
         RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
     }
+
+#if defined(LL_COUNTERS)
+    ll_print_counters(stdout);
+#endif
 
     // store the results in the given file
     if(dump2file != nullptr){

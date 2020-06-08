@@ -26,6 +26,13 @@
 using namespace common;
 using namespace std;
 
+// External counters used by LLAMA
+#if defined(LL_COUNTERS)
+std::atomic<size_t> g_iter_begin;
+std::atomic<size_t> g_iter_descend;
+std::atomic<size_t> g_iter_next;
+#endif
+
 /*****************************************************************************
  *                                                                           *
  *  Debug                                                                    *

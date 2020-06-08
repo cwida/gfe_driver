@@ -307,6 +307,10 @@ static void save_bfs(cuckoohash_map<uint64_t, int64_t>& result, const char* dump
 }
 
 void LLAMARef::bfs(uint64_t external_source_vertex_id, const char* dump2file){
+#if defined(LL_COUNTERS)
+    ll_clear_counters();
+#endif
+
     utility::TimeoutService tcheck { m_timeout };
     common::Timer timer; timer.start();
 
@@ -344,6 +348,10 @@ void LLAMARef::bfs(uint64_t external_source_vertex_id, const char* dump2file){
     }
 
     if(tcheck.is_timeout()) RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
+
+#if defined(LL_COUNTERS)
+    ll_print_counters(stdout);
+#endif
 
     // store the results in the given file
     if(dump2file != nullptr)
@@ -433,6 +441,10 @@ pvector<double> do_pagerank(ll_mlcsr_ro_graph& graph, uint64_t current_num_verti
 }
 
 void LLAMARef::pagerank(uint64_t num_iterations, double damping_factor, const char* dump2file){
+#if defined(LL_COUNTERS)
+    ll_clear_counters();
+#endif
+
     utility::TimeoutService tcheck { m_timeout };
     common::Timer timer; timer.start();
 
@@ -465,6 +477,10 @@ void LLAMARef::pagerank(uint64_t num_iterations, double damping_factor, const ch
     }
 
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
+
+#if defined(LL_COUNTERS)
+    ll_print_counters(stdout);
+#endif
 
     if(dump2file != nullptr)
         save0(external_ids, dump2file);
@@ -565,6 +581,10 @@ pvector<uint64_t> do_wcc(ll_mlcsr_ro_graph& graph, bool is_directed, utility::Ti
 }
 
 void LLAMARef::wcc(const char* dump2file) {
+#if defined(LL_COUNTERS)
+    ll_clear_counters();
+#endif
+
     // init
     utility::TimeoutService tcheck { m_timeout };
     common::Timer timer; timer.start();
@@ -594,6 +614,10 @@ void LLAMARef::wcc(const char* dump2file) {
         external_ids.insert(external_id, result[llama_node_id]);
     }
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
+
+#if defined(LL_COUNTERS)
+    ll_print_counters(stdout);
+#endif
 
     if(dump2file != nullptr)
         save0(external_ids, dump2file);
@@ -734,6 +758,10 @@ static pvector<double> do_sssp(ll_mlcsr_ro_graph& graph, bool is_directed, uint6
 }
 
 void LLAMARef::sssp(uint64_t external_source_vertex_id, const char* dump2file){
+#if defined(LL_COUNTERS)
+    ll_clear_counters();
+#endif
+
     utility::TimeoutService tcheck { m_timeout };
     common::Timer timer; timer.start();
 
@@ -767,6 +795,10 @@ void LLAMARef::sssp(uint64_t external_source_vertex_id, const char* dump2file){
         external_ids.insert(external_id, result[llama_node_id]);
     }
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
+
+#if defined(LL_COUNTERS)
+    ll_print_counters(stdout);
+#endif
 
     if(dump2file != nullptr)
         save0(external_ids, dump2file);

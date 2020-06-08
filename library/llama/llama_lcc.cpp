@@ -415,6 +415,10 @@ void LLAMAClass::lcc(const char* dump2file){
     TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
 
+#if defined(LL_COUNTERS)
+    ll_clear_counters();
+#endif
+
     // retrieve the latest snapshot the internal source_vertex_id
     shared_lock<shared_mutex_t> slock(m_lock_checkpoint);
     auto graph = get_snapshot();
@@ -457,6 +461,10 @@ void LLAMAClass::lcc(const char* dump2file){
     if(timeout.is_timeout()){
         RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
     }
+
+#if defined(LL_COUNTERS)
+    ll_print_counters(stdout);
+#endif
 
     // store the results in the given file
     if(dump2file != nullptr){
