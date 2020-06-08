@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstdio> // mkdtemp
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <string>
 #include <sstream>
@@ -146,6 +147,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
                         GraphalyticsValidate::bfs(path_tmp, path_reference, max_num_errors);
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("bfs", ValidationResult::SUCCEEDED);
+                        std::filesystem::remove(path_tmp);
                     } else if (i == 0) { // report it only the first time
                         LOG(">> Validation skipped, the reference file `" << path_reference << "' does not exist");
                         m_validate_results.emplace_back("bfs", ValidationResult::SKIPPED);
@@ -179,6 +181,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
                         GraphalyticsValidate::cdlp(path_tmp, path_reference, max_num_errors);
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("cdlp", ValidationResult::SUCCEEDED);
+                        std::filesystem::remove(path_tmp);
                     } else if (i == 0) { // report it only the first time
                         LOG(">> Validation skipped, the reference file `" << path_reference << "' does not exist");
                         m_validate_results.emplace_back("cdlp", ValidationResult::SKIPPED);
@@ -212,6 +215,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
                         GraphalyticsValidate::lcc(path_tmp, path_reference, max_num_errors);
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("lcc", ValidationResult::SUCCEEDED);
+                        std::filesystem::remove(path_tmp);
                     } else if (i == 0) { // report it only the first time
                         LOG(">> Validation skipped, the reference file `" << path_reference << "' does not exist");
                         m_validate_results.emplace_back("lcc", ValidationResult::SKIPPED);
@@ -245,6 +249,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
                         GraphalyticsValidate::pagerank(path_tmp, path_reference, max_num_errors);
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("pagerank", ValidationResult::SUCCEEDED);
+                        std::filesystem::remove(path_tmp);
                     } else if (i == 0) { // report it only the first time
                         LOG(">> Validation skipped, the reference file `" << path_reference << "' does not exist");
                         m_validate_results.emplace_back("pagerank", ValidationResult::SKIPPED);
@@ -278,6 +283,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
                         GraphalyticsValidate::sssp(path_tmp, path_reference, max_num_errors);
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("sssp", ValidationResult::SUCCEEDED);
+                        std::filesystem::remove(path_tmp);
                     } else if (i == 0) { // report it only the first time
                         LOG(">> Validation skipped, the reference file `" << path_reference << "' does not exist");
                         m_validate_results.emplace_back("sssp", ValidationResult::SKIPPED);
@@ -310,6 +316,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
                         GraphalyticsValidate::wcc(path_tmp, path_reference, max_num_errors);
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("wcc", ValidationResult::SUCCEEDED);
+                        std::filesystem::remove(path_tmp);
                     } else if (i == 0) { // report it only the first time
                         LOG(">> Validation skipped, the reference file `" << path_reference << "' does not exist");
                         m_validate_results.emplace_back("wcc", ValidationResult::SKIPPED);
