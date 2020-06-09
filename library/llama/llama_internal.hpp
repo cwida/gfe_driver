@@ -32,7 +32,7 @@
 #define LL_DELETIONS
 
 // Benchmark counters?
-#define LL_COUNTERS
+//#define LL_COUNTERS
 
 // Disable a warning in the llama.h implementation, ISO C++17 does not allow register bla bla
 #define register /* nop */
