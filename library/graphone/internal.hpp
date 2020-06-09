@@ -27,6 +27,9 @@
 #define B64
 #define DEL
 
+// Internal counters for the iterator?
+#define GRAPHONE_COUNTERS
+
 /**
  * Do not issue warnings due to the included GraphOne library
  */

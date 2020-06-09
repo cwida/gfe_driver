@@ -19,6 +19,7 @@
 #include "internal.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -46,6 +47,11 @@ using namespace std;
 // these globals are required by the current implementation of the GraphOne library...
 graph* g = nullptr;
 int THD_COUNT = 0;
+
+#if defined(GRAPHONE_COUNTERS)
+std::atomic<uint64_t> g_graphone_get_nbrs;
+std::atomic<uint64_t> g_graphone_get_adjlist;
+#endif
 
 /*****************************************************************************
  *                                                                           *
@@ -96,7 +102,7 @@ GraphOne::GraphOne(bool is_graph_directed, bool use_vertex2id_mapping, bool blin
     weighted_graph->flag1 = weighted_graph->flag2 =1; // `1' is the vertex type
     g->add_columnfamily(weighted_graph); // register the graph in the database instance
 
-    metadata->manual_setup(/* max number of vertices */ max_num_vertices, /* statically created the vertices ? */ false);
+    metadata->manual_setup(/* max number of vertices */ max_num_vertices, /* statically create the vertices ? */ false);
     g->prep_graph_baseline(); // I think this finalises the schema
     g->create_threads(/* archiving */ true, /* logging */ false); // background threads, to create the snapshots and logging to disk
 
@@ -773,6 +779,10 @@ unique_ptr<int64_t[]> graphone_gapbs_bfs(uint64_t v_count, uint64_t num_out_edge
 }
 
 void GraphOne::bfs_gapbs(uint64_t source_vertex_id, const char* dump2file) {
+#if defined(GRAPHONE_COUNTERS)
+    graphone_clear_counters();
+#endif
+
     // Init
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
@@ -805,6 +815,10 @@ void GraphOne::bfs_gapbs(uint64_t source_vertex_id, const char* dump2file) {
             RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
         }
 
+#if defined(GRAPHONE_COUNTERS)
+        graphone_print_counters();
+#endif
+
         // store the results in the given file
         if(dump2file != nullptr){
             COUT_DEBUG("save the results to: " << dump2file);
@@ -831,12 +845,15 @@ void GraphOne::bfs_gapbs(uint64_t source_vertex_id, const char* dump2file) {
 
     } else { // without the vertex dictionary
 
+#if defined(GRAPHONE_COUNTERS)
+        graphone_print_counters();
+#endif
+
         // store the results in the given file
         if(dump2file != nullptr){
             COUT_DEBUG("save the results to: " << dump2file);
             fstream handle(dump2file, ios_base::out);
             if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
 
             for(sid_t internal_id = 0; internal_id < N; internal_id++){
                 handle << internal_id << " ";
@@ -1260,6 +1277,10 @@ static unique_ptr<double[]> graphone_pagerank_impl_from_llama(uint64_t num_verti
 }
 
 void GraphOne::pagerank(uint64_t num_iterations, double damping_factor, const char* dump2file) {
+#if defined(GRAPHONE_COUNTERS)
+    graphone_clear_counters();
+#endif
+
     // Init
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
@@ -1292,6 +1313,10 @@ void GraphOne::pagerank(uint64_t num_iterations, double damping_factor, const ch
             RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
         }
 
+#if defined(GRAPHONE_COUNTERS)
+        graphone_print_counters();
+#endif
+
         // store the results in the given file
         if(dump2file != nullptr){
             COUT_DEBUG("save the results to: " << dump2file);
@@ -1308,6 +1333,10 @@ void GraphOne::pagerank(uint64_t num_iterations, double damping_factor, const ch
         }
 
     } else { // without the vertex dictionary
+
+#if defined(GRAPHONE_COUNTERS)
+        graphone_print_counters();
+#endif
 
         // store the results in the given file
         if(dump2file != nullptr){
@@ -1543,6 +1572,10 @@ static unique_ptr<uint64_t[]> graphone_simple_wcc(uint64_t num_vertices, bool is
 }
 
 void GraphOne::wcc(const char* dump2file) {
+#if defined(GRAPHONE_COUNTERS)
+    graphone_clear_counters();
+#endif
+
     // Init
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
@@ -1575,6 +1608,10 @@ void GraphOne::wcc(const char* dump2file) {
             RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
         }
 
+#if defined(GRAPHONE_COUNTERS)
+        graphone_print_counters();
+#endif
+
         // store the results in the given file
         if(dump2file != nullptr){
             COUT_DEBUG("save the results to: " << dump2file);
@@ -1591,6 +1628,10 @@ void GraphOne::wcc(const char* dump2file) {
         }
 
     } else { // without the vertex dictionary
+
+#if defined(GRAPHONE_COUNTERS)
+        graphone_print_counters();
+#endif
 
         // store the results in the given file
         if(dump2file != nullptr){
@@ -1718,6 +1759,10 @@ static unique_ptr<uint64_t[]> graphone_execute_cdlp(bool is_directed, bool trans
 }
 
 void GraphOne::cdlp(uint64_t max_iterations, const char* dump2file) {
+#if defined(GRAPHONE_COUNTERS)
+    graphone_clear_counters();
+#endif
+
     // Init
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
@@ -1747,6 +1792,10 @@ void GraphOne::cdlp(uint64_t max_iterations, const char* dump2file) {
             RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
         }
 
+#if defined(GRAPHONE_COUNTERS)
+        graphone_print_counters();
+#endif
+
         // store the results in the given file
         if(dump2file != nullptr){
             COUT_DEBUG("save the results to: " << dump2file);
@@ -1763,6 +1812,10 @@ void GraphOne::cdlp(uint64_t max_iterations, const char* dump2file) {
         }
 
     } else { // without the vertex dictionary
+
+#if defined(GRAPHONE_COUNTERS)
+        graphone_print_counters();
+#endif
 
         // store the results in the given file
         if(dump2file != nullptr){
@@ -1903,6 +1956,10 @@ static unique_ptr<double[]> graphone_execute_lcc(uint64_t num_vertices, bool is_
 }
 
 void GraphOne::lcc(const char* dump2file) {
+#if defined(GRAPHONE_COUNTERS)
+    graphone_clear_counters();
+#endif
+
     // Init
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
@@ -1932,6 +1989,10 @@ void GraphOne::lcc(const char* dump2file) {
             RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
         }
 
+#if defined(GRAPHONE_COUNTERS)
+        graphone_print_counters();
+#endif
+
         // store the results in the given file
         if(dump2file != nullptr){
             COUT_DEBUG("save the results to: " << dump2file);
@@ -1948,6 +2009,10 @@ void GraphOne::lcc(const char* dump2file) {
         }
 
     } else { // without the vertex dictionary
+
+#if defined(GRAPHONE_COUNTERS)
+        graphone_print_counters();
+#endif
 
         // store the results in the given file
         if(dump2file != nullptr){
@@ -2111,6 +2176,10 @@ static gapbs::pvector<WeightT> graphone_execute_sssp(uint64_t num_vertices, uint
 }
 
 void GraphOne::sssp(uint64_t source_vertex_id, const char* dump2file) { // GAPBS
+#if defined(GRAPHONE_COUNTERS)
+    graphone_clear_counters();
+#endif
+
     // Init
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
@@ -2142,6 +2211,10 @@ void GraphOne::sssp(uint64_t source_vertex_id, const char* dump2file) { // GAPBS
             RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
         }
 
+#if defined(GRAPHONE_COUNTERS)
+        graphone_print_counters();
+#endif
+
         // store the results in the given file
         if(dump2file != nullptr){
             COUT_DEBUG("save the results to: " << dump2file);
@@ -2158,6 +2231,10 @@ void GraphOne::sssp(uint64_t source_vertex_id, const char* dump2file) { // GAPBS
         }
 
     } else { // without the vertex dictionary
+
+#if defined(GRAPHONE_COUNTERS)
+        graphone_print_counters();
+#endif
 
         // store the results in the given file
         if(dump2file != nullptr){

@@ -574,7 +574,7 @@ static void _bm_run_llama(){
             uint64_t sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
             for(uint64_t i = 0; i < num_vertices; i++){
-                sum += graph.out_degree(i);
+                sum += graph.out_degree(i) + graph.in_degree(i);
             }
             timer.stop();
             validate_sum_degree(sum);
@@ -585,7 +585,7 @@ static void _bm_run_llama(){
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
             for(uint64_t i = 0; i < num_vertices; i++){
-                sum += graph.out_degree(g_vertices_logical[i]);
+                sum += graph.out_degree(g_vertices_logical[i]) + graph.in_degree(g_vertices_logical[i]);
             }
             timer.stop();
             validate_sum_degree(sum);
@@ -601,6 +601,12 @@ static void _bm_run_llama(){
                 edge_t e = graph.out_iter_next(iterator);
                 if(e != LL_NIL_EDGE){
                     sum += LL_ITER_OUT_NEXT_NODE(IGNORED, iterator, e);
+                } else {
+                    graph.in_iter_begin_fast(iterator, i);
+                    e = graph.in_iter_next_fast(iterator);
+                    if (e != LL_NIL_EDGE){
+                        sum += LL_ITER_OUT_NEXT_NODE(IGNORED, iterator, e);
+                    }
                 }
             }
             timer.stop();
@@ -617,6 +623,12 @@ static void _bm_run_llama(){
                 edge_t e = graph.out_iter_next(iterator);
                 if(e != LL_NIL_EDGE){
                     sum += LL_ITER_OUT_NEXT_NODE(IGNORED, iterator, e);
+                } else {
+                    graph.in_iter_begin_fast(iterator, g_vertices_logical[i]);
+                    e = graph.in_iter_next_fast(iterator);
+                    if (e != LL_NIL_EDGE){
+                        sum += LL_ITER_OUT_NEXT_NODE(IGNORED, iterator, e);
+                    }
                 }
             }
             timer.stop();
@@ -634,6 +646,11 @@ static void _bm_run_llama(){
                     node_t n = LL_ITER_OUT_NEXT_NODE(IGNORED, iterator, e);
                     sum += n;
                 }
+                graph.in_iter_begin_fast(iterator, i);
+                for (edge_t e = graph.in_iter_next_fast(iterator); e != LL_NIL_EDGE; e = graph.in_iter_next_fast(iterator)) {
+                    node_t n = LL_ITER_OUT_NEXT_NODE(IGNORED, iterator, e);
+                    sum += n;
+                }
             }
             timer.stop();
             validate_sum_scan(sum);
@@ -647,6 +664,11 @@ static void _bm_run_llama(){
                 ll_edge_iterator iterator;
                 graph.out_iter_begin(iterator, g_vertices_logical[i]);
                 for (edge_t e = graph.out_iter_next(iterator); e != LL_NIL_EDGE; e = graph.out_iter_next(iterator)) {
+                    node_t n = LL_ITER_OUT_NEXT_NODE(IGNORED, iterator, e);
+                    sum += n;
+                }
+                graph.in_iter_begin_fast(iterator, g_vertices_logical[i]);
+                for (edge_t e = graph.in_iter_next_fast(iterator); e != LL_NIL_EDGE; e = graph.in_iter_next_fast(iterator)) {
                     node_t n = LL_ITER_OUT_NEXT_NODE(IGNORED, iterator, e);
                     sum += n;
                 }
@@ -910,11 +932,8 @@ static void parse_args(int argc, char* argv[]) {
 
     int option { 0 };
     int option_index = 0;
-    while( (option = getopt_long(argc, argv, "e:G:hl:t:", long_options, &option_index)) != -1 ){
+    while( (option = getopt_long(argc, argv, "G:hl:R:t:", long_options, &option_index)) != -1 ){
         switch(option){
-        case 'e':
-
-            break;
         case 'G': {
             string path_graph = optarg;
             if(!common::filesystem::file_exists(path_graph)){

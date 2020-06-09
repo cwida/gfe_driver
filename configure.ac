@@ -540,7 +540,7 @@ if ( test x"${with_graphone}" != x"" && test x"${with_graphone}" != "no" ); then
 	AC_CHECK_FILE([${path_graphone_cmakecache}], [], [AC_MSG_ERROR(["file not found: ${path_graphone_cmakecache}. This file is used to infer the path to the source directory of GraphOne"])])
 	path_graphone_srcdir=$(awk -F= '$1 ~ /CMAKE_HOME_DIRECTORY/ {print $2}' ${path_graphone_cmakecache})
 	AC_MSG_NOTICE([GraphOne source directory: ${path_graphone_srcdir}])
-    AS_VAR_APPEND([CPPFLAGS], [" -I${path_graphone_srcdir}/src -I${path_graphone_srcdir}/include -I${path_graphone_srcdir}/include -I${path_graphone_srcdir}/gview -I${path_graphone_srcdir}/gview -I${path_graphone_srcdir}/analytics -I${path_graphone_srcdir}/onedata"])
+    AS_VAR_APPEND([CPPFLAGS], [" -I${path_graphone_srcdir}/src -I${path_graphone_srcdir}/include -I${path_graphone_srcdir}/gview -I${path_graphone_srcdir}/analytics -I${path_graphone_srcdir}/onedata"])
     
 	dnl check whether we can compile & link a simple program invoking functions from the graphone library
     AC_MSG_CHECKING([whether we can compile and link against the GraphOne library])

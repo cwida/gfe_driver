@@ -41,6 +41,7 @@ ifdef libgmp_makedir
 	libgmp := ${libgmp_makedir}/build/lib/libgmpxx.a
 	dependencies += ${libgmp}
 endif
+toolsdir := ${objectdir}/tools
 
 # Linker
 LDFLAGS := @LDFLAGS@
@@ -198,13 +199,19 @@ ${testgraphs}: | ${testbindir}
 	
 #############################################################################
 # Tool ./bm
-bmdir := ${objectdir}/tools
-bmobjects := $(addprefix ${objectdir}/, $(patsubst %.cpp, %.o, ${bmsources}))
-
 bm: ${objectdir}/tools/bm.o ${dependencies} 
 	${CXX} $^ ${LDFLAGS} -o $@
 	
-${objectdir}/tools/bm.o: tools/bm.cpp | ${bmdir}
+${objectdir}/tools/bm.o: tools/bm.cpp | ${toolsdir}
+	${makedepend_cxx}
+	$(CXX) -c $(ALL_CXXFLAGS) $< -o $@
+	
+#############################################################################
+# Tool ./edges_per_vertex
+edges_per_vertex: ${objectdir}/tools/edges_per_vertex.o ${dependencies} 
+	${CXX} $^ ${LDFLAGS} -o $@
+	
+${objectdir}/tools/edges_per_vertex.o: tools/edges_per_vertex.cpp | ${toolsdir}
 	${makedepend_cxx}
 	$(CXX) -c $(ALL_CXXFLAGS) $< -o $@
 
@@ -215,7 +222,7 @@ ${tcmalloc}: third-party/gperftools-2.7
 
 #############################################################################
 # Build directories
-${builddir} ${objectdirs} ${testbindir} ${bmdir}:
+${builddir} ${objectdirs} ${testbindir} ${toolsdir}:
 	mkdir -pv $@
 	
 #############################################################################
@@ -255,6 +262,7 @@ clean:
 	rm -rf ${gtestdir}
 	rm -rf ${testbindir}
 	rm -f bm
+	rm -f edges_per_vertex
 	
 #############################################################################
 # Regenerate the Makefile when the configuration has been changed
@@ -270,4 +278,5 @@ Makefile: Makefile.in config.status
 #############################################################################
 # Dependencies to update the translation units if a header has been altered
 -include ${objects:.o=.d}
--include ${bmobjects:.o=.d}
+-include "${objectdir}/tools/bm.d"
+-include "${objectdir}/tools/edges_per_vertex.d"
