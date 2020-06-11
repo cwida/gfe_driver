@@ -327,6 +327,10 @@ void UpdateInterface::build(){
     /* nop */
 }
 
+bool UpdateInterface::can_be_validated() const {
+    return true;
+}
+
 uint64_t UpdateInterface::num_levels() const {
     return 0; // by default, we assume that the implementation is not LSM/delta based, and it doesn`t create new levels/deltas/snapshots
 }

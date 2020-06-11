@@ -91,8 +91,7 @@ static void run_standalone(int argc, char* argv[]){
             experiment.execute();
             if(configuration().has_database()) experiment.save();
 
-
-            if(configuration().validate_inserts()){
+            if(configuration().validate_inserts() && impl_upd->can_be_validated()){
                 num_validation_errors = validate_updates(impl_upd, stream);
             }
         } else { // Aging experiment, without the graphlog
@@ -126,7 +125,7 @@ static void run_standalone(int argc, char* argv[]){
         if(configuration().has_database()) result.save(configuration().db());
         random_vertex = result.get_random_vertex_id();
 
-        if(configuration().validate_inserts()){
+        if(configuration().validate_inserts() && impl_upd->can_be_validated()){
             LOG("[driver] Validation of updates requested, loading the original graph from: " << path_graph);
             auto stream = make_shared<graph::WeightedEdgeStream> ( configuration().get_path_graph() );
             num_validation_errors = validate_updates(impl_upd, stream);

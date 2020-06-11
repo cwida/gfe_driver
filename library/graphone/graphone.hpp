@@ -191,6 +191,11 @@ public:
     virtual void build();
 
     /**
+     * Do not validate the updates performed. It takes way too much time & memory.
+     */
+    virtual bool can_be_validated() const;
+
+    /**
      * Retrieve the total number of delta passes ("archiving") performed since this instance has been created
      */
     virtual uint64_t num_levels() const;

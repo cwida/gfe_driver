@@ -228,6 +228,11 @@ public:
         double m_weight; // if < 0, this is an edge removal, otherwise it's an edge insertion with the given weight
     };
     virtual bool batch(const SingleUpdate* array, size_t array_sz, bool force = true);
+
+    /**
+     * Check whether we are allowed to validate the updates performed
+     */
+    virtual bool can_be_validated() const;
 };
 
 /**

@@ -180,7 +180,7 @@ bool GraphOne::find_edge(uint64_t v0, uint64_t v1, bool* out_record_found, doubl
     int64_t i = num_edges -1;
     while(i >= 0 && !found){
         uint64_t src = TO_VID(get_src(edges[i]));
-        uint64_t dst = get_dst(edges[i]);
+        uint64_t dst = TO_VID(get_dst(edges[i]));
         bool is_deletion = IS_DEL(get_src(edges[i]));
 
         if(src == v0 && dst == v1){
@@ -467,6 +467,10 @@ void GraphOne::build(){
     if(m_ignore_build) return; // nop
     g->waitfor_archive();
     m_num_levels++;
+}
+
+bool GraphOne::can_be_validated() const {
+    return false;
 }
 
 uint64_t GraphOne::num_levels() const {
