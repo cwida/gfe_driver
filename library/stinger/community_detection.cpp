@@ -124,7 +124,7 @@ void Stinger::cdlp(uint64_t max_iterations, const char* dump2file){
         CHECK_TIMEOUT
         change = false;
 
-        #pragma omp parallel for shared(change)
+        #pragma omp parallel for shared(change) schedule(dynamic, 64)
         for(int64_t n = 0; n < num_mappings; n++){
             labels1[n] = cdlp_propagate(n, labels0);
             if(get_external_id(n) >= 0){

@@ -185,16 +185,17 @@ vector<ImplementationManifest> implementations() {
 
 #if defined(HAVE_LLAMA)
     // v2 25/11/2019: better scalability for the llama dictionary
-    result.emplace_back("llama4", "LLAMA library", &generate_llama);
-    result.emplace_back("llama4-dv", "LLAMA with dense vertices", &generate_llama_dv);
-    result.emplace_back("llama4-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
-    result.emplace_back("llama4-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
+    // v5 12/06/2020: schedule dynamic in graphalytics
+    result.emplace_back("llama5", "LLAMA library", &generate_llama);
+    result.emplace_back("llama5-dv", "LLAMA with dense vertices", &generate_llama_dv);
+    result.emplace_back("llama5-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
+    result.emplace_back("llama5-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
 #endif
 
 #if defined(HAVE_STINGER)
-    result.emplace_back("stinger", "Stinger library", &generate_stinger);
-    result.emplace_back("stinger-dv", "Stinger with dense vertices", &generate_stinger_dv);
-    result.emplace_back("stinger-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
+    result.emplace_back("stinger2", "Stinger library", &generate_stinger);
+    result.emplace_back("stinger2-dv", "Stinger with dense vertices", &generate_stinger_dv);
+    result.emplace_back("stinger2-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
 #endif
 
 #if defined(HAVE_GRAPHONE)

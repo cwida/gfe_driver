@@ -167,7 +167,7 @@ int64_t TDStep(ll_mlcsr_ro_graph& graph, bool is_directed, pvector<int64_t>& dis
     #pragma omp parallel
     {
         QueueBuffer<int64_t> lqueue(queue);
-        #pragma omp for reduction(+ : scout_count)
+        #pragma omp for schedule(dynamic, 64) reduction(+ : scout_count)
         for (auto q_iter = queue.begin(); q_iter < queue.end(); q_iter++) {
             int64_t u = *q_iter;
 
@@ -204,7 +204,7 @@ int64_t TDStep(ll_mlcsr_ro_graph& graph, bool is_directed, pvector<int64_t>& dis
 
 static
 void QueueToBitmap(const SlidingQueue<int64_t> &queue, Bitmap &bm) {
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(dynamic, 64)
     for (auto q_iter = queue.begin(); q_iter < queue.end(); q_iter++) {
         int64_t u = *q_iter;
         bm.set_bit_atomic(u);
@@ -216,7 +216,7 @@ void BitmapToQueue(ll_mlcsr_ro_graph& graph, const Bitmap &bm, SlidingQueue<int6
     #pragma omp parallel
     {
         QueueBuffer<int64_t> lqueue(queue);
-        #pragma omp for
+        #pragma omp for schedule(dynamic, 64)
         for (int64_t n=0; n < graph.max_nodes(); n++)
             if (bm.get_bit(n))
                 lqueue.push_back(n);
@@ -533,7 +533,7 @@ pvector<uint64_t> do_wcc(ll_mlcsr_ro_graph& graph, bool is_directed, utility::Ti
     while (change && !timer.is_timeout()) {
         change = false;
 
-        #pragma omp parallel for
+        #pragma omp parallel for schedule(dynamic, 64)
         for (node_t u = 0; u < graph.max_nodes(); u++){
             ll_edge_iterator iterator;
             graph.out_iter_begin(iterator, u);
@@ -569,7 +569,7 @@ pvector<uint64_t> do_wcc(ll_mlcsr_ro_graph& graph, bool is_directed, utility::Ti
             }
         }
 
-        #pragma omp parallel for
+        #pragma omp parallel for schedule(dynamic, 64)
         for (node_t n = 0; n < graph.max_nodes(); n++){
             while (comp[n] != comp[comp[n]]) {
                 comp[n] = comp[comp[n]];

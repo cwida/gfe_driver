@@ -137,7 +137,7 @@ unique_ptr<uint64_t[]> LLAMAClass::cdlp_impl(TimeoutService& timer, ll_mlcsr_ro_
     while(current_iteration < max_iterations && change && !timer.is_timeout()){
         change = false; // reset the flag
 
-        #pragma omp parallel for shared(change)
+        #pragma omp parallel for shared(change) schedule(dynamic, 64)
         for(node_t node_id = 0; node_id < graph.max_nodes(); node_id++){
 
             unordered_map<int64_t, uint64_t> histogram;

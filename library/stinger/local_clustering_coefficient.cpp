@@ -99,7 +99,7 @@ void Stinger::lcc(const char* dump2file){
 //    uint64_t nv = stinger_max_active_vertex(STINGER); // it doesn't register the coefficient if the last vertices are isolated
     uint64_t nv = get_max_num_mappings(); // number of mappings
 
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(dynamic, 64)
     for(uint64_t v = 0; v < nv; v++){
         // timeout check
         if(tcheck->is_timeout()) continue; // do not do any additional processing

@@ -148,7 +148,7 @@ int64_t TDStep(stinger_t* g, pvector<int64_t>& distances, int64_t distance, Slid
     #pragma omp parallel
     {
         QueueBuffer<int64_t> lqueue(queue);
-        #pragma omp for reduction(+ : scout_count)
+        #pragma omp for reduction(+ : scout_count) schedule(dynamic, 64)
         for (auto q_iter = queue.begin(); q_iter < queue.end(); q_iter++) {
             int64_t u = *q_iter;
             STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(g, u) {
@@ -451,7 +451,7 @@ pvector<uint64_t> do_wcc(stinger_t* G, uint64_t num_total_vertices, utility::Tim
     while (change && !timer.is_timeout()) {
         change = false;
 
-        #pragma omp parallel for
+        #pragma omp parallel for schedule(dynamic, 64)
         for (uint64_t u = 0; u < num_total_vertices; u++){
             STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(G, u) {
                 uint64_t v = STINGER_EDGE_DEST;
@@ -468,7 +468,7 @@ pvector<uint64_t> do_wcc(stinger_t* G, uint64_t num_total_vertices, utility::Tim
             } STINGER_FORALL_OUT_EDGES_OF_VTX_END();
         }
 
-        #pragma omp parallel for
+        #pragma omp parallel for schedule(dynamic, 64)
         for (uint64_t n = 0; n < num_total_vertices; n++){
             while (comp[n] != comp[comp[n]]) {
                 comp[n] = comp[comp[n]];

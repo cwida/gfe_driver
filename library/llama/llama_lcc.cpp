@@ -386,7 +386,7 @@ uint64_t count_triangles_undirected(ll_mlcsr_ro_graph& graph, node_t u){
 static
 void llama_execute_lcc_undirected(TimeoutService& timer, ll_mlcsr_ro_graph& graph, double* scores){
 
-    #pragma omp for nowait schedule(dynamic,4096)
+    #pragma omp for nowait schedule(dynamic,64)
     for(node_t u = 0; u < graph.max_nodes(); u++){
         if(timer.is_timeout()) continue; // we're done
 

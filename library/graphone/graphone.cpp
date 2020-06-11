@@ -661,7 +661,7 @@ int64_t graphone_gapbs_bfs_TDStep(snap_t<lite_edge_t>* view, uint64_t v_count, i
         lite_edge_t* neighbours = nullptr;
         uint64_t neighbours_sz = 0;
 
-        #pragma omp for
+        #pragma omp for schedule(dynamic, 64)
         for (auto q_iter = queue.begin(); q_iter < queue.end(); q_iter++) {
             int64_t u = *q_iter;
 
@@ -1443,7 +1443,7 @@ unique_ptr<uint64_t[]> graphone_gapbs_wcc(uint64_t num_total_vertices, utility::
             lite_edge_t* neighbours = nullptr;
             uint64_t neighbours_sz = 0;
 
-            #pragma omp parallel for
+            #pragma omp parallel for schedule(dynamic, 64)
             for (uint64_t u = 0; u < num_total_vertices; u++){
                 uint64_t degree_out = view->get_degree_out(u);
 
@@ -1474,7 +1474,7 @@ unique_ptr<uint64_t[]> graphone_gapbs_wcc(uint64_t num_total_vertices, utility::
             free(neighbours); neighbours = nullptr; neighbours_sz = 0;
         }
 
-        #pragma omp parallel for
+        #pragma omp parallel for schedule(dynamic, 64)
         for (uint64_t n = 0; n < num_total_vertices; n++){
             while (comp[n] != comp[comp[n]]) {
                 comp[n] = comp[comp[n]];
@@ -1691,7 +1691,7 @@ static unique_ptr<uint64_t[]> graphone_execute_cdlp(bool is_directed, bool trans
             lite_edge_t* neighbours = nullptr;
             uint64_t neighbours_sz = 0;
 
-            #pragma omp for
+            #pragma omp for schedule(dynamic, 64)
             for(uint64_t v = 0; v < num_vertices; v++){
                 unordered_map<uint64_t, uint64_t> histogram;
 
@@ -1859,7 +1859,7 @@ static unique_ptr<double[]> graphone_execute_lcc(uint64_t num_vertices, bool is_
         lite_edge_t* edges2 = nullptr;
         uint64_t edges2_sz = 0;
 
-        #pragma omp for
+        #pragma omp for schedule(dynamic, 64)
         for(uint64_t v = 0; v < num_vertices; v++){
             COUT_DEBUG_LCC("> Node " << v);
             if(timer.is_timeout()) continue; // exhausted the budget of available time
