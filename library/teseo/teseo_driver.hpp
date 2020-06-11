@@ -29,6 +29,7 @@ class TeseoDriver : public virtual UpdateInterface, public virtual GraphalyticsI
     TeseoDriver(const TeseoDriver&) = delete;
     TeseoDriver& operator=(const TeseoDriver&) = delete;
 
+protected:
     void* m_pImpl; // pointer to the teseo library
     const bool m_is_directed; // whether the underlying graph is directed or undirected
     const bool m_read_only; // whether to used read only transactions for graphalytics

@@ -393,7 +393,7 @@ static void run_teseo(bool read_only){
 
 #if defined(HAVE_GRAPHONE)
 static void run_graphone(){
-    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK & PRIVATE_MASK); // global
+    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK | PRIVATE_MASK); // global
 
     const uint64_t num_vertices = g_vertices_sorted.size();
     common::Timer timer;

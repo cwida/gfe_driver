@@ -610,11 +610,12 @@ void AdjacencyList::lcc_undirected(unordered_map<uint64_t, double>& result){
 
             t_probe.stop();
 
+            COUT_DEBUG("score[" << vertex1 << "]: " << static_cast<double>(num_triangles) / (degree * (degree-1)));
             result[vertex1] = static_cast<double>(num_triangles) / (degree * (degree-1));
         } else {
+            COUT_DEBUG("score[" << vertex1 << "]: 0");
             result[vertex1] = 0;
         }
-
     }
 
     LOG("timer build: " << t_build << ", timer probe: " << t_probe << ", number hashes: " << hash_probes);

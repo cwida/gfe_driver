@@ -182,7 +182,7 @@ static void run_graphone(){
     fstream file (g_destination.c_str(), ios_base::out);
     if(!file.good()){ ERROR("Invalid file name: " << file); }
 
-    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK & PRIVATE_MASK); // global
+    auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK | PRIVATE_MASK); // global
     uint64_t num_vertices = g_interface->num_vertices();
 
     for(uint64_t i = 0; i < num_vertices; i++){

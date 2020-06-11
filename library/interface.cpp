@@ -47,6 +47,7 @@
 #endif
 #if defined(HAVE_TESEO)
 #include "teseo/teseo_driver.hpp"
+#include "teseo/teseo_lcc.hpp"
 #endif
 
 using namespace std;
@@ -168,6 +169,12 @@ std::unique_ptr<Interface> generate_teseo(bool directed_graph){
 std::unique_ptr<Interface> generate_teseo_rw(bool directed_graph){
     return unique_ptr<Interface>{ new TeseoDriver(directed_graph, /* read only tx ? */ false ) };
 }
+std::unique_ptr<Interface> generate_teseo_lcc_lla(bool directed_graph){ // LCC custom algorithm, using the low level API
+    return unique_ptr<Interface>{ new TeseoLCC(directed_graph, /* low level API ? */ true) };
+}
+std::unique_ptr<Interface> generate_teseo_lcc_user(bool directed_graph){ // LCC custom algorithm, using the user API
+    return unique_ptr<Interface>{ new TeseoLCC(directed_graph, /* low level API ? */ false) };
+}
 #endif
 
 vector<ImplementationManifest> implementations() {
@@ -191,19 +198,21 @@ vector<ImplementationManifest> implementations() {
 #endif
 
 #if defined(HAVE_GRAPHONE)
-    result.emplace_back("g1-cons-sp", "GraphOne, consistency for updates, sparse vertices (vertex dictionary)", &generate_graphone_cons_sp);
-    result.emplace_back("g1-cons-dv", "GraphOne, consistency for updates, dense vertices", &generate_graphone_cons_dv);
-    result.emplace_back("g1-bw-sp", "GraphOne, blind writes, sparse vertices (vertex dictionary)", &generate_graphone_bw_sp);
-    result.emplace_back("g1-bw-dv", "GraphOne, blind writes, dense vertices", &generate_graphone_bw_dv);
-    result.emplace_back("g1-bw-sp-ignore-build", "GraphOne, blind writes, sparse vertices (vertex dictionary), new deltas/levels cannot be explicitly created", &generate_graphone_bw_sp_ignore_build);
-    result.emplace_back("g1-bw-dv-ignore-build", "GraphOne, blind writes, dense vertices, new deltas/levels cannot be explicitly created", &generate_graphone_bw_dv_ignore_build);
-    result.emplace_back("g1-ref", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref);
-    result.emplace_back("g1-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
+    result.emplace_back("g1_v2-cons-sp", "GraphOne, consistency for updates, sparse vertices (vertex dictionary)", &generate_graphone_cons_sp);
+    result.emplace_back("g1_v2-cons-dv", "GraphOne, consistency for updates, dense vertices", &generate_graphone_cons_dv);
+    result.emplace_back("g1_v2-bw-sp", "GraphOne, blind writes, sparse vertices (vertex dictionary)", &generate_graphone_bw_sp);
+    result.emplace_back("g1_v2-bw-dv", "GraphOne, blind writes, dense vertices", &generate_graphone_bw_dv);
+    result.emplace_back("g1_v2-bw-sp-ignore-build", "GraphOne, blind writes, sparse vertices (vertex dictionary), new deltas/levels cannot be explicitly created", &generate_graphone_bw_sp_ignore_build);
+    result.emplace_back("g1_v2-bw-dv-ignore-build", "GraphOne, blind writes, dense vertices, new deltas/levels cannot be explicitly created", &generate_graphone_bw_dv_ignore_build);
+    result.emplace_back("g1_v2-ref", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref);
+    result.emplace_back("g1_v2-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
 #endif
 
 #if defined(HAVE_TESEO)
     result.emplace_back("teseo.3", "Teseo", &generate_teseo);
     result.emplace_back("teseo-rw.3", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
+    result.emplace_back("teseo-lcc_lla.3", "Teseo with a tuned implementation of the LCC kernel, based on the internal API", &generate_teseo_lcc_lla);
+    result.emplace_back("teseo-lcc_user.3", "Teseo with a tuned implementation of the LCC kernel, based on the user API", &generate_teseo_lcc_user);
 #endif
 
     return result;
