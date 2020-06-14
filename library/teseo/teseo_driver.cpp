@@ -33,7 +33,6 @@
 #include "teseo/memstore/memstore.hpp"
 #include "teseo.hpp"
 
-
 using namespace common;
 using namespace gapbs;
 using namespace std;
@@ -209,6 +208,30 @@ public:
         if(omp_get_thread_num() > 0){ m_teseo->unregister_thread(); }
     }
 };
+
+// Because of the unpredictable order in which the destructors are invoked by OpenMP for its
+// firstprivate clause, we'll wrap the fields in a special class, to enforce the C++ semantics.
+struct State2 {
+    RegisterThread m_register_thread;
+    Transaction m_transaction;
+
+    State2(const RegisterThread& rt, const Transaction& transaction) : m_register_thread(rt), m_transaction(transaction) { };
+    State2(Teseo* teseo, const Transaction& transaction) : State2(RegisterThread{ teseo }, transaction) { };
+};
+
+struct State3 {
+    RegisterThread m_register_thread;
+    Transaction m_transaction;
+    Iterator m_iterator;
+
+    State3(const RegisterThread& rt, const Transaction& transaction) :
+        m_register_thread(rt), m_transaction(transaction), m_iterator(m_transaction.iterator()) { };
+    State3(Teseo* teseo, const Transaction& transaction) : State3(RegisterThread{ teseo }, transaction) { }
+    State3(const RegisterThread& rt, const Transaction& transaction, const Iterator& iterator) :
+        m_register_thread(rt), m_transaction(transaction), m_iterator(iterator) {
+    };
+};
+
 } // namespace
 
 /*****************************************************************************
@@ -241,17 +264,17 @@ them in parent array as negative numbers. Thus the encoding of parent is:
 
 static
 int64_t BUStep(Teseo* teseo, Transaction transaction, pvector<int64_t>& distances, int64_t distance, Bitmap &front, Bitmap &next) {
-    RegisterThread rt { teseo };
+
     const int64_t N = transaction.num_vertices();
-    auto iterator = transaction.iterator();
+    State3 s3 { teseo, transaction };
     int64_t awake_count = 0;
     next.reset();
-    #pragma omp parallel for reduction(+ : awake_count) schedule(dynamic, 1024) firstprivate(rt, iterator)
+    #pragma omp parallel for reduction(+ : awake_count) schedule(dynamic, 1024) firstprivate(s3)
     for (int64_t u=0; u < N; u++) {
         if (distances[u] < 0){ // the node has not been visited yet
 
             bool done = false;
-            iterator.edges(u, true, [u, &done, &awake_count, &distances, distance, &front, &next](uint64_t n, double){
+            s3.m_iterator.edges(u, true, [u, &done, &awake_count, &distances, distance, &front, &next](uint64_t n, double){
 
                 if (front.get_bit(n)) {
                     distances[u] = distance; // on each BUStep, all nodes will have the same distance
@@ -269,19 +292,18 @@ int64_t BUStep(Teseo* teseo, Transaction transaction, pvector<int64_t>& distance
 
 static
 int64_t TDStep(Teseo* teseo, Transaction transaction, pvector<int64_t>& distances, int64_t distance, SlidingQueue<int64_t>& queue) {
-    RegisterThread rt { teseo };
+    State3 s3 { teseo, transaction };
     int64_t scout_count = 0;
 
-    #pragma omp parallel firstprivate(rt, transaction)
+    #pragma omp parallel firstprivate(s3)
     {
-        auto iterator = transaction.iterator();
 
         QueueBuffer<int64_t> lqueue(queue);
         #pragma omp for reduction(+ : scout_count)
         for (auto q_iter = queue.begin(); q_iter < queue.end(); q_iter++) {
             int64_t u = *q_iter;
 
-            iterator.edges(u, true, [&distances, distance, &lqueue, &scout_count](uint64_t destination, double weight){
+            s3.m_iterator.edges(u, true, [&distances, distance, &lqueue, &scout_count](uint64_t destination, double weight){
                 int64_t curr_val = distances[destination];
 
                 if (curr_val < 0 && compare_and_swap(distances[destination], curr_val, distance)) {
@@ -499,10 +521,10 @@ static
 unique_ptr<double[]> teseo_pagerank(Teseo* teseo, Transaction transaction, uint64_t num_iterations, double damping_factor, utility::TimeoutService& timer) {
     // init
     RegisterThread rt { teseo };
+    State3 s3 { rt, transaction };
     const uint64_t num_vertices = transaction.num_vertices();
     COUT_DEBUG("num vertices: " << num_vertices);
 
-    auto iterator = transaction.iterator();
     const double init_score = 1.0 / num_vertices;
     const double base_score = (1.0 - damping_factor) / num_vertices;
 
@@ -533,11 +555,11 @@ unique_ptr<double[]> teseo_pagerank(Teseo* teseo, Transaction transaction, uint6
         dangling_sum /= num_vertices;
 
         // compute the new score for each node in the graph
-        #pragma omp parallel for schedule(dynamic, 64) firstprivate(rt, iterator)
+        #pragma omp parallel for schedule(dynamic, 64) firstprivate(s3)
         for(uint64_t v = 0; v < num_vertices; v++){
 
             double incoming_total = 0;
-            iterator.edges(v, /* logical ? */ true, [&incoming_total, &outgoing_contrib](uint64_t destination, double weight){
+            s3.m_iterator.edges(v, /* logical ? */ true, [&incoming_total, &outgoing_contrib](uint64_t destination, double weight){
                incoming_total += outgoing_contrib[destination];
                return true;
             });
@@ -660,13 +682,12 @@ more consistent performance for undirected graphs.
 // direction, so we use a min-max swap such that lower component IDs propagate
 // independent of the edge's direction.
 static // do_wcc
-unique_ptr<uint64_t[]> teseo_wcc(Teseo* teseo, Transaction transaction, utility::TimeoutService& timer) {
+unique_ptr<uint64_t[]> teseo_wcc(Teseo* teseo, const Transaction& transaction, utility::TimeoutService& timer) {
     // init
-    RegisterThread rt { teseo };
+    State3 s3 { teseo, transaction };
     const uint64_t N = transaction.num_vertices();
     unique_ptr<uint64_t[]> ptr_components { new uint64_t[N] };
     uint64_t* comp = ptr_components.get();
-    auto iterator = transaction.iterator();
 
     #pragma omp parallel for
     for (uint64_t n = 0; n < N; n++){
@@ -677,10 +698,10 @@ unique_ptr<uint64_t[]> teseo_wcc(Teseo* teseo, Transaction transaction, utility:
     while (change && !timer.is_timeout()) {
         change = false;
 
-        #pragma omp parallel for firstprivate(rt, iterator)
+        #pragma omp parallel for firstprivate(s3)
         for (uint64_t u = 0; u < N; u++){
 
-            iterator.edges(u, true, [comp, u, &change](uint64_t v, double){
+            s3.m_iterator.edges(u, true, [comp, u, &change](uint64_t v, double){
                 uint64_t comp_u = comp[u];
                 uint64_t comp_v = comp[v];
                 if (comp_u == comp_v) return true;
@@ -753,7 +774,7 @@ void TeseoDriver::wcc(const char* dump2file) {
 // same impl~ as the one done for llama
 static unique_ptr<uint64_t[]> teseo_cdlp(Teseo* teseo, Transaction transaction, uint64_t max_iterations, utility::TimeoutService& timer){
     RegisterThread rt { teseo };
-    auto iterator = transaction.iterator();
+    State3 s3 { rt, transaction };
     const uint64_t num_vertices = transaction.num_vertices();
     unique_ptr<uint64_t[]> ptr_labels0 { new uint64_t[num_vertices] };
     unique_ptr<uint64_t[]> ptr_labels1 { new uint64_t[num_vertices] };
@@ -772,13 +793,13 @@ static unique_ptr<uint64_t[]> teseo_cdlp(Teseo* teseo, Transaction transaction, 
     while(current_iteration < max_iterations && change && !timer.is_timeout()){
         change = false; // reset the flag
 
-        #pragma omp parallel for shared(change) firstprivate(rt, transaction, iterator)
+        #pragma omp parallel for shared(change) firstprivate(s3)
         for(uint64_t v = 0; v < num_vertices; v++){
             unordered_map<uint64_t, uint64_t> histogram;
 
             // compute the histogram from both the outgoing & incoming edges. The aim is to find the number of each label
             // shared among the neighbours of node_id
-            iterator.edges(v, true, [&histogram, labels0](uint64_t u, double){
+            s3.m_iterator.edges(v, true, [&histogram, labels0](uint64_t u, double){
                 histogram[labels0[u]]++;
                 return true;
             });
@@ -858,14 +879,13 @@ void TeseoDriver::cdlp(uint64_t max_iterations, const char* dump2file) {
 
 // loosely based on the impl~ made for Stinger
 static unique_ptr<double[]> teseo_lcc(Teseo* teseo, Transaction transaction, utility::TimeoutService& timer){
-    RegisterThread rt { teseo };
+    State3 s3 { teseo, transaction };
     const uint64_t num_vertices = transaction.num_vertices();
-    auto iterator = transaction.iterator();
 
     unique_ptr<double[]> ptr_lcc { new double[num_vertices] };
     double* lcc = ptr_lcc.get();
 
-    #pragma omp parallel for firstprivate(rt, transaction, iterator)
+    #pragma omp parallel for firstprivate(s3)
     for(uint64_t v = 0; v < num_vertices; v++){
         COUT_DEBUG_LCC("> Node " << v);
         if(timer.is_timeout()) continue; // exhausted the budget of available time
@@ -880,16 +900,16 @@ static unique_ptr<double[]> teseo_lcc(Teseo* teseo, Transaction transaction, uti
         // Build the list of neighbours of v
         unordered_set<uint64_t> neighbours;
 
-        iterator.edges(v, true, [&neighbours](uint64_t destination, double){
+        s3.m_iterator.edges(v, true, [&neighbours](uint64_t destination, double){
             neighbours.insert(destination);
             return true;
         });
 
         // again, visit all neighbours of v
-        iterator.edges(v, true, [&neighbours, &num_triangles, iterator](uint64_t u, double){
+        s3.m_iterator.edges(v, true, [&neighbours, &num_triangles, &s3](uint64_t u, double){
             assert(neighbours.count(u) == 1 && "The set `neighbours' should contain all neighbours of v");
 
-            iterator.edges(u, true, [&neighbours, &num_triangles](uint64_t w, double){
+            s3.m_iterator.edges(u, true, [&neighbours, &num_triangles](uint64_t w, double){
                 // check whether it's also a neighbour of v
                 if(neighbours.count(w) == 1){
                     //COUT_DEBUG_LCC("Triangle found " << v << " - " << u << " - " << w);
@@ -986,11 +1006,10 @@ using NodeID = uint64_t;
 using WeightT = double;
 static const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 
-static gapbs::pvector<WeightT> teseo_sssp(Teseo* teseo, Transaction transaction, uint64_t source, double delta, utility::TimeoutService& timer){
-    RegisterThread rt { teseo };
+static gapbs::pvector<WeightT> teseo_sssp(Teseo* teseo, const Transaction& transaction, uint64_t source, double delta, utility::TimeoutService& timer){
+    State3 s3 { teseo, transaction };
     const uint64_t num_vertices = transaction.num_vertices();
     const uint64_t num_edges = transaction.num_edges();
-    auto iterator = transaction.iterator();
 
     // Init
     gapbs::pvector<WeightT> dist(num_vertices, numeric_limits<WeightT>::infinity());
@@ -1001,7 +1020,7 @@ static gapbs::pvector<WeightT> teseo_sssp(Teseo* teseo, Transaction transaction,
     size_t frontier_tails[2] = {1, 0};
     frontier[0] = source;
 
-    #pragma omp parallel firstprivate(rt, iterator)
+    #pragma omp parallel firstprivate(s3)
     {
         vector<vector<NodeID> > local_bins(0);
         size_t iter = 0;
@@ -1016,7 +1035,7 @@ static gapbs::pvector<WeightT> teseo_sssp(Teseo* teseo, Transaction transaction,
             for (size_t i=0; i < curr_frontier_tail; i++) {
                 NodeID u = frontier[i];
                 if (dist[u] >= delta * static_cast<WeightT>(curr_bin_index)) {
-                    iterator.edges(u, /* logical ? */ true, [u, delta, &dist, &local_bins](uint64_t v, double w){
+                    s3.m_iterator.edges(u, /* logical ? */ true, [u, delta, &dist, &local_bins](uint64_t v, double w){
                         WeightT old_dist = dist[v];
                         WeightT new_dist = dist[u] + w;
 
