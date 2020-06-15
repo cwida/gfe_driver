@@ -210,10 +210,10 @@ vector<ImplementationManifest> implementations() {
 #endif
 
 #if defined(HAVE_TESEO)
-    result.emplace_back("teseo.3", "Teseo", &generate_teseo);
-    result.emplace_back("teseo-rw.3", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
-    result.emplace_back("teseo-lcc_lla.3", "Teseo with a tuned implementation of the LCC kernel, based on the internal API", &generate_teseo_lcc_lla);
-    result.emplace_back("teseo-lcc_user.3", "Teseo with a tuned implementation of the LCC kernel, based on the user API", &generate_teseo_lcc_user);
+    result.emplace_back("teseo.4", "Teseo", &generate_teseo);
+    result.emplace_back("teseo-rw.4", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
+    result.emplace_back("teseo-lcc_lla.4", "Teseo with a tuned implementation of the LCC kernel, based on the internal API", &generate_teseo_lcc_lla);
+    result.emplace_back("teseo-lcc_user.4", "Teseo with a tuned implementation of the LCC kernel, based on the user API", &generate_teseo_lcc_user);
 #endif
 
     return result;
