@@ -27,13 +27,11 @@ namespace gfe::library {
 class TeseoLCC : public TeseoDriver {
     TeseoLCC(const TeseoLCC& ) = delete;
     TeseoLCC& operator=(const TeseoLCC& ) = delete;
-    const bool m_low_level_api; // use the low level API to implement LCC?
-
 public:
     /**
      * Constructor, same arguments of its base class
      */
-    TeseoLCC(bool is_directed, bool low_level_api);
+    TeseoLCC(bool is_directed, bool read_only = true);
 
     /**
      * Specialised implementation of the kernel LCC

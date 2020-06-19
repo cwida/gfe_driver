@@ -169,12 +169,10 @@ std::unique_ptr<Interface> generate_teseo(bool directed_graph){
 std::unique_ptr<Interface> generate_teseo_rw(bool directed_graph){
     return unique_ptr<Interface>{ new TeseoDriver(directed_graph, /* read only tx ? */ false ) };
 }
-std::unique_ptr<Interface> generate_teseo_lcc_lla(bool directed_graph){ // LCC custom algorithm, using the low level API
-    return unique_ptr<Interface>{ new TeseoLCC(directed_graph, /* low level API ? */ true) };
+std::unique_ptr<Interface> generate_teseo_lcc(bool directed_graph){ // LCC custom algorithm
+    return unique_ptr<Interface>{ new TeseoLCC(directed_graph) };
 }
-std::unique_ptr<Interface> generate_teseo_lcc_user(bool directed_graph){ // LCC custom algorithm, using the user API
-    return unique_ptr<Interface>{ new TeseoLCC(directed_graph, /* low level API ? */ false) };
-}
+
 #endif
 
 vector<ImplementationManifest> implementations() {
@@ -212,8 +210,7 @@ vector<ImplementationManifest> implementations() {
 #if defined(HAVE_TESEO)
     result.emplace_back("teseo.4", "Teseo", &generate_teseo);
     result.emplace_back("teseo-rw.4", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
-    result.emplace_back("teseo-lcc_lla.4", "Teseo with a tuned implementation of the LCC kernel, based on the internal API", &generate_teseo_lcc_lla);
-    result.emplace_back("teseo-lcc_user.4", "Teseo with a tuned implementation of the LCC kernel, based on the user API", &generate_teseo_lcc_user);
+    result.emplace_back("teseo-lcc.4", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
 #endif
 
     return result;
