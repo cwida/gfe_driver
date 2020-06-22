@@ -231,7 +231,7 @@ static void run_teseo(bool read_only){
             // vertices, sorted, vertex identifiers
             timer.start();
             uint64_t sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += s3.m_transaction.degree(g_vertices_sorted[i], false);
             }
@@ -243,7 +243,7 @@ static void run_teseo(bool read_only){
             // vertices, unsorted, vertex identifiers
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += s3.m_transaction.degree(g_vertices_unsorted[i], false);
             }
@@ -254,7 +254,7 @@ static void run_teseo(bool read_only){
             // vertices, logical identifiers, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += s3.m_transaction.degree(i, true);
             }
@@ -265,7 +265,7 @@ static void run_teseo(bool read_only){
             // vertices, logical identifiers, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += s3.m_transaction.degree(g_vertices_logical[i], true);
             }
@@ -278,7 +278,7 @@ static void run_teseo(bool read_only){
             // point lookups, real vertices, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 s3.m_iterator.edges(g_vertices_sorted[i], false, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -292,7 +292,7 @@ static void run_teseo(bool read_only){
             // point lookups, real vertices, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 s3.m_iterator.edges(g_vertices_unsorted[i], false, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -308,7 +308,7 @@ static void run_teseo(bool read_only){
             // point lookups, logical vertices, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 s3.m_iterator.edges(i, true, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -321,7 +321,7 @@ static void run_teseo(bool read_only){
 
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 s3.m_iterator.edges(g_vertices_logical[i], true, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -337,7 +337,7 @@ static void run_teseo(bool read_only){
             // scan, real vertices, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 s3.m_iterator.edges(g_vertices_sorted[i], false, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -351,7 +351,7 @@ static void run_teseo(bool read_only){
             // scan, real vertices, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 s3.m_iterator.edges(g_vertices_unsorted[i], false, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -367,7 +367,7 @@ static void run_teseo(bool read_only){
             // scan, logical vertices, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 s3.m_iterator.edges(i, true, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -382,7 +382,7 @@ static void run_teseo(bool read_only){
             // scan, logical vertices, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 s3.m_iterator.edges(g_vertices_logical[i], true, [&sum](uint64_t destination, double weight){
                     sum += destination;
@@ -413,7 +413,7 @@ static void run_graphone(){
             // vertices, logical identifiers, sorted
             timer.start();
             uint64_t sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += view->get_degree_out(i);
             }
@@ -424,7 +424,7 @@ static void run_graphone(){
             // vertices, logical identifiers, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += view->get_degree_out(g_vertices_logical[i]);
             }
@@ -440,7 +440,7 @@ static void run_graphone(){
                 lite_edge_t* neighbours = nullptr;
                 uint64_t neighbours_sz = 0;
 
-                #pragma omp for
+                #pragma omp for schedule(dynamic, 4096) schedule(dynamic, 4096)
                 for(uint64_t i = 0; i < num_vertices; i++){
                     uint64_t degree = view->get_degree_out(i);
                     if(degree == 0) continue;
@@ -464,7 +464,7 @@ static void run_graphone(){
             // point lookups, logical, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             {
                 lite_edge_t* neighbours = nullptr;
                 uint64_t neighbours_sz = 0;
@@ -493,7 +493,7 @@ static void run_graphone(){
             // scan, logical vertices, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             {
                 lite_edge_t* neighbours = nullptr;
                 uint64_t neighbours_sz = 0;
@@ -526,7 +526,7 @@ static void run_graphone(){
             // scan, logical vertices, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             {
                 lite_edge_t* neighbours = nullptr;
                 uint64_t neighbours_sz = 0;
@@ -579,7 +579,7 @@ static void _bm_run_llama(){
             // degree, logical identifiers, sorted
             timer.start();
             uint64_t sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += graph.out_degree(i) + graph.in_degree(i);
             }
@@ -590,7 +590,7 @@ static void _bm_run_llama(){
             // degree, logical identifiers, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += graph.out_degree(g_vertices_logical[i]) + graph.in_degree(g_vertices_logical[i]);
             }
@@ -601,7 +601,7 @@ static void _bm_run_llama(){
             // point lookups, logical vertices, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 ll_edge_iterator iterator;
                 graph.out_iter_begin(iterator, i);
@@ -623,7 +623,7 @@ static void _bm_run_llama(){
             // point lookups, logical, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 ll_edge_iterator iterator;
                 graph.out_iter_begin(iterator, g_vertices_logical[i]);
@@ -645,7 +645,7 @@ static void _bm_run_llama(){
             // scan, logical vertices, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 ll_edge_iterator iterator;
                 graph.out_iter_begin(iterator, i);
@@ -666,7 +666,7 @@ static void _bm_run_llama(){
             // scan, logical vertices, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 ll_edge_iterator iterator;
                 graph.out_iter_begin(iterator, g_vertices_logical[i]);
@@ -714,7 +714,7 @@ static void run_stinger(){
             // degree, logical identifiers, sorted
             timer.start();
             uint64_t sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += stinger_outdegree(stinger, i);
             }
@@ -725,7 +725,7 @@ static void run_stinger(){
             // degree, logical identifiers, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += stinger_outdegree(stinger, g_vertices_logical[i]);
             }
@@ -736,7 +736,7 @@ static void run_stinger(){
             // point lookups, logical vertices, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += stinger_point_lookup(stinger, i);
             }
@@ -747,7 +747,7 @@ static void run_stinger(){
             // point lookups, logical, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 sum += stinger_point_lookup(stinger, g_vertices_logical[i]);
             }
@@ -758,7 +758,7 @@ static void run_stinger(){
             // scan, logical vertices, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(stinger, i) {
                     sum += STINGER_EDGE_DEST;
@@ -771,7 +771,7 @@ static void run_stinger(){
             // scan, logical vertices, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel for num_threads(num_threads) reduction(+:sum)
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
                 STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(stinger, g_vertices_logical[i]) {
                     sum += STINGER_EDGE_DEST;
