@@ -924,6 +924,8 @@ static void load(){
     gfe::experiment::InsertOnly insert(dynamic_pointer_cast<gfe::library::UpdateInterface>(g_interface), edges,
             g_library == "stinger" ? 1 : thread::hardware_concurrency(),
     false);
+    insert.set_build_frequency( 10s );
+    insert.set_scheduler_granularity(1ull < 20);
     insert.execute();
 }
 
