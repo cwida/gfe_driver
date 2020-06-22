@@ -440,7 +440,7 @@ static void run_graphone(){
                 lite_edge_t* neighbours = nullptr;
                 uint64_t neighbours_sz = 0;
 
-                #pragma omp for schedule(dynamic, 4096) schedule(dynamic, 4096)
+                #pragma omp for schedule(dynamic, 4096)
                 for(uint64_t i = 0; i < num_vertices; i++){
                     uint64_t degree = view->get_degree_out(i);
                     if(degree == 0) continue;
@@ -464,12 +464,12 @@ static void run_graphone(){
             // point lookups, logical, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            #pragma omp parallel num_threads(num_threads) reduction(+:sum)
             {
                 lite_edge_t* neighbours = nullptr;
                 uint64_t neighbours_sz = 0;
 
-                #pragma omp for
+                #pragma omp for schedule(dynamic, 4096)
                 for(uint64_t i = 0; i < num_vertices; i++){
                     uint64_t degree = view->get_degree_out(g_vertices_logical[i]);
                     if(degree == 0) continue;
@@ -493,12 +493,12 @@ static void run_graphone(){
             // scan, logical vertices, sorted
             timer.start();
             sum = 0;
-            #pragma omp parallel num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            #pragma omp parallel num_threads(num_threads) reduction(+:sum)
             {
                 lite_edge_t* neighbours = nullptr;
                 uint64_t neighbours_sz = 0;
 
-                #pragma omp for
+                #pragma omp for schedule(dynamic, 4096)
                 for(uint64_t i = 0; i < num_vertices; i++){
                     uint64_t degree = view->get_degree_out(i);
                     if(degree == 0) continue;
@@ -526,12 +526,12 @@ static void run_graphone(){
             // scan, logical vertices, unsorted
             timer.start();
             sum = 0;
-            #pragma omp parallel num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            #pragma omp parallel num_threads(num_threads) reduction(+:sum)
             {
                 lite_edge_t* neighbours = nullptr;
                 uint64_t neighbours_sz = 0;
 
-                #pragma omp for
+                #pragma omp for schedule(dynamic, 4096)
                 for(uint64_t i = 0; i < num_vertices; i++){
                     uint64_t degree = view->get_degree_out(g_vertices_logical[i]);
                     if(degree == 0) continue;
