@@ -39,9 +39,19 @@ using namespace gfe::library;
 using namespace std;
 
 extern char** environ;
-
-constexpr static int num_threads = 1;
 constexpr static bool is_directed = false; // whether the graph is directed
+
+static int num_threads_default = 1;
+static int get_num_threads(){
+    static const char* gfe_num_threads = getenv("GFE_NUM_THREADS");
+    if(gfe_num_threads == nullptr){
+        cout << "Warning: env. var. GFE_NUM_THREADS not set. Using the default: " << num_threads_default << endl;
+        return num_threads_default;
+    } else {
+        return atoi(gfe_num_threads);
+    }
+}
+
 
 static const string path_graph_default = common::filesystem::directory_executable() + "/graphs/ldbc_graphalytics/example-undirected.properties";
 static string get_path_graph(){
@@ -77,8 +87,8 @@ TEST(Performance, InsertOnly) {
     cout << "Graph loaded in " << timer << "\n";
     stream->permute(1910);
 
-
-    cout << "[Performance::InsertOnly] Executing the insertions ...\n";
+    int num_threads = get_num_threads();
+    cout << "[Performance::InsertOnly] Executing the insertions using " << num_threads << " threads ...\n";
     timer.start();
     InsertOnly experiment(impl, move(stream), num_threads);
     experiment.execute();
@@ -99,8 +109,8 @@ TEST(Performance, LCC) {
     cout << "Graph loaded in " << timer << "\n";
     stream->permute(1910);
 
-
-    cout << "[Performance::LCC] Executing the insertions ...\n";
+    int num_threads = get_num_threads();
+    cout << "[Performance::LCC] Executing the insertions using " << num_threads << " threads ...\n";
     timer.start();
     InsertOnly experiment(impl, move(stream), num_threads);
     experiment.execute();
@@ -127,14 +137,13 @@ static void _test_perf_run_llama(){
     cout << "Graph loaded in " << timer << "\n";
     stream->permute(1910);
 
-
-    cout << "[Performance::LLAMA_Iterator_Overhead] Executing the insertions ...\n";
+    int num_threads = get_num_threads();
+    cout << "[Performance::LLAMA_Iterator_Overhead] Executing the insertions using " << num_threads << " threads...\n";
     timer.start();
     InsertOnly experiment(impl, move(stream), num_threads);
     experiment.execute();
     timer.stop();
     cout << "Execution completed in " << timer << "\n";
-
 
     uint64_t num_iterations = get_num_iterations();
     uint64_t num_vertices = impl->num_vertices();
