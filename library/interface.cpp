@@ -183,7 +183,9 @@ vector<ImplementationManifest> implementations() {
 
 #if defined(HAVE_LLAMA)
     // v2 25/11/2019: better scalability for the llama dictionary
-    // v5 12/06/2020: schedule dynamic in graphalytics
+    // v3 23/01/2020: switch to Intel TBB for the vertex dictionary. All experiments should be repeated.
+    // v4 13/05/2020: fair mutex for compactation, it's a major bug fix as new delta levels were not issued every 10s due to starvation. All experiments should be repeated
+    // v5 12/06/2020: OMP dynamic scheduling in the Graphalytics kernels
     result.emplace_back("llama5", "LLAMA library", &generate_llama);
     result.emplace_back("llama5-dv", "LLAMA with dense vertices", &generate_llama_dv);
     result.emplace_back("llama5-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
@@ -191,12 +193,14 @@ vector<ImplementationManifest> implementations() {
 #endif
 
 #if defined(HAVE_STINGER)
+    // v2 12/06/2020: OMP dynamic scheduling in the Graphalytics kernels
     result.emplace_back("stinger2", "Stinger library", &generate_stinger);
     result.emplace_back("stinger2-dv", "Stinger with dense vertices", &generate_stinger_dv);
     result.emplace_back("stinger2-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
 #endif
 
 #if defined(HAVE_GRAPHONE)
+    // v2 11/06/2020: Bug fix for the properties on the static views + OMP dynamic scheduling. Repeat all experiments for Graphalytics.
     result.emplace_back("g1_v2-cons-sp", "GraphOne, consistency for updates, sparse vertices (vertex dictionary)", &generate_graphone_cons_sp);
     result.emplace_back("g1_v2-cons-dv", "GraphOne, consistency for updates, dense vertices", &generate_graphone_cons_dv);
     result.emplace_back("g1_v2-bw-sp", "GraphOne, blind writes, sparse vertices (vertex dictionary)", &generate_graphone_bw_sp);
@@ -208,6 +212,10 @@ vector<ImplementationManifest> implementations() {
 #endif
 
 #if defined(HAVE_TESEO)
+    // v1 05/04/2020: initial version for evaluation
+    // v2 28/04/2020: big rewrite: dense file, delayed rebalances, new leaf layout, new rebalancer logic. All experiments should be repeated, that is, ignore v1.
+    // v3 27/05/2020: scan enhancements: AUX view, prefetching, NUMA, segment's pivot, direct pointers in the AUX view. All graphalytics & bm experiments should be repeated.
+    // v4 15/06/2020: cursor state + support for R/W iterators. It only affects scans (Graphalytics & bm)
     result.emplace_back("teseo.4", "Teseo", &generate_teseo);
     result.emplace_back("teseo-rw.4", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
     result.emplace_back("teseo-lcc.4", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
