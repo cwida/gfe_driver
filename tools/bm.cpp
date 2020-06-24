@@ -869,7 +869,7 @@ static void load(){
             cout << "GraphOne: capacity of the vertex array implicitly set to: " << common::ComputerQuantity(num_vertices) << " vertices " << endl;
         }
 
-        g_interface.reset( new gfe::library::GraphOne(/* directed ? */ false, /* vtx dict ? */ true, /* blind writes ? */ true, /* ignore build ? */ false, /* ref impl ? */ true, num_vertices) );
+        g_interface.reset( new gfe::library::GraphOne(/* directed ? */ false, /* vtx dict ? */ true, /* blind writes ? */ true, /* ignore build ? */ true, /* ref impl ? */ true, num_vertices) );
 #else
         cerr << "ERROR: gfe configured and built without linking the library graphone\n";
         exit(EXIT_FAILURE);
@@ -925,7 +925,7 @@ static void load(){
     } else if(g_library == "llama"){
         num_threads = 16;
     } else if(g_library == "graphone"){
-        num_threads = 12;
+        num_threads = 3;
     }
 
     LOG("Inserting " << edges->num_edges() << " edges into `" << g_library << "' ...");
