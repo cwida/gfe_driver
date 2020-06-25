@@ -132,7 +132,6 @@ void Configuration::initialiase(int argc, char* argv[]){
             if(!common::filesystem::exists(m_update_log)){ ERROR("Option --log \"" << m_update_log << "\", the file does not exist"); }
 
             // verify that the properties from the log file are not also specified via command line
-            if(result["aging"].count() > 0) { ERROR("Cannot specify the option --aging together with the log file"); }
             if(result["efe"].count() > 0) { ERROR("Cannot specify the option --efe together with the log file"); }
             if(result["efv"].count() > 0) { ERROR("Cannot specify the option --efv together with the log file"); }
             if(result["max_weight"].count() > 0) { ERROR("Cannot specify the option --max_weight together with the log file"); }
