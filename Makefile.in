@@ -92,14 +92,7 @@ ifneq (,$(findstring -DHAVE_GRAPHONE,${ALL_CPPFLAGS}))
 endif
 ifneq (,$(findstring -DHAVE_TESEO,${ALL_CPPFLAGS}))
 	sources += $(addprefix library/teseo/, teseo_driver.cpp teseo_lcc.cpp)
-endif	
-
-# Support for tcmalloc
-ifneq (,$(findstring gperftools,${subdirs}))
-	tcmalloc := third-party/gperftools-2.7/install/lib/libtcmalloc_minimal.a
-	#dependencies += ${tcmalloc}
 endif
-
 
 #############################################################################
 # Helper variables
@@ -118,7 +111,7 @@ all: ${builddir}/gfe_driver
 
 #############################################################################
 # Artifacts to build
-${builddir}/gfe_driver: ${objectdir}/main_driver.o ${dependencies} ${tcmalloc} | ${builddir}
+${builddir}/gfe_driver: ${objectdir}/main_driver.o ${dependencies} | ${builddir}
 	${CXX} $^ ${LDFLAGS} -o $@
 
 #############################################################################
@@ -174,7 +167,7 @@ check: ${testartifacts}
 		echo "!!! All tests passed !!!"; \
 	fi;
 
-${testartifacts}: ${dependencies} ${tcmalloc} | ${gtestlibs}
+${testartifacts}: ${dependencies} | ${gtestlibs}
 ${testartifacts}: % : %.cpp | ${testbindir} ${testgraphs}
 	${CXX} $(ALL_CXXFLAGS) -I ${srcdir}/third-party/googletest/googletest/include $< ${dependencies} ${gtestlibs} ${LDFLAGS} -o $@
 
@@ -205,11 +198,6 @@ edges_per_vertex: ${objectdir}/tools/edges_per_vertex.o ${dependencies}
 ${objectdir}/tools/edges_per_vertex.o: tools/edges_per_vertex.cpp | ${toolsdir}
 	${makedepend_cxx}
 	$(CXX) -c $(ALL_CXXFLAGS) $< -o $@
-
-#############################################################################
-# Support for tcmalloc	
-${tcmalloc}: third-party/gperftools-2.7
-	$(MAKE) -C $< install
 
 #############################################################################
 # Build directories

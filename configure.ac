@@ -94,39 +94,6 @@ AC_SEARCH_LIBS([pthread_create], [pthread], [],
     [ AC_MSG_ERROR([missing prerequisite: this program requires pthreads to work (dependency for sqlite3)]) ])
     
 #############################################################################
-# Link with tcmalloc ?
-AC_ARG_WITH([tcmalloc], AS_HELP_STRING([--with-tcmalloc], [Whether to link the program with tcmalloc, a replacement of the glibc malloc implementation.]))
-AS_IF(
-    [test "x${with_tcmalloc}" = "xyes"], [tcmalloc_system=yes; tcmalloc_bundle=yes;],
-    [test "x${with_tcmalloc}" = "xsystem"], [tcmalloc_system=yes;],
-    [test "x${with_tcmalloc}" = "xbundled" -o "x${with_tcmalloc}" = "xbundle"], [tcmalloc_bundle=yes;],
-    [test "x${with_tcmalloc}" = "x"], [], dnl nop
-    [AC_MSG_FAILURE([Invalid argument for the argument --with-tcmalloc="${with_tcmalloc}". Recognised arguments are: yes, system, bundled.])]
-)
-
-# Check whether tcmalloc is already available in the system
-if( test "x${tcmalloc_system}" = "xyes" ); then
-    AC_SEARCH_LIBS([tc_malloc], [tcmalloc_minimal tcmalloc], [tcmalloc_avail=yes])
-fi
-if( test "x${tcmalloc_bundle}" = "xyes" -a "x${tcmalloc_built}" != "xyes" ); then
-    abs_top_builddir=$(realpath .)
-    AX_SUBDIRS_CONFIGURE([third-party/gperftools-2.7], [[--enable-minimal], [--prefix=${abs_top_builddir}/third-party/gperftools-2.7/install]], [[--disable-shared], [--enable-static]])
-    EXTRA_LDFLAGS="${EXTRA_LDFLAGS} -L${abs_top_builddir}/third-party/gperftools-2.7/install/lib -ltcmalloc_minimal"
-    tcmalloc_avail=yes;
-fi
-
-if( test "x${tcmalloc_avail}" != "xyes" ); then
-    if( test "x${tcmalloc_system}" = "xyes" -o "x${tcmalloc_bundle}" = "xyes" ); then
-        AC_MSG_FAILURE([Unable to link the library tcmalloc])
-    fi
-fi
-
-# Only to be seen by autoreconf -iv
-if false; then
-    AC_CONFIG_SUBDIRS([third-party/gperftools-2.7])
-fi
-    
-#############################################################################
 # libnuma
 have_libnuma="yes"
 AC_CHECK_HEADERS([numaif.h numa.h], [], [have_libnuma="no"; break;], [ [/* avoid default includes */] ])
