@@ -434,7 +434,10 @@ void Configuration::save_parameters() {
     params.push_back(P{"directed", to_string(is_graph_directed())});
     params.push_back(P{"library", get_library_name()});
     if(!get_update_log().empty()) {
-        params.push_back(P{"aging_impl", "version_2"});
+        // version 1: uniform distribution
+        // version 2: log file, follow the same node degree distribution of the input graph
+        // version 3: use #add_edge_v2
+        params.push_back(P{"aging_impl", "version_3"});
         params.push_back(P{"log", get_update_log()});
     }
     params.push_back(P{"role", "standalone"});

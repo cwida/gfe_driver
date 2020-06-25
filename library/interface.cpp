@@ -201,7 +201,7 @@ vector<ImplementationManifest> implementations() {
 
 #if defined(HAVE_GRAPHONE)
     // v2 11/06/2020: Bug fix for the properties on the static views + OMP dynamic scheduling. Repeat all experiments for Graphalytics.
-    // v3 25/06/2020: Updates, implicitly create a referred vertex upon first reference
+    // v3 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference
     result.emplace_back("g1_v3-cons-sp", "GraphOne, consistency for updates, sparse vertices (vertex dictionary)", &generate_graphone_cons_sp);
     result.emplace_back("g1_v3-cons-dv", "GraphOne, consistency for updates, dense vertices", &generate_graphone_cons_dv);
     result.emplace_back("g1_v3-bw-sp", "GraphOne, blind writes, sparse vertices (vertex dictionary)", &generate_graphone_bw_sp);

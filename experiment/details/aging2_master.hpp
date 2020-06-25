@@ -51,8 +51,6 @@ class Aging2Master {
     uint64_t m_latencies_num_insertions = 0; // total number of operations that are insertions
     uint64_t m_latencies_num_deletions = 0; // total number of operations that are deletions
 
-    cuckoohash_map<uint64_t, bool> m_vertices_present; // current list of vertices present in the graph
-
     // Stinger is so slow, that we stop the experiment after four hours
     std::atomic<bool> m_stop_experiment = false;
 

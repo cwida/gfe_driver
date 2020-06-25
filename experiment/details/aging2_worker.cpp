@@ -340,19 +340,8 @@ void Aging2Worker::graph_execute_batch_updates0(graph::WeightedEdge* __restrict 
     }
 }
 
-void Aging2Worker::graph_insert_vertex(uint64_t vertex_id){
-    if(m_master.m_vertices_present.insert(vertex_id, true)){
-        COUT_DEBUG("insert vertex: " << vertex_id);
-        m_library->add_vertex(vertex_id);
-    }
-}
-
 template<bool with_latency>
 void Aging2Worker::graph_insert_edge(graph::WeightedEdge edge){
-    // be sure that the vertices source & destination are already present
-    graph_insert_vertex(edge.source());
-    graph_insert_vertex(edge.destination());
-
     if(!m_master.is_directed() && m_uniform(m_random) < 0.5) edge.swap_src_dst(); // noise
     COUT_DEBUG("edge: " << edge);
 
@@ -360,13 +349,13 @@ void Aging2Worker::graph_insert_edge(graph::WeightedEdge edge){
     if(with_latency == false){
         // the function returns true if the edge has been inserted. Repeat the loop if it cannot insert the edge as one of
         // the vertices is still being inserted by another thread
-        while ( ! m_library->add_edge(edge) ) { /* nop */ };
+        while ( ! m_library->add_edge_v2(edge) ) { /* nop */ };
 
     } else { // measure the latency of the insertion
         chrono::steady_clock::time_point t0, t1;
         do {
             t0 = chrono::steady_clock::now();
-        } while ( ! m_library->add_edge(edge) );
+        } while ( ! m_library->add_edge_v2(edge) );
         t1 = chrono::steady_clock::now();
 
         m_latency_insertions[0] = chrono::duration_cast<chrono::nanoseconds>(t1 - t0).count();

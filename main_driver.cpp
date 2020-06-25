@@ -96,6 +96,7 @@ static void run_standalone(int argc, char* argv[]){
             if(configuration().validate_inserts() && impl_upd->can_be_validated()){
                 num_validation_errors = validate_updates(impl_upd, stream);
             }
+
         } else { // Aging experiment, without the graphlog
             if(configuration().measure_latency()) ERROR("[driver] Aging1, latency measurements not implemented");
 

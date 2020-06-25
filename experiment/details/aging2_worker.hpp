@@ -83,9 +83,6 @@ class Aging2Worker {
     template<bool with_latency>
     void graph_execute_batch_updates0(graph::WeightedEdge* __restrict updates, uint64_t num_updates);
 
-    // Insert a single vertex in the graph system/library, if it's not already present
-    void graph_insert_vertex(uint64_t vertex_id);
-
     // Insert the given edge in the graph
     template<bool with_latency>
     void graph_insert_edge(graph::WeightedEdge edge);
