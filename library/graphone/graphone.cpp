@@ -137,7 +137,7 @@ bool GraphOne::is_undirected() const {
 }
 
 uint64_t GraphOne::num_vertices() const {
-    return m_num_vertices;
+    return g->get_typekv()->get_type_vcount(0);
 }
 
 uint64_t GraphOne::num_edges() const {
@@ -291,16 +291,9 @@ bool GraphOne::add_vertex(uint64_t vertex_id) {
         // The internal dictionary provided by GraphOne is not thread safe
         scoped_lock<SpinLock> lock(m_mutex_vtx);
 
-        sid_t id = g->type_update(str_vertex_id);
-        bool vertex_exists = ( id == INVALID_SID );
+        g->type_update(str_vertex_id); // now this is always successful?
 
-        if(!vertex_exists){
-            COUT_DEBUG("vertex_id " << vertex_id << ", new id: " << id);
-            m_num_vertices++;
-            return true;
-        } else { // the vertex already exists
-            return false;
-        }
+        return true;
 
     } else { // dense graph, without the translation map
         uint64_t num_vertices = m_num_vertices;
@@ -314,6 +307,47 @@ bool GraphOne::add_vertex(uint64_t vertex_id) {
 
         return vertex_id +1 == new_value;
     }
+}
+
+uint64_t GraphOne::get_or_create_vertex(uint64_t external_vertex_id) {
+    sid_t internal_vertex_id { 0 };
+
+    if(m_translate_vertex_ids){
+        auto labels = g->get_typekv();
+
+        string str_vertex_id = to_string(external_vertex_id);
+        internal_vertex_id = labels->get_sid(str_vertex_id.c_str());
+
+        if(internal_vertex_id == INVALID_SID) { // the vertex does not exist, create a new one
+            // The internal dictionary provided by GraphOne is not thread safe
+            scoped_lock<SpinLock> lock(m_mutex_vtx);
+
+            internal_vertex_id = g->type_update(str_vertex_id);
+            assert(internal_vertex_id != INVALID_SID && "The call above should be always successful, returning the old slot id if the vertex already existed");
+        }
+
+        if(internal_vertex_id == INVALID_SID){ // check again
+            internal_vertex_id = labels->get_sid(str_vertex_id.c_str());
+            assert(internal_vertex_id != INVALID_SID);
+        }
+
+    } else { // dense graph
+        internal_vertex_id = (sid_t) external_vertex_id;
+
+        // update the total number of vertices in the graph
+        uint64_t num_vertices = m_num_vertices;
+        if(num_vertices <= external_vertex_id){
+            uint64_t new_value = external_vertex_id +1;
+
+            while(!m_num_vertices.compare_exchange_weak(/* by ref, out */ num_vertices, /* by value */ new_value,
+                    /* memory order in case of success */ std::memory_order_release,
+                    /* memory order in case of failure */ std::memory_order_relaxed)){
+                new_value = std::max<uint64_t>(num_vertices, external_vertex_id +1);
+            }
+        }
+    }
+
+   return internal_vertex_id;
 }
 
 bool GraphOne::remove_vertex(uint64_t vertex_id){
@@ -368,6 +402,34 @@ bool GraphOne::add_edge(gfe::graph::WeightedEdge e){
     // Temporary assertions. So far GraphOne cannot contain more than 4G vertices
     assert(v0 < (1ull<<32) && "Invalid vertex id for the src");
     assert(v1 < (1ull<<32) && "Invalid vertex id for the dest");
+
+    // not strictly necessary, but it eases the impl of #get_weight
+    if(!m_is_directed && v0 > v1) std::swap(v0, v1);
+
+    COUT_DEBUG("v0: " << v0 << ", v1: " << v1);
+
+    if(has_blind_writes()){
+        do_update(/* is insert ? */ true, v0, v1, e.weight());
+        return true;
+    } else {
+        SpinLock& mutex = m_edge_locks[(v0 + v1) % m_num_edge_locks].m_lock;
+        scoped_lock<SpinLock> xlock(mutex);
+
+        bool exists = find_edge(v0, v1);
+        if(!exists){
+            do_update(/* is insert ? */ true, v0, v1, e.weight());
+            return true;
+        } else {
+            return false;
+        }
+    }
+}
+
+bool GraphOne::add_edge_v2(gfe::graph::WeightedEdge e){
+    COUT_DEBUG("Edge: " << e);
+
+    sid_t v0 = (sid_t) get_or_create_vertex(e.source());
+    sid_t v1 = (sid_t) get_or_create_vertex(e.destination());
 
     // not strictly necessary, but it eases the impl of #get_weight
     if(!m_is_directed && v0 > v1) std::swap(v0, v1);
@@ -485,7 +547,7 @@ uint64_t GraphOne::num_levels() const {
 
 void GraphOne::dump_ostream(std::ostream& out) const {
     uint64_t N = num_vertices();
-    auto view = create_static_view(get_graphone_graph(), STALE_MASK);
+    auto view = create_static_view(get_graphone_graph(), SIMPLE_MASK);
 
     out << "[GraphOne] directed graph: " << boolalpha << is_directed() << ", use vertex "
             "dictionary: " << m_translate_vertex_ids << ", blind writes: " << has_blind_writes() << ", num vertices: " << N << ", vertex array capacity: " << view->get_vcount() << ", num edges: " << num_edges() << endl;
@@ -547,14 +609,16 @@ void GraphOne::dump_ostream(std::ostream& out) const {
 
         for (index_t i = 0; i < edges2_sz; ++i) {
             if(i > 0) cout << ", ";
-            sid_t v0 = get_src(edges2[i]);
-            sid_t v1 = get_dst(edges2[i]);
+            sid_t v0 = TO_SID(get_src(edges2[i]));
+            sid_t v1 = TO_SID(get_dst(edges2[i]));
             double weight = edges2[i].dst_id.second.value_double;
-            cout << "< " << v0 << ", " << v1 << " [" << weight << "]" << ">";
+            cout << "<" << v0 << ", " << v1 << " [" << weight << "]" << ">";
         }
     }
 
     delete_static_view(view);
+
+    out << endl;
 }
 
 /*****************************************************************************

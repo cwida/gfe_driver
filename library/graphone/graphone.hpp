@@ -75,6 +75,9 @@ class GraphOne : public virtual UpdateInterface, public virtual GraphalyticsInte
     // Given an external vertex ID, retrieve the internal (logical) vertex ID, or raise an exception if the mapping does not exist
     uint64_t vtx_ext2int(uint64_t external_vertex_id) const;
 
+    // Retrieve the internal SID for the given vertex. If the vertex doesn't already exist, implicitly create one.
+    uint64_t get_or_create_vertex(uint64_t external_vertex_id);
+
     // BFS implementations
     void bfs_native(uint64_t source_vertex_id, const char* dump2file = nullptr); // native
     void bfs_gapbs(uint64_t source_vertex_id, const char* dump2file = nullptr); // GAP BS impl
@@ -172,11 +175,17 @@ public:
     virtual bool remove_vertex(uint64_t vertex_id);
 
     /**
-     * Add the given edge in the graph. The implementation does not check whether this edge already exists,
-     * adding a new edge always.
+     * Add the given edge in the graph. If blind writes are set, the implementation does not check whether this
+     * edge already exists, adding a new edge always.
      * @return always true when both the source & the destination vertices already exist, false otherwise
      */
     virtual bool add_edge(gfe::graph::WeightedEdge e);
+
+    /**
+     * Add the given edge in the graph. Implicitly create the referred vertices if they do not already exist
+     * @return always true if blind writes are set (default).
+     */
+    virtual bool add_edge_v2(gfe::graph::WeightedEdge e);
 
     /**
      * Remove the given edge from the graph. There is no way to check whether the operation actually succeeded

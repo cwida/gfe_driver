@@ -43,7 +43,7 @@ using namespace std;
  *  Debug                                                                    *
  *                                                                           *
  *****************************************************************************/
-#define DEBUG
+//#define DEBUG
 namespace gfe { extern mutex _log_mutex; }
 #define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::gfe::_log_mutex}; std::cout << "[AdjacencyList::" << __FUNCTION__ << "] [" << concurrency::get_thread_id() << "] " << msg << std::endl; }
 #if defined(DEBUG)
