@@ -43,7 +43,7 @@ using namespace std;
  *  Debug                                                                    *
  *                                                                           *
  *****************************************************************************/
-//#define DEBUG
+#define DEBUG
 namespace gfe { extern mutex _log_mutex; }
 #define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::gfe::_log_mutex}; std::cout << "[AdjacencyList::" << __FUNCTION__ << "] [" << concurrency::get_thread_id() << "] " << msg << std::endl; }
 #if defined(DEBUG)
@@ -240,15 +240,10 @@ bool AdjacencyList::delete_vertex0(uint64_t vertex_id){
 }
 
 bool AdjacencyList::add_edge(graph::WeightedEdge e){
+    COUT_DEBUG("edge: " << e);
     if(e.source() == e.destination()) INVALID_ARGUMENT("Cannot insert an edge with the same source and destination: " << e);
 
     scoped_lock<mutex_t> lock(m_mutex);
-    return add_edge0(e);
-}
-
-bool AdjacencyList::add_edge0(graph::WeightedEdge e){
-    COUT_DEBUG("edge: " << e);
-    assert(e.m_weight >= 0 && "Negative weight");
 
     auto v_src = m_adjacency_list.find(e.source());
     if(v_src == m_adjacency_list.end()){
@@ -261,6 +256,22 @@ bool AdjacencyList::add_edge0(graph::WeightedEdge e){
         return false;
     }
 
+    return add_edge0(e, v_src, v_dst);
+}
+
+bool AdjacencyList::add_edge_v2(gfe::graph::WeightedEdge e) {
+    COUT_DEBUG("edge: " << e);
+    if(e.source() == e.destination()) INVALID_ARGUMENT("Cannot insert an edge with the same source and destination: " << e);
+
+    scoped_lock<mutex_t> lock(m_mutex);
+
+    auto v_src = m_adjacency_list.emplace(e.source(), EdgePair{}).first;
+    auto v_dst = m_adjacency_list.emplace(e.destination(), EdgePair{}).first;
+
+    return add_edge0(e, v_src, v_dst);
+}
+
+bool AdjacencyList::add_edge0(graph::WeightedEdge e, NodeList::iterator& v_src, NodeList::iterator& v_dst){
     auto& list_out = v_src->second.first;
     auto it = find_if(begin(list_out), end(list_out), [e](const pair<uint64_t,double>& edge){
        return edge.first == e.destination();
@@ -284,6 +295,7 @@ bool AdjacencyList::add_edge0(graph::WeightedEdge e){
 
     return true;
 }
+
 
 bool AdjacencyList::remove_edge(graph::Edge e){
     scoped_lock<mutex_t> lock(m_mutex);
@@ -327,9 +339,7 @@ void AdjacencyList::load(const std::string& path){
     ASSERT(reader->is_directed() == m_is_directed);
     graph::WeightedEdge edge;
     while(reader->read(edge)){
-        add_vertex0(edge.m_source);
-        add_vertex0(edge.m_destination);
-        add_edge0(edge);
+        add_edge_v2(edge);
     }
 }
 

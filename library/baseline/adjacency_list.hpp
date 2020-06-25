@@ -66,7 +66,7 @@ class AdjacencyList : public virtual UpdateInterface, public virtual LoaderInter
     // Assume the lock has already been acquired
     bool add_vertex0(uint64_t vertex_id);
     bool delete_vertex0(uint64_t vertex_id);
-    bool add_edge0(graph::WeightedEdge e);
+    bool add_edge0(graph::WeightedEdge e, NodeList::iterator& v_src, NodeList::iterator& v_dst);
     bool delete_edge0(graph::Edge e);
 
     // Compute the local clustering coefficient
@@ -134,6 +134,12 @@ public:
      * @return true if the edge has been inserted or updated, false in case of error
      */
     virtual bool add_edge(graph::WeightedEdge e);
+
+    /**
+     * Remove the given edge from the graph
+     * @return true if the given edge has been removed, false otherwise (e.g. this edge does not exist)
+     */
+    virtual bool add_edge_v2(gfe::graph::WeightedEdge e);
 
     /**
      * Remove the given edge from the graph

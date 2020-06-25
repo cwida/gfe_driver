@@ -50,6 +50,7 @@ public:
     virtual bool add_vertex(uint64_t vertex_id); // returns true
     virtual bool remove_vertex(uint64_t vertex_id); // returns true
     virtual bool add_edge(graph::WeightedEdge e); // returns true
+    virtual bool add_edge_v2(gfe::graph::WeightedEdge e); // returns true
     virtual bool remove_edge(graph::Edge e); // returns true
     virtual void set_timeout(uint64_t seconds); // nop
 }; // class
