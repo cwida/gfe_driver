@@ -323,6 +323,54 @@ bool LLAMAClass::add_vertex(uint64_t vertex_id_ext){
 #endif
 }
 
+int64_t LLAMAClass::get_or_create_vertex_id(uint64_t vertex_id_ext) {
+#if defined(LLAMA_HASHMAP_WITH_TBB)
+    decltype(m_vmap)::accessor accessor; // xlock
+    bool inserted = m_vmap.insert(accessor, vertex_id_ext);
+    if ( inserted ){
+        node_t node_id = m_db->graph()->add_node();
+        m_db->graph()->get_node_property_64(g_llama_property_names)->set(node_id, vertex_id_ext); // register the mapping internal -> external
+
+        accessor->second = node_id;
+        return node_id;
+    } else { // already exists
+        return accessor->second;
+    }
+#else
+    auto& mutex = m_vmap_locks[vertex_id_ext % m_num_vmap_locks];
+    mutex.lock();
+    try {
+        int64_t logical_id = vmap_write_store_find(vertex_id_ext);
+        mutex.unlock();
+
+        return logical_id;
+
+    } catch( std::out_of_range& ){ // the vertex does not exist
+        mutex.unlock();
+
+        node_t node_id = m_db->graph()->add_node();
+        m_db->graph()->get_node_property_64(g_llama_property_names)->set(node_id, vertex_id_ext); // register the mapping internal -> external
+
+        /**
+         * Here there may be a race condition, where both T1 and T2 invoke m_db->graph()->add_node();
+         * However we roll back the effects of the second thread in #m_vmap_updated.upsert. The lambda is invoked
+         * if a key is already present in the hash table (the node_id set by T1).
+         */
+        m_vmap_updated.upsert(vertex_id_ext, [this, &node_id](int64_t previous_node_id){
+            // the key `vertex_id_ext' already exists ...
+
+            // roll back
+            m_db->graph()->delete_node(node_id);
+
+            // retrieve the current node_id
+            node_id = previous_node_id;
+        }, node_id);
+
+        return node_id;
+    }
+#endif
+}
+
 bool LLAMAClass::remove_vertex(uint64_t vertex_id_ext){
     shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("vertex_id: " << vertex_id_ext);
@@ -398,6 +446,20 @@ bool LLAMAClass::add_edge(graph::WeightedEdge e){
 
 #endif
 
+    return add_edge0(llama_source_id, llama_destination_id, e.weight());
+}
+
+bool LLAMAClass::add_edge_v2(graph::WeightedEdge e){
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    COUT_DEBUG("edge: " << e);
+
+    node_t llama_source_id = get_or_create_vertex_id(e.source());
+    node_t llama_destination_id = get_or_create_vertex_id(e.destination());
+
+    return add_edge0(llama_source_id, llama_destination_id, e.weight());
+}
+
+bool LLAMAClass::add_edge0(int64_t llama_source_id, int64_t llama_destination_id, double weight){
     if(!m_is_directed){ // for undirected graphs, ensure llama_source_id < llama_destination_id
         if(llama_source_id > llama_destination_id){
             std::swap(llama_source_id, llama_destination_id);
@@ -410,7 +472,7 @@ bool LLAMAClass::add_edge(graph::WeightedEdge e){
 
     // thread unsafe, this should really still be under the same latch of add_edge_if_not_exists
     if(inserted){
-        m_db->graph()->get_edge_property_64(g_llama_property_weights)->set(edge_id, *reinterpret_cast<uint64_t*>(&(e.m_weight)));
+        m_db->graph()->get_edge_property_64(g_llama_property_weights)->set(edge_id, *reinterpret_cast<uint64_t*>(&(weight)));
     }
 
     return inserted;

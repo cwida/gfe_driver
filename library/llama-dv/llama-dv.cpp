@@ -247,9 +247,22 @@ bool LLAMA_DV::remove_vertex(uint64_t vertex_id){
 bool LLAMA_DV::add_edge(graph::WeightedEdge e){
     shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("edge: " << e);
+    return add_edge0(e.source(), e.destination(), e.weight());
+}
 
-    uint64_t source = e.source();
-    uint64_t destination = e.destination();
+bool LLAMA_DV::add_edge_v2(gfe::graph::WeightedEdge e){
+    shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
+    COUT_DEBUG("edge: " << e);
+
+    node_t source = (node_t) e.source();
+    m_db->graph()->add_node(source);
+    node_t destination = (node_t) e.destination();
+    m_db->graph()->add_node(destination);
+
+    return add_edge0(source, destination, e.weight());
+}
+
+bool LLAMA_DV::add_edge0(int64_t source, int64_t destination, double weight){
     if(!m_is_directed && source > destination){
         std::swap(source, destination);
     }
@@ -265,11 +278,12 @@ bool LLAMA_DV::add_edge(graph::WeightedEdge e){
 
     // thread unsafe, this should really still be under the same latch of add_edge_if_not_exists
     if(inserted){
-        m_db->graph()->get_edge_property_64(g_llama_property_weights)->set(edge_id, *reinterpret_cast<uint64_t*>(&(e.m_weight)));
+        m_db->graph()->get_edge_property_64(g_llama_property_weights)->set(edge_id, *reinterpret_cast<uint64_t*>(&(weight)));
     }
 
     return inserted;
 }
+
 
 bool LLAMA_DV::remove_edge(graph::Edge e){
     COUT_DEBUG("edge: " << e);

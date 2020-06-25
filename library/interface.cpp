@@ -186,10 +186,11 @@ vector<ImplementationManifest> implementations() {
     // v3 23/01/2020: switch to Intel TBB for the vertex dictionary. All experiments should be repeated.
     // v4 13/05/2020: fair mutex for compactation, it's a major bug fix as new delta levels were not issued every 10s due to starvation. All experiments should be repeated
     // v5 12/06/2020: OMP dynamic scheduling in the Graphalytics kernels
-    result.emplace_back("llama5", "LLAMA library", &generate_llama);
-    result.emplace_back("llama5-dv", "LLAMA with dense vertices", &generate_llama_dv);
-    result.emplace_back("llama5-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
-    result.emplace_back("llama5-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
+    // v6 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference
+    result.emplace_back("llama6", "LLAMA library", &generate_llama);
+    result.emplace_back("llama6-dv", "LLAMA with dense vertices", &generate_llama_dv);
+    result.emplace_back("llama6-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
+    result.emplace_back("llama6-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
 #endif
 
 #if defined(HAVE_STINGER)

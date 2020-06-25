@@ -100,15 +100,20 @@ protected:
     // Check whether the given vertex exists in the write store
     bool vmap_write_store_contains(uint64_t external_vertex_id) const;
 #endif
-
     // Retrieve the internal vertex id (only looking into the read store with libcuckoo) for the given external vertex ID. It raises an exception if the vertex does not exist.
     int64_t get_internal_vertex_id(uint64_t external_vertex_id) const;
+
+    // Retrieve the internal vertex id for the given external vertex id. Create a new vertex if the vertex id is not already present.
+    int64_t get_or_create_vertex_id(uint64_t external_vertex_id);
 
     // Retrieve the outgoing degree (# outgoing edges) for the given logical vertex_id, starting from the write store
     uint64_t get_write_store_outdegree(int64_t llama_vertex_id) const;
 
     // Retrieve the outgoing degree (# outgoing edges) for the given logical vertex id in the given snapshot
     uint64_t get_read_store_outdegree(ll_mlcsr_ro_graph& snapshot, int64_t llama_vertex_id) const;
+
+    // Actual routine to internally create a new edge
+    bool add_edge0(int64_t llama_source_id, int64_t llama_destination_id, double weight);
 
     // The actual implementation for dump. The parameter T can either be ll_mlcsr_ro_graph or ll_writable_graph
     template<typename T>
@@ -204,6 +209,12 @@ public:
      * @return true if the edge has been inserted, false otherwise (e.g. this edge already exists)
      */
     virtual bool add_edge(graph::WeightedEdge e);
+
+    /**
+     * Add the given edge in the graph. Implicitly create the referred vertices if they do not already exist.
+     * @return true if the edge has been inserted, false otherwise (e.g. this edge already exists)
+     */
+    virtual bool add_edge_v2(gfe::graph::WeightedEdge e);
 
     /**
      * Remove the given edge from the graph

@@ -64,6 +64,9 @@ class LLAMA_DV : public virtual UpdateInterface, public virtual GraphalyticsInte
     // Retrieve the outgoing degree (# outgoing edges) for the given logical vertex id in the given snapshot
     uint64_t get_read_store_outdegree(ll_mlcsr_ro_graph& snapshot, int64_t vertex_id) const;
 
+    // Internal routine to create a new edge
+    bool add_edge0(int64_t llama_source_id, int64_t llama_destination_id, double weight);
+
     // The actual implementation for dump. The parameter T can either be ll_mlcsr_ro_graph or ll_writable_graph
     template<typename T>
     void dump_impl(std::ostream& out, T& graph) const;
@@ -158,6 +161,12 @@ public:
      * @return true if the edge has been inserted, false otherwise (e.g. this edge already exists)
      */
     virtual bool add_edge(graph::WeightedEdge e);
+
+    /**
+     * Add the given edge in the graph. Implicitly create the referred vertices if they do not already exist.
+     * @return true if the edge has been inserted, false otherwise (e.g. this edge already exists)
+     */
+    virtual bool add_edge_v2(gfe::graph::WeightedEdge e);
 
     /**
      * Remove the given edge from the graph
