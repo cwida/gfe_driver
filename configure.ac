@@ -156,26 +156,6 @@ AC_CHECK_HEADERS([zlib.h], [], [ AC_MSG_ERROR([zlib.h not found. The library zli
 AC_SEARCH_LIBS([inflate], [z], [ ], [ AC_MSG_ERROR([Library zlib not found. This library is a required dependency.]) ], [ ]):
 
 #############################################################################
-# GMP GNU Multiple Precision Arithmetic Library
-# check if GMP is already available in the system
-gmp_system_avail="yes"
-AC_CHECK_HEADERS([gmpxx.h], [], [gmp_system_avail="no"; break;], [ [/* avoid default includes */] ])
-AS_IF([test x"${gmp_system_avail}" == x"yes"], [ AC_CHECK_LIB([gmp], [__gmpz_init], [ nop="nop" ], [gmp_system_avail="no";]) ])
-AS_IF([test x"${gmp_system_avail}" == x"yes"], [ AC_CHECK_LIB([gmpxx], [_ZlsRSoPK12__mpz_struct], [ nop="nop" ], [gmp_system_avail="no";]) ])
-
-dnl Use the bundled package of GMP inside third-party/gmp-*
-AS_IF([test x"${gmp_system_avail}" == x"no"], [
-    m4_define([GMP_BUNDLED_VERSION], [6.1.2])
-    AC_MSG_NOTICE([Configuring the bundled package GNU GMP v]GMP_BUNDLED_VERSION)
-    abs_top_builddir=$(realpath .)
-    AX_SUBDIRS_CONFIGURE([third-party/gmp-]GMP_BUNDLED_VERSION, [[--enable-cxx], [--prefix=${abs_top_builddir}/third-party/gmp-]GMP_BUNDLED_VERSION[/build], [CC=${CC}], [CXX=${CXX}]], [], [], [])
-    EXTRA_CPPFLAGS="${EXTRA_CPPFLAGS} -isystem ${abs_top_builddir}/third-party/gmp-GMP_BUNDLED_VERSION/include"
-    EXTRA_LDFLAGS="${EXTRA_LDFLAGS} -L${abs_top_builddir}/third-party/gmp-GMP_BUNDLED_VERSION/lib -lgmpxx -lgmp"
-], dnl else 
-[ LIBS="-lgmpxx -lgmp ${LIBS}" ]
-) dnl end if
-
-#############################################################################
 # sqlite3, run-time support for libcommon. If not present, libcommon uses its own version bundled.
 AX_LIB_SQLITE3()
 LIBS="${SQLITE3_LDFLAGS} ${LIBS}"

@@ -19,8 +19,6 @@
 #include "common/database.hpp"
 #include "common/error.hpp"
 #include "common/system.hpp"
-//#include "common/timer.hpp"
-#include "experiment/aging.hpp"
 #include "experiment/aging2_experiment.hpp"
 #include "experiment/insert_only.hpp"
 #include "experiment/graphalytics.hpp"
@@ -84,30 +82,16 @@ static void run_standalone(int argc, char* argv[]){
 
         LOG("[driver] Number of concurrent threads: " << configuration().num_threads(THREADS_WRITE) );
 
-        if(configuration().coefficient_aging() == 0.0){ // insert the elements in the graph one by one
-            if(configuration().measure_latency()) ERROR("[driver] InsertOnly, support for latency measurements removed");
+        if(configuration().measure_latency()) ERROR("[driver] InsertOnly, support for latency measurements removed");
 
-            InsertOnly experiment { impl_upd, stream, configuration().num_threads(THREADS_WRITE) };
-            experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
-            experiment.set_scheduler_granularity(1ull < 20);
-            experiment.execute();
-            if(configuration().has_database()) experiment.save();
+        InsertOnly experiment { impl_upd, stream, configuration().num_threads(THREADS_WRITE) };
+        experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
+        experiment.set_scheduler_granularity(1ull < 20);
+        experiment.execute();
+        if(configuration().has_database()) experiment.save();
 
-            if(configuration().validate_inserts() && impl_upd->can_be_validated()){
-                num_validation_errors = validate_updates(impl_upd, stream);
-            }
-
-        } else { // Aging experiment, without the graphlog
-            if(configuration().measure_latency()) ERROR("[driver] Aging1, latency measurements not implemented");
-
-            LOG("[driver] Number of updates to perform: " << stream->num_edges() * configuration().coefficient_aging());
-            Aging experiment(impl_upd, move(stream), configuration().coefficient_aging(), configuration().num_threads(THREADS_WRITE));
-            experiment.set_expansion_factor_vertices(configuration().get_ef_vertices());
-            experiment.set_expansion_factor_edges(configuration().get_ef_edges());
-            experiment.set_report_progress(true);
-            experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
-            experiment.execute();
-            if(configuration().has_database()) experiment.save();
+        if(configuration().validate_inserts() && impl_upd->can_be_validated()){
+            num_validation_errors = validate_updates(impl_upd, stream);
         }
 
     } else {

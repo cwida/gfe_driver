@@ -95,7 +95,6 @@ void Configuration::initialiase(int argc, char* argv[]){
     Options options(argv[0], "GFE Driver");
 
     options.add_options("Generic")
-        ("a, aging", "The number of additional updates for the aging experiment to perform", value<double>()->default_value("0"))
         ("aging_step_size", "The step of each recording for the measured progress in the Aging2 experiment. Valid values are 0.1, 0.25, 0.5 and 1.0", value<double>()->default_value("1"))
         ("aging_timeout", "Force terminating the aging experiment after four hours")
         ("blacklist", "Comma separated list of graph algorithms to blacklist and do not execute", value<string>())
@@ -185,9 +184,6 @@ void Configuration::initialiase(int argc, char* argv[]){
         if( result["graph"].count() > 0 ){
             set_graph( result["graph"].as<string>() );
         }
-
-        if(result["aging"].count() > 0)
-            set_coeff_aging( result["aging"].as<double>() );
 
         set_num_repetitions( result["repetitions"].as<uint64_t>() );
         set_timeout( result["timeout"].as<uint64_t>() );
@@ -283,7 +279,6 @@ void Configuration::set_max_weight(double value){
     if(value <= 0) ERROR("Invalid value for max weight: " << value << ". Expected a positive value");
     m_max_weight = value;
 }
-
 
 void Configuration::set_coeff_aging(double value){
     if(value < 0 || (value > 0 && value < 1)){
@@ -418,7 +413,7 @@ void Configuration::save_parameters() {
     params.push_back(P{"hostname", common::hostname()});
     params.push_back(P("max_weight", to_string(max_weight())));
     params.push_back(P{"seed", to_string(seed())});
-    params.push_back(P{"aging", to_string(coefficient_aging())});
+    params.push_back(P{"aging", to_string(m_coeff_aging)});
     params.push_back(P{"aging_step_size", to_string(get_aging_step_size())});
     params.push_back(P{"aging_timeout", to_string(is_aging2_timeout_set())});
     params.push_back(P{"build_frequency", to_string(get_build_frequency())}); // milliseconds

@@ -27,7 +27,6 @@
 #include "common/filesystem.hpp"
 #include "common/permutation.hpp"
 #include "configuration.hpp"
-#include "experiment/aging.hpp"
 #include "graph/edge_stream.hpp"
 #include "library/baseline/adjacency_list.hpp"
 #if defined(HAVE_LLAMA)
@@ -179,14 +178,6 @@ TEST(AdjacencyList, GraphalyticsDirected){
 TEST(AdjacencyList, GraphalyticsUndirected){
     auto adjlist = make_unique<AdjacencyList>(/* directed */ false);
     load_graph(adjlist.get(), path_example_undirected);
-    validate(adjlist.get(), path_example_undirected);
-}
-
-TEST(AdjacencyList, Aging){
-    auto adjlist = make_shared<AdjacencyList>(/* directed */ false);
-    auto edge_stream = make_shared<gfe::graph::WeightedEdgeStream>(path_example_undirected + ".properties" );
-    gfe::experiment::Aging aging(adjlist, move(edge_stream), /* coeff. operations */ 32.0, /* threads to use */ 8);
-    aging.execute();
     validate(adjlist.get(), path_example_undirected);
 }
 
