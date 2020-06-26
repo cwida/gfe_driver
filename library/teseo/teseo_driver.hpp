@@ -104,6 +104,12 @@ public:
     virtual bool add_edge(gfe::graph::WeightedEdge e);
 
     /**
+     * Add the given edge in the graph. Implicitly create the referred vertices if they do not already exist
+     * @return true if the edge has been inserted, false otherwise (e.g. this edge already exists)
+     */
+    virtual bool add_edge_v2(gfe::graph::WeightedEdge e);
+
+    /**
      * Remove the given edge from the graph. There is no way to check whether the operation actually succeeded
      * in this implementation of GraphOne. Attempting to remove an edge that does not exist may result in a crash.
      * @return always true when both the source & the destination vertices already exist, false otherwise

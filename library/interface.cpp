@@ -213,7 +213,7 @@ vector<ImplementationManifest> implementations() {
     result.emplace_back("g1_v3-bw-sp-ignore-build", "GraphOne, blind writes, sparse vertices (vertex dictionary), new deltas/levels cannot be explicitly created", &generate_graphone_bw_sp_ignore_build);
     result.emplace_back("g1_v3-bw-dv-ignore-build", "GraphOne, blind writes, dense vertices, new deltas/levels cannot be explicitly created", &generate_graphone_bw_dv_ignore_build);
     result.emplace_back("g1_v3-ref", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref);
-    result.emplace_back("g1_v3-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
+    result.emplace_back("g1_v3b-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
 #endif
 
 #if defined(HAVE_TESEO)
@@ -221,9 +221,10 @@ vector<ImplementationManifest> implementations() {
     // v2 28/04/2020: big rewrite: dense file, delayed rebalances, new leaf layout, new rebalancer logic. All experiments should be repeated, that is, ignore v1.
     // v3 27/05/2020: scan enhancements: AUX view, prefetching, NUMA, segment's pivot, direct pointers in the AUX view. All graphalytics & bm experiments should be repeated.
     // v4 15/06/2020: cursor state + support for R/W iterators. It only affects scans (Graphalytics & bm)
-    result.emplace_back("teseo.4", "Teseo", &generate_teseo);
-    result.emplace_back("teseo-rw.4", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
-    result.emplace_back("teseo-lcc.4", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
+    // v5 26/06/2020: updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
+    result.emplace_back("teseo.5", "Teseo", &generate_teseo);
+    result.emplace_back("teseo-rw.5", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
+    result.emplace_back("teseo-lcc.5", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
 #endif
 
     return result;

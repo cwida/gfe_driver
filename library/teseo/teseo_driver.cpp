@@ -159,6 +159,16 @@ bool TeseoDriver::add_edge(gfe::graph::WeightedEdge e) {
     }
 }
 
+bool TeseoDriver::add_edge_v2(gfe::graph::WeightedEdge e){
+    static cuckoohash_map<uint64_t, bool> vertices;
+
+    if(vertices.insert(e.source(), true)){ add_vertex(e.source()); }
+    if(vertices.insert(e.destination(), true)){ add_vertex(e.destination()); }
+    while( ! add_edge(e) ) { /* nop */ }
+
+    return true;
+}
+
 bool TeseoDriver::remove_edge(gfe::graph::Edge e) {
     auto tx = TESEO->start_transaction();
     try {
