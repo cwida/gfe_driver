@@ -255,9 +255,19 @@ static void load(){
     auto edges = make_shared<gfe::graph::WeightedEdgeStream> ( g_path_graph );
     edges->permute();
 
+    uint64_t num_threads = thread::hardware_concurrency();
+    if(g_library == "stinger"){ // best number of threads in stones2 according to the scalability results
+        num_threads = 1;
+    } else if(g_library == "llama"){
+        num_threads = 16;
+    } else if(g_library == "graphone"){
+        num_threads = 3;
+    }
+
     LOG("Inserting " << edges->num_edges() << " edges into `" << g_library << "' ...");
-    gfe::experiment::InsertOnly insert(dynamic_pointer_cast<gfe::library::UpdateInterface>(g_interface), edges,
-            g_library == "stinger" ? 1 : thread::hardware_concurrency(), false);
+    gfe::experiment::InsertOnly insert(dynamic_pointer_cast<gfe::library::UpdateInterface>(g_interface), edges, num_threads);
+    if(g_library == "llama"){ insert.set_build_frequency( 10s ); }
+    insert.set_scheduler_granularity(1ull < 20);
     insert.execute();
 }
 

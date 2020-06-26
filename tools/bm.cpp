@@ -929,7 +929,7 @@ static void load(){
     }
 
     LOG("Inserting " << edges->num_edges() << " edges into `" << g_library << "' ...");
-    gfe::experiment::InsertOnly insert(dynamic_pointer_cast<gfe::library::UpdateInterface>(g_interface), edges, num_threads, false);
+    gfe::experiment::InsertOnly insert(dynamic_pointer_cast<gfe::library::UpdateInterface>(g_interface), edges, num_threads);
     if(g_library == "llama"){ insert.set_build_frequency( 10s ); }
     insert.set_scheduler_granularity(1ull < 20);
     insert.execute();
