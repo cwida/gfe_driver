@@ -178,15 +178,18 @@ std::unique_ptr<Interface> generate_teseo_lcc(bool directed_graph){ // LCC custo
 vector<ImplementationManifest> implementations() {
     vector<ImplementationManifest> result;
 
-    result.emplace_back("baseline", "Sequential baseline, based on adjacency list", &generate_baseline_adjlist);
-    result.emplace_back("dummy", "Dummy implementation of the interface, all operations are nop", &generate_dummy);
+    // v2 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
+    result.emplace_back("baseline_v2", "Sequential baseline, based on adjacency list", &generate_baseline_adjlist);
+
+    // v2 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
+    result.emplace_back("dummy_v2", "Dummy implementation of the interface, all operations are nop", &generate_dummy);
 
 #if defined(HAVE_LLAMA)
     // v2 25/11/2019: better scalability for the llama dictionary
     // v3 23/01/2020: switch to Intel TBB for the vertex dictionary. All experiments should be repeated.
     // v4 13/05/2020: fair mutex for compactation, it's a major bug fix as new delta levels were not issued every 10s due to starvation. All experiments should be repeated
     // v5 12/06/2020: OMP dynamic scheduling in the Graphalytics kernels
-    // v6 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference
+    // v6 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     result.emplace_back("llama6", "LLAMA library", &generate_llama);
     result.emplace_back("llama6-dv", "LLAMA with dense vertices", &generate_llama_dv);
     result.emplace_back("llama6-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
@@ -202,7 +205,7 @@ vector<ImplementationManifest> implementations() {
 
 #if defined(HAVE_GRAPHONE)
     // v2 11/06/2020: Bug fix for the properties on the static views + OMP dynamic scheduling. Repeat all experiments for Graphalytics.
-    // v3 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference
+    // v3 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     result.emplace_back("g1_v3-cons-sp", "GraphOne, consistency for updates, sparse vertices (vertex dictionary)", &generate_graphone_cons_sp);
     result.emplace_back("g1_v3-cons-dv", "GraphOne, consistency for updates, dense vertices", &generate_graphone_cons_dv);
     result.emplace_back("g1_v3-bw-sp", "GraphOne, blind writes, sparse vertices (vertex dictionary)", &generate_graphone_bw_sp);
