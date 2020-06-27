@@ -44,7 +44,6 @@ class GraphOne : public virtual UpdateInterface, public virtual GraphalyticsInte
     const bool m_ignore_build; // whether to ignore invocations to the method #build()
     const bool m_ref_gapbs; // whether to use the variants from the GAP BS for the graphalytics algorithms
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
-    std::atomic<uint64_t> m_num_vertices { 0 }; // total number of vertices in the graph
     std::atomic<uint64_t> m_num_edges { 0 }; // total number of edges in the graph (not just those archived)
     std::atomic<uint64_t> m_num_levels { 0 }; // record the number of the deltas/level/snapshots created
     struct PaddedLock { // to avoid false sharing

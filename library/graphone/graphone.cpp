@@ -154,7 +154,7 @@ bool GraphOne::has_vertex(uint64_t vertex_id) const {
         sid_t logic_vertex_id = g->get_typekv()->get_sid(str_vertex_id.c_str());
         return logic_vertex_id != INVALID_SID;
     } else {
-        return vertex_id < m_num_vertices;
+        return vertex_id < num_vertices();
     }
 }
 
@@ -165,7 +165,7 @@ uint64_t GraphOne::vtx_ext2int(uint64_t external_vertex_id) const {
         if(sid == INVALID_SID) ERROR("[1] Invalid vertex ID: " << external_vertex_id);
         return static_cast<uint64_t>(sid);
     } else {
-        if(external_vertex_id >= m_num_vertices) ERROR("[2] Invalid vertex ID: " << external_vertex_id);
+        if(external_vertex_id >= num_vertices()) ERROR("[2] Invalid vertex ID: " << external_vertex_id);
         return external_vertex_id;
     }
 }
@@ -292,21 +292,11 @@ bool GraphOne::add_vertex(uint64_t vertex_id) {
         scoped_lock<SpinLock> lock(m_mutex_vtx);
 
         g->type_update(str_vertex_id); // now this is always successful?
-
-        return true;
-
     } else { // dense graph, without the translation map
-        uint64_t num_vertices = m_num_vertices;
-        uint64_t new_value = std::max<uint64_t>(num_vertices, vertex_id +1);
-
-        while(!m_num_vertices.compare_exchange_weak(/* by ref, out */ num_vertices, /* by value */ new_value,
-                /* memory order in case of success */ std::memory_order_release,
-                /* memory order in case of failure */ std::memory_order_relaxed)){
-            new_value = std::max<uint64_t>(num_vertices, vertex_id +1);
-        }
-
-        return vertex_id +1 == new_value;
+        g->get_typekv()->gfe_hack_update_num_vertices(0, vertex_id);
     }
+
+    return true; // whatever, this value means nothing here !p
 }
 
 uint64_t GraphOne::get_or_create_vertex(uint64_t external_vertex_id) {
@@ -335,16 +325,7 @@ uint64_t GraphOne::get_or_create_vertex(uint64_t external_vertex_id) {
         internal_vertex_id = (sid_t) external_vertex_id;
 
         // update the total number of vertices in the graph
-        uint64_t num_vertices = m_num_vertices;
-        if(num_vertices <= external_vertex_id){
-            uint64_t new_value = external_vertex_id +1;
-
-            while(!m_num_vertices.compare_exchange_weak(/* by ref, out */ num_vertices, /* by value */ new_value,
-                    /* memory order in case of success */ std::memory_order_release,
-                    /* memory order in case of failure */ std::memory_order_relaxed)){
-                new_value = std::max<uint64_t>(num_vertices, external_vertex_id +1);
-            }
-        }
+        g->get_typekv()->gfe_hack_update_num_vertices(0, external_vertex_id);
     }
 
    return internal_vertex_id;

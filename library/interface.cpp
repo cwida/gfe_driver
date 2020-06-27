@@ -206,14 +206,15 @@ vector<ImplementationManifest> implementations() {
 #if defined(HAVE_GRAPHONE)
     // v2 11/06/2020: Bug fix for the properties on the static views + OMP dynamic scheduling. Repeat all experiments for Graphalytics.
     // v3 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
-    result.emplace_back("g1_v3-cons-sp", "GraphOne, consistency for updates, sparse vertices (vertex dictionary)", &generate_graphone_cons_sp);
-    result.emplace_back("g1_v3-cons-dv", "GraphOne, consistency for updates, dense vertices", &generate_graphone_cons_dv);
-    result.emplace_back("g1_v3-bw-sp", "GraphOne, blind writes, sparse vertices (vertex dictionary)", &generate_graphone_bw_sp);
-    result.emplace_back("g1_v3-bw-dv", "GraphOne, blind writes, dense vertices", &generate_graphone_bw_dv);
-    result.emplace_back("g1_v3-bw-sp-ignore-build", "GraphOne, blind writes, sparse vertices (vertex dictionary), new deltas/levels cannot be explicitly created", &generate_graphone_bw_sp_ignore_build);
-    result.emplace_back("g1_v3-bw-dv-ignore-build", "GraphOne, blind writes, dense vertices, new deltas/levels cannot be explicitly created", &generate_graphone_bw_dv_ignore_build);
-    result.emplace_back("g1_v3-ref", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref);
-    result.emplace_back("g1_v3b-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
+    // v4 27/06/2020: Fix the number of vertices. It only affects the variations with dense vertices.
+    result.emplace_back("g1_v4-cons-sp", "GraphOne, consistency for updates, sparse vertices (vertex dictionary)", &generate_graphone_cons_sp);
+    result.emplace_back("g1_v4-cons-dv", "GraphOne, consistency for updates, dense vertices", &generate_graphone_cons_dv);
+    result.emplace_back("g1_v4-bw-sp", "GraphOne, blind writes, sparse vertices (vertex dictionary)", &generate_graphone_bw_sp);
+    result.emplace_back("g1_v4-bw-dv", "GraphOne, blind writes, dense vertices", &generate_graphone_bw_dv);
+    result.emplace_back("g1_v4-bw-sp-ignore-build", "GraphOne, blind writes, sparse vertices (vertex dictionary), new deltas/levels cannot be explicitly created", &generate_graphone_bw_sp_ignore_build);
+    result.emplace_back("g1_v4-bw-dv-ignore-build", "GraphOne, blind writes, dense vertices, new deltas/levels cannot be explicitly created", &generate_graphone_bw_dv_ignore_build);
+    result.emplace_back("g1_v4-ref", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref);
+    result.emplace_back("g1_v4-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
 #endif
 
 #if defined(HAVE_TESEO)
