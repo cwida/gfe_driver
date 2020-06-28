@@ -157,6 +157,13 @@ bool StingerDV::add_edge(graph::WeightedEdge e){
     return rc >= 0;
 }
 
+
+bool StingerDV::add_edge_v2(gfe::graph::WeightedEdge e){
+    add_vertex(e.source());
+    add_vertex(e.destination());
+    return add_edge(e);
+}
+
 bool StingerDV::remove_edge(graph::Edge e){
     int rc = 0;
     if(m_directed){ // directed graph

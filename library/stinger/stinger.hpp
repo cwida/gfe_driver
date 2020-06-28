@@ -41,13 +41,16 @@ protected:
     std::vector<int64_t> m_reuse_vertices; // deleted vertices IDs that can be reused
     int64_t m_next_vertex_id = 0;
 #endif
-
     /**
      * Get the internal vertex id for the given external vertex id
      * @return the internal vertex id (index in the adjacency list) if the vertex exists, or -1 otherwise
      */
     int64_t get_internal_id(uint64_t vertex_id) const;
 
+    /**
+     * Retrieve the internal vertex id for the given external vertex id. Create a new vertex if the vertex id is not already present.
+     */
+    int64_t get_or_create_vertex_id(uint64_t external_vertex_id);
 
     /**
      * Retrieve the external vertex id for the given internal ID
@@ -85,8 +88,6 @@ protected:
 
     // Single pass of the CDLP algorithm
     int64_t cdlp_propagate(int64_t vertex_id, int64_t* __restrict labels);
-
-
 
 public:
 
@@ -153,6 +154,12 @@ public:
      * @return true if the edge has been inserted or updated, false in case of error
      */
     virtual bool add_edge(graph::WeightedEdge e);
+
+    /**
+     * Add the given edge in the graph. Implicitly create the referred vertices if they do not already exist
+     * @return true if the edge has been inserted, false otherwise (e.g. this edge already exists)
+     */
+    virtual bool add_edge_v2(gfe::graph::WeightedEdge e);
 
     /**
      * Remove the given edge from the graph

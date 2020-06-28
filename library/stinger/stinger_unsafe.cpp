@@ -136,6 +136,45 @@ void Stinger::to_external_ids(const T* __restrict internal_ids, size_t internal_
         }
     }
 }
+
+int64_t Stinger::get_or_create_vertex_id(uint64_t external_vertex_id) {
+    char buffer[64];
+    sprintf(buffer, "%" PRIu64, external_vertex_id);
+
+    int64_t internal_vertex_id { -1 }; // output
+    // @return 0 on existing mapping found. 1 on new mapping created. -1 on failure (STINGER is full).
+    int rc = stinger_mapping_create(STINGER, buffer, sizeof(buffer), &internal_vertex_id);
+
+    switch(rc){
+    case -1:
+        ERROR("Cannot insert the given vertex_id: " << external_vertex_id << ". Stinger is full");
+    case 0: {
+        // because we cannot delete an existing mapping, here we use the convention of setting a vertex type to 1
+        // if the vertex is supposed to be deleted
+        scoped_lock<SpinLock> lock(m_spin_lock);
+
+        vtype_t type = stinger_vtype_get(STINGER, internal_vertex_id);
+        switch(type){
+        case 0:// the mapping already existed and the vertex is active (type = 0)
+            return internal_vertex_id;
+        case 1: // the mapping already existed but the vertex was deleted (type = 1)
+            stinger_vtype_set(STINGER, internal_vertex_id, 0); // reset to active
+            m_num_vertices ++;
+            return internal_vertex_id;
+        default:
+            ERROR("Invalid type: " << type);
+        }
+    } break;
+    case 1: {
+        scoped_lock<SpinLock> lock(m_spin_lock);
+        m_num_vertices++;
+        return internal_vertex_id; // mapping created
+    }
+    default:
+        ERROR("Invalid return code: " << rc);
+    }
+}
+
 #else
 int64_t Stinger::get_internal_id(uint64_t external_vertex_id) const {
     try {
@@ -363,6 +402,24 @@ bool Stinger::add_edge(graph::WeightedEdge e){
 
     int rc = 0;
 
+    if(m_directed){ // directed graph
+        rc = stinger_insert_edge (STINGER, /* type, ignore */ 0 , src, dst, weight, /* timestamp, ignore */ 0);
+    } else { // undirected graph
+        rc = stinger_insert_edge_pair(STINGER, /* type, ignore */ 0, src, dst, weight, /* timestamp, ignore */ 0);
+    }
+
+    return rc >= 0;
+}
+
+bool Stinger::add_edge_v2(gfe::graph::WeightedEdge e){
+    COUT_DEBUG("edge: " << e);
+
+    // get the indices in the adjacency lists
+    int64_t src = get_or_create_vertex_id(e.source());
+    int64_t dst = get_or_create_vertex_id(e.destination());
+    int64_t weight = DBL2INT(e.m_weight);
+
+    int rc = 0;
     if(m_directed){ // directed graph
         rc = stinger_insert_edge (STINGER, /* type, ignore */ 0 , src, dst, weight, /* timestamp, ignore */ 0);
     } else { // undirected graph

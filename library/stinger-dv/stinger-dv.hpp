@@ -116,6 +116,12 @@ public:
     virtual bool add_edge(graph::WeightedEdge e);
 
     /**
+     * Add the given edge in the graph. Implicitly create the referred vertices if they do not already exist
+     * @return true if the edge has been inserted, false otherwise (e.g. this edge already exists)
+     */
+    virtual bool add_edge_v2(gfe::graph::WeightedEdge e);
+
+    /**
      * Remove the given edge from the graph
      * @return true if the given edge has been removed, false otherwise (e.g. this edge does not exist)
      */
