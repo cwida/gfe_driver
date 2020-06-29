@@ -183,10 +183,12 @@ void Aging2Master::do_run_experiment(){
     BuildThread build_service { parameters().m_library , static_cast<int>(parameters().m_num_threads) +1, parameters().m_build_frequency };
 
     Timer timer; timer.start();
+    m_parameters.m_library->updates_start();
     for(auto w: m_workers) w->execute_updates();
     wait_and_record();
     build_service.stop();
     m_parameters.m_library->build(); // flush last changes
+    m_parameters.m_library->updates_stop();
     timer.stop();
     LOG("[Aging2] Experiment completed!");
     LOG("[Aging2] Updates performed with " << parameters().m_num_threads << " threads in " << timer);

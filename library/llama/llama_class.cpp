@@ -39,8 +39,8 @@ std::atomic<size_t> g_iter_next;
  *                                                                           *
  *****************************************************************************/
 //#define DEBUG
-extern mutex _log_mutex [[maybe_unused]];
-#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::_log_mutex}; std::cout << "[LLAMA::" << __FUNCTION__ << "] " << msg << std::endl; }
+namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
+#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{gfe::_log_mutex}; std::cout << "[LLAMA::" << __FUNCTION__ << "] " << msg << std::endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
 #else
@@ -521,6 +521,7 @@ bool LLAMAClass::remove_edge(graph::Edge e){
 
 void LLAMAClass::build(){
     scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
+    if(m_experiment_running){ m_timer_compactation.resume(); }
     COUT_DEBUG("build");
 
 #if !defined(LLAMA_HASHMAP_WITH_TBB)
@@ -546,8 +547,34 @@ void LLAMAClass::build(){
 
     // finally, create the new delta
     m_db->graph()->checkpoint();
+
+
+    if(m_experiment_running){ m_timer_compactation.stop(); }
 }
 
+
+/*****************************************************************************
+ *                                                                           *
+ *  Overhead compactation                                                    *
+ *                                                                           *
+ *****************************************************************************/
+void LLAMAClass::updates_start(){
+    scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
+    m_experiment_running = true;
+    m_timer_experiment.start();
+}
+
+void LLAMAClass::updates_stop(){
+    scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
+    m_timer_experiment.stop();
+    m_experiment_running = false;
+
+    COUT_DEBUG_FORCE("Duration of the experiment: " << m_timer_experiment);
+    COUT_DEBUG_FORCE("Duration of the compactation: " << m_timer_compactation);
+
+    double overhead = m_timer_compactation.microseconds() * 100.0 / m_timer_experiment.microseconds(); // Percentage
+    COUT_DEBUG_FORCE("Overhead: " << overhead << "%");
+}
 
 /*****************************************************************************
  *                                                                           *
