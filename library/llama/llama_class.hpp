@@ -18,7 +18,7 @@
 #pragma once
 
 // Profile compaction overhead ?
-#define LLAMA_PROFILE_COMPACTION_OVERHEAD
+//#define LLAMA_PROFILE_COMPACTION_OVERHEAD
 
 // Whether to use libcuckoo or tbb as a dictionary to store the vertex IDs. With libcuckoo we
 // try to keep track whether vertex ids are should only be visible in the write-store. With tbb there

@@ -23,6 +23,8 @@
 #include <mutex>
 #include <shared_mutex> // shared_lock
 
+#include "common/time.hpp"
+
 using namespace common;
 using namespace std;
 
@@ -31,6 +33,14 @@ using namespace std;
 std::atomic<size_t> g_iter_begin;
 std::atomic<size_t> g_iter_descend;
 std::atomic<size_t> g_iter_next;
+#endif
+
+// External counters, to profile ll_writable_graph#add_edge_if_not_exists
+// defined in llama_internal.hpp
+#if defined(LLAMA_PROFILE_ADD_EDGE_IF_NOT_EXISTS)
+std::atomic<uint64_t> g_llama_add_edge_check_nanosecs = 0;
+std::atomic<uint64_t> g_llama_add_edge_total_nanosecs = 0;
+void llama_add_edge_print_stats();
 #endif
 
 /*****************************************************************************
@@ -46,7 +56,6 @@ namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
 #else
     #define COUT_DEBUG(msg)
 #endif
-
 
 /*****************************************************************************
  *                                                                           *
@@ -76,6 +85,16 @@ static double get_in_edge_weight(ll_writable_graph& graph, edge_t edge_id){
     }
 }
 
+#if defined(LLAMA_PROFILE_ADD_EDGE_IF_NOT_EXISTS)
+void llama_add_edge_print_stats() {
+    COUT_DEBUG_FORCE("Cumulative time spent checking edge existence in #add_edge_if_not_exists: " << common::time::to_string(chrono::nanoseconds( g_llama_add_edge_check_nanosecs ) ));
+    COUT_DEBUG_FORCE("Cumulative time spent in #add_edge_if_not_exists: " << common::time::to_string(chrono::nanoseconds( g_llama_add_edge_total_nanosecs ) ));
+
+    double overhead = g_llama_add_edge_check_nanosecs * 100.0 / g_llama_add_edge_total_nanosecs; // Percentage
+    COUT_DEBUG_FORCE("Overhead: " << overhead << "%");
+}
+#endif
+
 /*****************************************************************************
  *                                                                           *
  *  Init                                                                     *
@@ -98,6 +117,10 @@ LLAMAClass::LLAMAClass(bool is_directed) : m_is_directed(is_directed) {
 
 
 LLAMAClass::~LLAMAClass(){
+#if defined(LLAMA_PROFILE_ADD_EDGE_IF_NOT_EXISTS)
+    llama_add_edge_print_stats();
+#endif
+
 #if !defined(LLAMA_HASHMAP_WITH_TBB)
     delete[] m_vmap_locks; m_vmap_locks = nullptr;
 #endif
