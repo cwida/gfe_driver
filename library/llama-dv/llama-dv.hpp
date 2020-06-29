@@ -18,7 +18,7 @@
 #pragma once
 
 // Profile compaction overhead ?
-#define LLAMA_PROFILE_COMPACTION_OVERHEAD
+//#define LLAMA_PROFILE_COMPACTION_OVERHEAD
 
 #include <chrono>
 
