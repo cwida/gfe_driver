@@ -198,9 +198,10 @@ vector<ImplementationManifest> implementations() {
 
 #if defined(HAVE_STINGER)
     // v2 12/06/2020: OMP dynamic scheduling in the Graphalytics kernels
-    result.emplace_back("stinger2", "Stinger library", &generate_stinger);
-    result.emplace_back("stinger2-dv", "Stinger with dense vertices", &generate_stinger_dv);
-    result.emplace_back("stinger2-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
+    // v3 29/06/2020: add_edge_v2
+    result.emplace_back("stinger3", "Stinger library", &generate_stinger);
+    result.emplace_back("stinger3-dv", "Stinger with dense vertices", &generate_stinger_dv);
+    result.emplace_back("stinger3-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
 #endif
 
 #if defined(HAVE_GRAPHONE)
