@@ -142,7 +142,7 @@ public:
      */
     virtual void set_timeout(uint64_t seconds) = 0;
 
-    // To assess the overhead of the compactation phase in LLAMA
+    // To assess the overhead of the compaction phase in LLAMA
     virtual void updates_start();
     virtual void updates_stop();
 };

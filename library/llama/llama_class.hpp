@@ -17,6 +17,9 @@
 
 #pragma once
 
+// Profile compaction overhead ?
+#define LLAMA_PROFILE_COMPACTION_OVERHEAD
+
 // Whether to use libcuckoo or tbb as a dictionary to store the vertex IDs. With libcuckoo we
 // try to keep track whether vertex ids are should only be visible in the write-store. With tbb there
 // is only a global view, resembling the same behaviour of GraphOne.
@@ -70,10 +73,12 @@ protected:
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
     mutable shared_mutex_t m_lock_checkpoint; // invoking #build(), that is creating a new snapshot, must be done without any other interference from other writers
 
-    // Compute the overhead of executing the
+    // Compute the overhead of executing the compaction
+#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
     bool m_experiment_running = false;
     common::Timer<true> m_timer_experiment;
-    common::Timer<true> m_timer_compactation;
+    common::Timer<true> m_timer_compaction;
+#endif
 
 #if defined(LLAMA_HASHMAP_WITH_TBB)
     tbb::concurrent_hash_map<uint64_t, /* node_t */ int64_t> m_vmap; // vertex dictionary, from external vertex ID to internal vertex ID
@@ -276,9 +281,11 @@ public:
      */
     virtual void sssp(uint64_t source_vertex_id, const char* dump2file = nullptr);
 
-    // Compactation overhead
+#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
+    // Overhead to create new delta level
     virtual void updates_start();
     virtual void updates_stop();
+#endif
 };
 
 } // namespace

@@ -521,7 +521,9 @@ bool LLAMAClass::remove_edge(graph::Edge e){
 
 void LLAMAClass::build(){
     scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
-    if(m_experiment_running){ m_timer_compactation.resume(); }
+#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
+    if(m_experiment_running){ m_timer_compaction.resume(); }
+#endif
     COUT_DEBUG("build");
 
 #if !defined(LLAMA_HASHMAP_WITH_TBB)
@@ -548,16 +550,18 @@ void LLAMAClass::build(){
     // finally, create the new delta
     m_db->graph()->checkpoint();
 
-
-    if(m_experiment_running){ m_timer_compactation.stop(); }
+#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
+    if(m_experiment_running){ m_timer_compaction.stop(); }
+#endif
 }
 
 
 /*****************************************************************************
  *                                                                           *
- *  Overhead compactation                                                    *
+ *  Overhead to create new delta level                                       *
  *                                                                           *
  *****************************************************************************/
+#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
 void LLAMAClass::updates_start(){
     scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
     m_experiment_running = true;
@@ -570,11 +574,12 @@ void LLAMAClass::updates_stop(){
     m_experiment_running = false;
 
     COUT_DEBUG_FORCE("Duration of the experiment: " << m_timer_experiment);
-    COUT_DEBUG_FORCE("Duration of the compactation: " << m_timer_compactation);
+    COUT_DEBUG_FORCE("Duration of the compaction: " << m_timer_compaction);
 
-    double overhead = m_timer_compactation.microseconds() * 100.0 / m_timer_experiment.microseconds(); // Percentage
+    double overhead = m_timer_compaction.microseconds() * 100.0 / m_timer_experiment.microseconds(); // Percentage
     COUT_DEBUG_FORCE("Overhead: " << overhead << "%");
 }
+#endif
 
 /*****************************************************************************
  *                                                                           *

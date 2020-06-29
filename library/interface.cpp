@@ -265,10 +265,9 @@ bool Interface::is_undirected() const {
     return !is_directed();
 }
 
-
 void Interface::updates_start() { }
-void Interface::updates_stop() { }
 
+void Interface::updates_stop() { }
 
 /*****************************************************************************
  *                                                                           *

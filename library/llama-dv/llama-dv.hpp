@@ -17,6 +17,9 @@
 
 #pragma once
 
+// Profile compaction overhead ?
+#define LLAMA_PROFILE_COMPACTION_OVERHEAD
+
 #include <chrono>
 
 #if defined(LLAMA_FAIR_SHARED_MUTEX)
@@ -25,7 +28,7 @@
 #include <shared_mutex>
 #endif
 
-
+#include "common/timer.hpp"
 #include "library/interface.hpp"
 
 class ll_database; // forward declaration
@@ -57,6 +60,13 @@ class LLAMA_DV : public virtual UpdateInterface, public virtual GraphalyticsInte
     uint64_t m_num_edges { 0 }; // the current number of edges contained in the read-only store
     mutable shared_mutex_t m_lock_checkpoint; // invoking #build(), that is creating a new snapshot, must be done without any other interference from other writers
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
+
+    // Compute the overhead of executing the compaction
+#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
+    bool m_experiment_running = false;
+    common::Timer<true> m_timer_experiment;
+    common::Timer<true> m_timer_compaction;
+#endif
 
     // Retrieve the outgoing degree (# outgoing edges) for the given logical vertex_id, starting from the write store
     uint64_t get_write_store_outdegree(int64_t vertex_id) const;
@@ -178,6 +188,12 @@ public:
      * Create a new delta, or a level, in LLAMA's parlance
      */
     virtual void build();
+
+#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
+    // Overhead to create new delta level
+    virtual void updates_start();
+    virtual void updates_stop();
+#endif
 
     /**
      * Perform a BFS from source_vertex_id to all the other vertices in the graph.

@@ -104,8 +104,8 @@ using namespace std;
  *                                                                           *
  *****************************************************************************/
 //#define DEBUG
-extern mutex _log_mutex [[maybe_unused]];
-#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::_log_mutex}; std::cout << "[LLAMA_DV::" << __FUNCTION__ << "] " << msg << std::endl; }
+namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
+#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{gfe::_log_mutex}; std::cout << "[LLAMA_DV::" << __FUNCTION__ << "] " << msg << std::endl; }
 #if defined(DEBUG)
     #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
 #else
@@ -305,6 +305,9 @@ bool LLAMA_DV::remove_edge(graph::Edge e){
 
 void LLAMA_DV::build(){
     scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
+#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
+    if(m_experiment_running){ m_timer_compaction.resume(); }
+#endif
     COUT_DEBUG("build");
 
     assert((static_cast<int64_t>(m_num_edges) + m_db->graph()->get_num_edges_diff() >= 0) && "Underflow");
@@ -312,7 +315,36 @@ void LLAMA_DV::build(){
 
     // finally, create the new delta
     m_db->graph()->checkpoint();
+
+#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
+    if(m_experiment_running){ m_timer_compaction.stop(); }
+#endif
 }
+
+/*****************************************************************************
+ *                                                                           *
+ *  Overhead to create new delta level                                       *
+ *                                                                           *
+ *****************************************************************************/
+#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
+void LLAMA_DV::updates_start(){
+    scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
+    m_experiment_running = true;
+    m_timer_experiment.start();
+}
+
+void LLAMA_DV::updates_stop(){
+    scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
+    m_timer_experiment.stop();
+    m_experiment_running = false;
+
+    COUT_DEBUG_FORCE("Duration of the experiment: " << m_timer_experiment);
+    COUT_DEBUG_FORCE("Duration of the compaction: " << m_timer_compaction);
+
+    double overhead = m_timer_compaction.microseconds() * 100.0 / m_timer_experiment.microseconds(); // Percentage
+    COUT_DEBUG_FORCE("Overhead: " << overhead << "%");
+}
+#endif
 
 /*****************************************************************************
  *                                                                           *
