@@ -112,13 +112,15 @@ namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
     #define COUT_DEBUG(msg)
 #endif
 
+
 // External counters, to profile ll_writable_graph#add_edge_if_not_exists and #build
 // defined in llama_internal.hpp
 #if defined(LL_PROFILE_UPDATES)
 extern common::Timer<true> g_llama_total_time;
+extern std::atomic<uint64_t> g_llama_add_vertex_nanosecs;
 extern std::atomic<uint64_t> g_llama_add_edge_total_nanosecs;
 extern std::atomic<uint64_t> g_llama_build_nanosecs;
-extern void llama_add_edge_print_stats();
+extern void llama_profile_print_stats();
 #endif
 
 /*****************************************************************************
@@ -166,7 +168,7 @@ LLAMA_DV::LLAMA_DV(bool is_directed, bool blind_writes) : m_is_directed(is_direc
 
 LLAMA_DV::~LLAMA_DV(){
 #if defined(LL_PROFILE_UPDATES)
-    llama_add_edge_print_stats();
+    llama_profile_print_stats();
 #endif
 
     delete m_db; m_db = nullptr;
@@ -267,10 +269,18 @@ bool LLAMA_DV::add_edge_v2(gfe::graph::WeightedEdge e){
     shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("edge: " << e);
 
+#if defined(LL_PROFILE_UPDATES)
+    auto t_start = chrono::steady_clock::now();
+#endif
+
     node_t source = (node_t) e.source();
     m_db->graph()->add_node(source);
     node_t destination = (node_t) e.destination();
     m_db->graph()->add_node(destination);
+
+#if defined(LL_PROFILE_UPDATES)
+    g_llama_add_vertex_nanosecs += chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now() - t_start).count();
+#endif
 
     return add_edge0(source, destination, e.weight());
 }

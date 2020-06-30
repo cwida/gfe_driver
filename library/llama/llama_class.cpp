@@ -35,14 +35,17 @@ std::atomic<size_t> g_iter_descend;
 std::atomic<size_t> g_iter_next;
 #endif
 
+
 // External counters, to profile ll_writable_graph#add_edge_if_not_exists and #build
 // defined in llama_internal.hpp
 #if defined(LL_PROFILE_UPDATES)
 common::Timer<true> g_llama_total_time;
+std::atomic<uint64_t> g_llama_add_vertex_nanosecs = 0; // Driver::add_vertex
+std::atomic<uint64_t> g_llama_add_node_nanosecs = 0; // LLAMA::add_node
 std::atomic<uint64_t> g_llama_add_edge_check_nanosecs = 0;
 std::atomic<uint64_t> g_llama_add_edge_total_nanosecs = 0;
 std::atomic<uint64_t> g_llama_build_nanosecs = 0;
-void llama_add_edge_print_stats();
+void llama_profile_print_stats();
 #endif
 
 /*****************************************************************************
@@ -88,7 +91,7 @@ static double get_in_edge_weight(ll_writable_graph& graph, edge_t edge_id){
 }
 
 #if defined(LL_PROFILE_UPDATES)
-void llama_add_edge_print_stats() {
+void llama_profile_print_stats() {
     uint64_t total_time_nanosecs = g_llama_total_time.nanoseconds();
 
     double oh_build = g_llama_build_nanosecs * 100.0 / total_time_nanosecs;
@@ -96,11 +99,17 @@ void llama_add_edge_print_stats() {
     COUT_DEBUG_FORCE("Total time in updates: " << common::time::to_string(chrono::nanoseconds(total_time_nanosecs)) );
     COUT_DEBUG_FORCE("Cumulative time spent in #build: " << common::time::to_string(chrono::nanoseconds(g_llama_build_nanosecs) ) << ", percentage: " << oh_build << "%");
 
+    double oh_add_vertex = g_llama_add_vertex_nanosecs * 100.0 / total_time_nanosecs;
+    COUT_DEBUG_FORCE("Cumulative time spent in #add_vertex: " << common::time::to_string(chrono::nanoseconds(g_llama_add_vertex_nanosecs) ) << ", percentage: " << oh_add_vertex << "%")
+
+    double oh_add_node = g_llama_add_node_nanosecs * 100.0 / g_llama_add_vertex_nanosecs;
+    COUT_DEBUG_FORCE("Cumulative time spent in ll_writable_graph::add_node: " << common::time::to_string(chrono::nanoseconds(g_llama_add_node_nanosecs) ) << ", overhead w.r.t. #add_vertex: " << oh_add_node << "%");
+
     double oh_add_edge = g_llama_add_edge_total_nanosecs * 100.0 / total_time_nanosecs;
-    COUT_DEBUG_FORCE("Cumulative time spent in #add_edge_if_not_exists: " << common::time::to_string(chrono::nanoseconds( g_llama_add_edge_total_nanosecs ) ) << ", percentage: " << oh_add_edge << "%");
+    COUT_DEBUG_FORCE("Cumulative time spent in ll_writable_graph::add_edge_if_not_exists: " << common::time::to_string(chrono::nanoseconds( g_llama_add_edge_total_nanosecs ) ) << ", percentage: " << oh_add_edge << "%");
 
     double oh_add_edge_check = g_llama_add_edge_check_nanosecs * 100.0 / g_llama_add_edge_total_nanosecs;
-    COUT_DEBUG_FORCE("Cumulative time spent checking edge existence in #add_edge_if_not_exists: " << common::time::to_string(chrono::nanoseconds( g_llama_add_edge_check_nanosecs ) ) << ", overhead: " << oh_add_edge_check << "%");
+    COUT_DEBUG_FORCE("Cumulative time spent checking edge existence in ll_writable_graph::add_edge_if_not_exists: " << common::time::to_string(chrono::nanoseconds( g_llama_add_edge_check_nanosecs ) ) << ", overhead: " << oh_add_edge_check << "%");
 }
 #endif
 
@@ -127,7 +136,7 @@ LLAMAClass::LLAMAClass(bool is_directed) : m_is_directed(is_directed) {
 
 LLAMAClass::~LLAMAClass(){
 #if defined(LL_PROFILE_UPDATES)
-    llama_add_edge_print_stats();
+    llama_profile_print_stats();
 #endif
 
 #if !defined(LLAMA_HASHMAP_WITH_TBB)
@@ -313,6 +322,10 @@ bool LLAMAClass::add_vertex(uint64_t vertex_id_ext){
     shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("vertex_id: " << vertex_id_ext);
 
+#if defined(LL_PROFILE_UPDATES)
+    auto t_start = chrono::steady_clock::now();
+#endif
+
 #if defined(LLAMA_HASHMAP_WITH_TBB)
     decltype(m_vmap)::accessor accessor; // xlock
     bool inserted = m_vmap.insert(accessor, vertex_id_ext);
@@ -322,6 +335,10 @@ bool LLAMAClass::add_vertex(uint64_t vertex_id_ext){
 
         accessor->second = node_id;
     }
+
+#if defined(LL_PROFILE_UPDATES)
+    g_llama_add_vertex_nanosecs += chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now() - t_start).count();
+#endif
 
     return inserted;
 #else
@@ -485,8 +502,16 @@ bool LLAMAClass::add_edge_v2(graph::WeightedEdge e){
     shared_lock<shared_mutex_t> cplock(m_lock_checkpoint); // forbid any checkpoint now
     COUT_DEBUG("edge: " << e);
 
+#if defined(LL_PROFILE_UPDATES)
+    auto t_start = chrono::steady_clock::now();
+#endif
+
     node_t llama_source_id = get_or_create_vertex_id(e.source());
     node_t llama_destination_id = get_or_create_vertex_id(e.destination());
+
+#if defined(LL_PROFILE_UPDATES)
+    g_llama_add_vertex_nanosecs += chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now() - t_start).count();
+#endif
 
     return add_edge0(llama_source_id, llama_destination_id, e.weight());
 }
@@ -592,7 +617,7 @@ void LLAMAClass::build(){
 
 /*****************************************************************************
  *                                                                           *
- *  Start/stop the timer profiling                                            *
+ *  Start/stop the timer profiling                                           *
  *                                                                           *
  *****************************************************************************/
 #if defined(LL_PROFILE_UPDATES)

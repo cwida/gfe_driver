@@ -106,6 +106,7 @@ chrono::microseconds InsertOnly::execute() {
     execute_round_robin();
     build_service.stop();
     timer.stop();
+    m_interface->updates_stop();
     LOG("Insertions performed with " << m_num_threads << " threads in " << timer);
     m_time_insert = timer.microseconds();
     m_num_build_invocations = build_service.num_invocations();
@@ -121,8 +122,6 @@ chrono::microseconds InsertOnly::execute() {
         LOG("Build time: " << timer);
     }
     m_num_build_invocations++;
-
-    m_interface->updates_stop();
 
     LOG("Edge stream size: " << m_stream->num_edges() << ", num edges stored in the graph: " << m_interface->num_edges() << ", match: " << (m_stream->num_edges() == m_interface->num_edges() ? "yes" : "no"));
 
