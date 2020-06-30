@@ -270,7 +270,9 @@ bool LLAMA_DV::add_edge_v2(gfe::graph::WeightedEdge e){
     COUT_DEBUG("edge: " << e);
 
 #if defined(LL_PROFILE_UPDATES)
+    common::compiler_barrier();
     auto t_start = chrono::steady_clock::now();
+    common::compiler_barrier();
 #endif
 
     node_t source = (node_t) e.source();
@@ -279,7 +281,9 @@ bool LLAMA_DV::add_edge_v2(gfe::graph::WeightedEdge e){
     m_db->graph()->add_node(destination);
 
 #if defined(LL_PROFILE_UPDATES)
+    common::compiler_barrier();
     g_llama_add_vertex_nanosecs += chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now() - t_start).count();
+    common::compiler_barrier();
 #endif
 
     return add_edge0(source, destination, e.weight());
