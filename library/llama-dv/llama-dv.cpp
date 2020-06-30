@@ -276,9 +276,14 @@ bool LLAMA_DV::add_edge_v2(gfe::graph::WeightedEdge e){
 #endif
 
     node_t source = (node_t) e.source();
-    m_db->graph()->add_node(source);
+    if(!m_db->graph()->node_exists(source)){
+        m_db->graph()->add_node(source);
+    }
+
     node_t destination = (node_t) e.destination();
-    m_db->graph()->add_node(destination);
+    if(!m_db->graph()->node_exists(destination)){
+        m_db->graph()->add_node(destination);
+    }
 
 #if defined(LL_PROFILE_UPDATES)
     common::compiler_barrier();
