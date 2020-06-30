@@ -35,11 +35,13 @@ std::atomic<size_t> g_iter_descend;
 std::atomic<size_t> g_iter_next;
 #endif
 
-// External counters, to profile ll_writable_graph#add_edge_if_not_exists
+// External counters, to profile ll_writable_graph#add_edge_if_not_exists and #build
 // defined in llama_internal.hpp
-#if defined(LLAMA_PROFILE_ADD_EDGE_IF_NOT_EXISTS)
+#if defined(LL_PROFILE_UPDATES)
+common::Timer<true> g_llama_total_time;
 std::atomic<uint64_t> g_llama_add_edge_check_nanosecs = 0;
 std::atomic<uint64_t> g_llama_add_edge_total_nanosecs = 0;
+std::atomic<uint64_t> g_llama_build_nanosecs = 0;
 void llama_add_edge_print_stats();
 #endif
 
@@ -85,13 +87,20 @@ static double get_in_edge_weight(ll_writable_graph& graph, edge_t edge_id){
     }
 }
 
-#if defined(LLAMA_PROFILE_ADD_EDGE_IF_NOT_EXISTS)
+#if defined(LL_PROFILE_UPDATES)
 void llama_add_edge_print_stats() {
-    COUT_DEBUG_FORCE("Cumulative time spent checking edge existence in #add_edge_if_not_exists: " << common::time::to_string(chrono::nanoseconds( g_llama_add_edge_check_nanosecs ) ));
-    COUT_DEBUG_FORCE("Cumulative time spent in #add_edge_if_not_exists: " << common::time::to_string(chrono::nanoseconds( g_llama_add_edge_total_nanosecs ) ));
+    uint64_t total_time_nanosecs = g_llama_total_time.nanoseconds();
 
-    double overhead = g_llama_add_edge_check_nanosecs * 100.0 / g_llama_add_edge_total_nanosecs; // Percentage
-    COUT_DEBUG_FORCE("Overhead: " << overhead << "%");
+    double oh_build = g_llama_build_nanosecs * 100.0 / total_time_nanosecs;
+
+    COUT_DEBUG_FORCE("Total time in updates: " << common::time::to_string(chrono::nanoseconds(total_time_nanosecs)) );
+    COUT_DEBUG_FORCE("Cumulative time spent in #build: " << common::time::to_string(chrono::nanoseconds(g_llama_build_nanosecs) ) << ", percentage: " << oh_build << "%");
+
+    double oh_add_edge = g_llama_add_edge_total_nanosecs * 100.0 / total_time_nanosecs;
+    COUT_DEBUG_FORCE("Cumulative time spent in #add_edge_if_not_exists: " << common::time::to_string(chrono::nanoseconds( g_llama_add_edge_total_nanosecs ) ) << ", percentage: " << oh_add_edge << "%");
+
+    double oh_add_edge_check = g_llama_add_edge_check_nanosecs * 100.0 / g_llama_add_edge_total_nanosecs;
+    COUT_DEBUG_FORCE("Cumulative time spent checking edge existence in #add_edge_if_not_exists: " << common::time::to_string(chrono::nanoseconds( g_llama_add_edge_check_nanosecs ) ) << ", overhead: " << oh_add_edge_check << "%");
 }
 #endif
 
@@ -117,7 +126,7 @@ LLAMAClass::LLAMAClass(bool is_directed) : m_is_directed(is_directed) {
 
 
 LLAMAClass::~LLAMAClass(){
-#if defined(LLAMA_PROFILE_ADD_EDGE_IF_NOT_EXISTS)
+#if defined(LL_PROFILE_UPDATES)
     llama_add_edge_print_stats();
 #endif
 
@@ -544,9 +553,10 @@ bool LLAMAClass::remove_edge(graph::Edge e){
 
 void LLAMAClass::build(){
     scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
-#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
-    if(m_experiment_running){ m_timer_compaction.resume(); }
+#if defined(LL_PROFILE_UPDATES)
+    auto t_start = chrono::steady_clock::now();
 #endif
+
     COUT_DEBUG("build");
 
 #if !defined(LLAMA_HASHMAP_WITH_TBB)
@@ -573,34 +583,27 @@ void LLAMAClass::build(){
     // finally, create the new delta
     m_db->graph()->checkpoint();
 
-#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
-    if(m_experiment_running){ m_timer_compaction.stop(); }
+#if defined(LL_PROFILE_UPDATES)
+    common::compiler_barrier();
+    g_llama_build_nanosecs += chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now() - t_start).count();
 #endif
 }
 
 
 /*****************************************************************************
  *                                                                           *
- *  Overhead to create new delta level                                       *
+ *  Start/stop the timer profiling                                            *
  *                                                                           *
  *****************************************************************************/
-#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
+#if defined(LL_PROFILE_UPDATES)
 void LLAMAClass::updates_start(){
     scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
-    m_experiment_running = true;
-    m_timer_experiment.start();
+    g_llama_total_time.start();
 }
 
 void LLAMAClass::updates_stop(){
     scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
-    m_timer_experiment.stop();
-    m_experiment_running = false;
-
-    COUT_DEBUG_FORCE("Duration of the experiment: " << m_timer_experiment);
-    COUT_DEBUG_FORCE("Duration of the compaction: " << m_timer_compaction);
-
-    double overhead = m_timer_compaction.microseconds() * 100.0 / m_timer_experiment.microseconds(); // Percentage
-    COUT_DEBUG_FORCE("Overhead: " << overhead << "%");
+    g_llama_total_time.stop();
 }
 #endif
 

@@ -61,13 +61,6 @@ class LLAMA_DV : public virtual UpdateInterface, public virtual GraphalyticsInte
     mutable shared_mutex_t m_lock_checkpoint; // invoking #build(), that is creating a new snapshot, must be done without any other interference from other writers
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
 
-    // Compute the overhead of executing the compaction
-#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
-    bool m_experiment_running = false;
-    common::Timer<true> m_timer_experiment;
-    common::Timer<true> m_timer_compaction;
-#endif
-
     // Retrieve the outgoing degree (# outgoing edges) for the given logical vertex_id, starting from the write store
     uint64_t get_write_store_outdegree(int64_t vertex_id) const;
 
@@ -189,8 +182,8 @@ public:
      */
     virtual void build();
 
-#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
-    // Overhead to create new delta level
+#if defined(LL_PROFILE_UPDATES)
+    // Overhead to create new deltas
     virtual void updates_start();
     virtual void updates_stop();
 #endif

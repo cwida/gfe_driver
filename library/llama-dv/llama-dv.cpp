@@ -112,6 +112,15 @@ namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
     #define COUT_DEBUG(msg)
 #endif
 
+// External counters, to profile ll_writable_graph#add_edge_if_not_exists and #build
+// defined in llama_internal.hpp
+#if defined(LL_PROFILE_UPDATES)
+extern common::Timer<true> g_llama_total_time;
+extern std::atomic<uint64_t> g_llama_add_edge_total_nanosecs;
+extern std::atomic<uint64_t> g_llama_build_nanosecs;
+extern void llama_add_edge_print_stats();
+#endif
+
 /*****************************************************************************
  *                                                                           *
  *  Helpers                                                                  *
@@ -156,6 +165,10 @@ LLAMA_DV::LLAMA_DV(bool is_directed, bool blind_writes) : m_is_directed(is_direc
 
 
 LLAMA_DV::~LLAMA_DV(){
+#if defined(LL_PROFILE_UPDATES)
+    llama_add_edge_print_stats();
+#endif
+
     delete m_db; m_db = nullptr;
 }
 
@@ -263,6 +276,10 @@ bool LLAMA_DV::add_edge_v2(gfe::graph::WeightedEdge e){
 }
 
 bool LLAMA_DV::add_edge0(int64_t source, int64_t destination, double weight){
+#if defined(LL_PROFILE_UPDATES)
+    auto t_start = chrono::steady_clock::now();
+#endif
+
     if(!m_is_directed && source > destination){
         std::swap(source, destination);
     }
@@ -280,6 +297,11 @@ bool LLAMA_DV::add_edge0(int64_t source, int64_t destination, double weight){
     if(inserted){
         m_db->graph()->get_edge_property_64(g_llama_property_weights)->set(edge_id, *reinterpret_cast<uint64_t*>(&(weight)));
     }
+
+#if defined(LL_PROFILE_UPDATES)
+    common::compiler_barrier();
+    g_llama_add_edge_total_nanosecs += chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now() - t_start).count();
+#endif
 
     return inserted;
 }
@@ -305,8 +327,8 @@ bool LLAMA_DV::remove_edge(graph::Edge e){
 
 void LLAMA_DV::build(){
     scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
-#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
-    if(m_experiment_running){ m_timer_compaction.resume(); }
+#if defined(LL_PROFILE_UPDATES)
+    auto t_start = chrono::steady_clock::now();
 #endif
     COUT_DEBUG("build");
 
@@ -316,33 +338,26 @@ void LLAMA_DV::build(){
     // finally, create the new delta
     m_db->graph()->checkpoint();
 
-#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
-    if(m_experiment_running){ m_timer_compaction.stop(); }
+#if defined(LL_PROFILE_UPDATES)
+    common::compiler_barrier();
+    g_llama_build_nanosecs += chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now() - t_start).count();
 #endif
 }
 
 /*****************************************************************************
  *                                                                           *
- *  Overhead to create new delta level                                       *
+ *  Overhead to create new delta levels                                       *
  *                                                                           *
  *****************************************************************************/
-#if defined(LLAMA_PROFILE_COMPACTION_OVERHEAD)
+#if defined(LL_PROFILE_UPDATES)
 void LLAMA_DV::updates_start(){
     scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
-    m_experiment_running = true;
-    m_timer_experiment.start();
+    g_llama_total_time.start();
 }
 
 void LLAMA_DV::updates_stop(){
     scoped_lock<shared_mutex_t> xlock(m_lock_checkpoint);
-    m_timer_experiment.stop();
-    m_experiment_running = false;
-
-    COUT_DEBUG_FORCE("Duration of the experiment: " << m_timer_experiment);
-    COUT_DEBUG_FORCE("Duration of the compaction: " << m_timer_compaction);
-
-    double overhead = m_timer_compaction.microseconds() * 100.0 / m_timer_experiment.microseconds(); // Percentage
-    COUT_DEBUG_FORCE("Overhead: " << overhead << "%");
+    g_llama_total_time.stop();
 }
 #endif
 

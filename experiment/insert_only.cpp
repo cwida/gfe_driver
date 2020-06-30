@@ -115,13 +115,14 @@ chrono::microseconds InsertOnly::execute() {
     timer.start();
     m_interface->build();
     timer.stop();
-    m_interface->updates_stop();
 
     m_time_build = timer.microseconds();
     if(m_time_build > 0){
         LOG("Build time: " << timer);
     }
     m_num_build_invocations++;
+
+    m_interface->updates_stop();
 
     LOG("Edge stream size: " << m_stream->num_edges() << ", num edges stored in the graph: " << m_interface->num_edges() << ", match: " << (m_stream->num_edges() == m_interface->num_edges() ? "yes" : "no"));
 

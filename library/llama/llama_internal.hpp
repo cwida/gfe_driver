@@ -34,8 +34,8 @@
 // Benchmark counters?
 //#define LL_COUNTERS
 
-// Profile the cost of ll_writable_graph#add_edge_if_not_exists
-//#define LLAMA_PROFILE_ADD_EDGE_IF_NOT_EXISTS
+// Profile the cost of ll_writable_graph#add_edge_if_not_exists and #build
+//#define LL_PROFILE_UPDATES
 
 // Disable a warning in the llama.h implementation, ISO C++17 does not allow register bla bla
 #define register /* nop */
