@@ -225,6 +225,7 @@ vector<ImplementationManifest> implementations() {
     // v4 15/06/2020: cursor state + support for R/W iterators. It only affects scans (Graphalytics & bm)
     // v5 26/06/2020: updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     result.emplace_back("teseo.5", "Teseo", &generate_teseo);
+    result.emplace_back("teseo-scalability.5", "Teseo", &generate_teseo);
     result.emplace_back("teseo-rw.5", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
     result.emplace_back("teseo-lcc.5", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
 #endif
