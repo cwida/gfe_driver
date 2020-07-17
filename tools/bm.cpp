@@ -699,6 +699,8 @@ static uint64_t stinger_point_lookup(struct stinger* stinger, uint64_t vertex_id
     STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(stinger, vertex_id) {
         return STINGER_EDGE_DEST;
     } STINGER_FORALL_OUT_EDGES_OF_VTX_END();
+
+    return 0;
 }
 
 static void run_stinger(){
