@@ -226,7 +226,6 @@ vector<ImplementationManifest> implementations() {
     // v5 26/06/2020: updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     // v6 18/07/2020: vertex table
     result.emplace_back("teseo.6", "Teseo", &generate_teseo);
-    result.emplace_back("teseo-scalability.6", "Teseo", &generate_teseo);
     result.emplace_back("teseo-rw.6", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
     result.emplace_back("teseo-lcc.6", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
 #endif
