@@ -23,7 +23,7 @@
 namespace gfe::library {
 
 /**
- * Wrapper to evaluate the GraphOne library
+ * Wrapper to evaluate the Teseo library
  */
 class TeseoDriver : public virtual UpdateInterface, public virtual GraphalyticsInterface {
     TeseoDriver(const TeseoDriver&) = delete;

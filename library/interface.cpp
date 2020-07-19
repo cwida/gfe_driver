@@ -48,6 +48,7 @@
 #if defined(HAVE_TESEO)
 #include "teseo/teseo_driver.hpp"
 #include "teseo/teseo_lcc.hpp"
+#include "teseo/teseo_real_vtx.hpp"
 #endif
 
 using namespace std;
@@ -172,6 +173,9 @@ std::unique_ptr<Interface> generate_teseo_rw(bool directed_graph){
 std::unique_ptr<Interface> generate_teseo_lcc(bool directed_graph){ // LCC custom algorithm
     return unique_ptr<Interface>{ new TeseoLCC(directed_graph) };
 }
+std::unique_ptr<Interface> generate_teseo_real_vtx(bool directed_graph){
+    return unique_ptr<Interface>{ new TeseoRealVertices(directed_graph) };
+}
 
 #endif
 
@@ -228,6 +232,7 @@ vector<ImplementationManifest> implementations() {
     result.emplace_back("teseo.6", "Teseo", &generate_teseo);
     result.emplace_back("teseo-rw.6", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
     result.emplace_back("teseo-lcc.6", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
+    result.emplace_back("teseo-dv.6", "Teseo, dense vertices", &generate_teseo_real_vtx);
 #endif
 
     return result;

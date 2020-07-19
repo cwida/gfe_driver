@@ -91,7 +91,7 @@ ifneq (,$(findstring -DHAVE_GRAPHONE,${ALL_CPPFLAGS}))
 	sources += $(addprefix library/graphone/, graphone.cpp)
 endif
 ifneq (,$(findstring -DHAVE_TESEO,${ALL_CPPFLAGS}))
-	sources += $(addprefix library/teseo/, teseo_driver.cpp teseo_lcc.cpp)
+	sources += $(addprefix library/teseo/, teseo_driver.cpp teseo_lcc.cpp teseo_real_vtx.cpp)
 endif
 
 #############################################################################
