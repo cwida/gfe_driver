@@ -29,6 +29,7 @@
 #include "configuration.hpp"
 #include "graph/edge_stream.hpp"
 #include "library/baseline/adjacency_list.hpp"
+#include "library/baseline/csr.hpp"
 #if defined(HAVE_LLAMA)
 #include "library/llama/llama_class.hpp"
 #include "library/llama/llama_ref.hpp"
@@ -179,6 +180,18 @@ TEST(AdjacencyList, GraphalyticsUndirected){
     auto adjlist = make_unique<AdjacencyList>(/* directed */ false);
     load_graph(adjlist.get(), path_example_undirected);
     validate(adjlist.get(), path_example_undirected);
+}
+
+TEST(CSR, GraphalyticsDirected){
+    auto csr = make_unique<CSR>(/* directed */ true);
+    csr->load(path_example_directed + ".properties");
+    validate(csr.get(), path_example_directed);
+}
+
+TEST(CSR, GraphalyticsUndirected){
+    auto csr = make_unique<CSR>(/* directed */ false);
+    csr->load(path_example_undirected + ".properties");
+    validate(csr.get(), path_example_undirected);
 }
 
 #if defined(HAVE_LLAMA)

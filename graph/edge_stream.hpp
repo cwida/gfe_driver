@@ -49,6 +49,9 @@ class WeightedEdgeStream {
     uint64_t m_max_vertex_id { 0 };
     double m_max_weight { 0 };
 
+    // Permute the edges according to the given permutation vector, with indices in 0, ..., num_edges -1
+    void do_permute_edges(uint64_t* permutation);
+
 public:
     /**
      * Load the list of edges from the given file
@@ -89,6 +92,13 @@ public:
 
     // Get the max weight for an edge in the graph
     double max_weight() const { return m_max_weight; }
+
+    // Sort the edge list by <src, dst>
+    void sort();
+    void sort_by_src_dst();
+
+    // Sort the edge list by <dst, src>
+    void sort_by_dst_src();
 };
 
 } // namespace

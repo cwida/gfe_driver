@@ -67,4 +67,8 @@ void VertexList::permute(uint64_t seed){
     delete m_vertices; m_vertices = new_vertices.release();
 }
 
+void VertexList::sort(){
+    m_vertices->sort();
+}
+
 } // namespace

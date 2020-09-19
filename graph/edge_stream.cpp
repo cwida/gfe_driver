@@ -124,11 +124,18 @@ void WeightedEdgeStream::permute(uint64_t seed){
     common::permute(permutation, m_num_edges, seed);
 
     // Permute the elements in m_sources, m_destinations and m_weights
+    do_permute_edges(permutation);
+
+    timer.stop();
+
+    LOG("Permutation completed in " << timer);
+}
+
+void WeightedEdgeStream::do_permute_edges(uint64_t* permutation){
     auto bytes_per_vertex_id = CByteArray::compute_bytes_per_elements(m_max_vertex_id);
     auto new_sources = make_unique<CByteArray>(/* bytes per element */ bytes_per_vertex_id, m_num_edges);
     auto new_destinations = make_unique<CByteArray>(/* bytes per element */ bytes_per_vertex_id, m_num_edges);
     vector<double> new_weights; new_weights.resize(m_num_edges, 0.0);
-//    auto new_weights = make_unique<CByteArray>(/* bytes per element */ CByteArray::compute_bytes_per_elements(m_max_weight), m_num_edges);
 
     auto permute = [&](uint64_t start, uint64_t length){
         for(size_t i = start, end = start + length; i < end; i++){
@@ -155,10 +162,8 @@ void WeightedEdgeStream::permute(uint64_t seed){
     delete m_destinations; m_destinations = new_destinations.release();
     m_weights = std::move(new_weights);
 
-    timer.stop();
-
-    LOG("Permutation completed in " << timer);
 }
+
 
 WeightedEdge WeightedEdgeStream::get(uint64_t index) const {
     if(index >= num_edges()){ INVALID_ARGUMENT("Index out of bound: " << index << " >= " << num_edges()); }
@@ -226,6 +231,71 @@ unique_ptr<cuckoohash_map<uint64_t, uint64_t>> WeightedEdgeStream::vertex_table(
     LOG("Vertex list computed in " << timer);
 
     return ptr_vertex_table;
+}
+
+void WeightedEdgeStream::sort() {
+    sort_by_src_dst();
+}
+
+void WeightedEdgeStream::sort_by_src_dst(){
+    if(m_num_edges <= 0) return; // there is nothing to sort
+
+    LOG("Sorting the edge list by <source, destination> ...");
+
+    Timer timer;
+    timer.start();
+
+    // Create the permutation array
+    auto ptr_permutation = make_unique<uint64_t[]>(m_num_edges);
+    uint64_t* __restrict permutation = ptr_permutation.get();
+    for(size_t i = 0; i < m_num_edges; i++){ permutation[i] = i; }
+
+    std::sort(permutation, permutation + m_num_edges, [this](uint64_t i, uint64_t j){
+        assert(i != j);
+        uint64_t source_i = m_sources->get_value_at(i);
+        uint64_t source_j = m_sources->get_value_at(j);
+        if(source_i < source_j) {
+            return true;
+        } else if (source_i == source_j){
+            uint64_t dest_i = m_destinations->get_value_at(i);
+            uint64_t dest_j = m_destinations->get_value_at(j);
+            return dest_i < dest_j;
+        } else { // source_i > source_j
+            return false;
+        }
+    });
+
+    do_permute_edges(permutation);
+
+    timer.stop();
+
+    LOG("Sorting completed in " << timer);
+}
+
+void WeightedEdgeStream::sort_by_dst_src(){
+    if(m_num_edges <= 0) return; // there is nothing to sort
+
+    LOG("Sorting the edge list by <destination, source> ...");
+
+    Timer timer;
+    timer.start();
+
+    // Create the permutation array
+    auto ptr_permutation = make_unique<uint64_t[]>(m_num_edges);
+    uint64_t* __restrict permutation = ptr_permutation.get();
+    for(size_t i = 0; i < m_num_edges; i++){ permutation[i] = i; }
+
+    std::sort(permutation, permutation + m_num_edges, [this](uint64_t i, uint64_t j){
+        assert(i != j);
+        return m_destinations->get_value_at(i) < m_destinations->get_value_at(j) ||
+                (m_destinations->get_value_at(i) == m_destinations->get_value_at(j) && m_sources->get_value_at(i) < m_sources->get_value_at(j));
+    });
+
+    do_permute_edges(permutation);
+
+    timer.stop();
+
+    LOG("Sorting completed in " << timer);
 }
 
 } // namespace

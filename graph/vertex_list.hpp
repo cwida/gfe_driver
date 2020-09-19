@@ -64,6 +64,10 @@ public:
      */
     void permute(uint64_t seed);
 
+    /**
+     * Sort the list of vertices
+     */
+    void sort();
 };
     
 } // namespace
