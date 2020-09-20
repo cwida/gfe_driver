@@ -29,10 +29,13 @@ namespace gapbs { class Bitmap; }
 namespace gapbs { template <typename T> class SlidingQueue; }
 namespace gapbs { template <typename T> class pvector; }
 namespace gfe::utility { class TimeoutService; }
+void _bm_run_csr(); // bm experiment
 
 namespace gfe::library {
 
 class CSR : public virtual LoaderInterface, public virtual GraphalyticsInterface  {
+    friend void ::_bm_run_csr();
+
 protected:
     const bool m_is_directed; // whether the graph is directed
     uint64_t m_num_vertices; // total number of vertices

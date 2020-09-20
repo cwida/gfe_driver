@@ -47,6 +47,9 @@
 #include "reader/graphalytics_reader.hpp"
 #include "configuration.hpp"
 
+// csr
+#include "library/baseline/csr.hpp"
+
 // teseo
 #if defined(HAVE_TESEO)
 #include "library/teseo/teseo_driver.hpp"
@@ -106,6 +109,7 @@ static void compute_medians(); // populate g_medians
 static void load();
 static void parse_args(int argc, char* argv[]);
 static void run();
+[[maybe_unused]] static void run_csr();
 [[maybe_unused]] static void run_teseo(bool read_only);
 [[maybe_unused]] static void run_graphone();
 [[maybe_unused]] static void run_llama();
@@ -143,7 +147,9 @@ static void run(){
     common::Timer timer;
     timer.start();
 
-    if(g_library == "teseo"){
+    if(g_library == "csr"){
+        run_csr();
+    } else if(g_library == "teseo"){
 #if defined(HAVE_TESEO)
         run_teseo(/* read only ? */ true);
 #else
@@ -180,6 +186,99 @@ static void run(){
     timer.stop();
     LOG("Experimented completed in " << timer);
 }
+
+void _bm_run_csr(){
+    library::CSR* csr = dynamic_cast<library::CSR*>(g_interface.get());
+    uint64_t* __restrict out_e = csr->m_out_e;
+    const uint64_t num_vertices = csr->num_vertices();
+    common::Timer timer;
+
+    for(int r = 0; r < g_num_repetitions; r++){
+        LOG("Repetition: " << (r +1) << "/" << g_num_repetitions);
+        for(auto num_threads: g_num_threads){
+            LOG("    num threads: " << num_threads);
+
+            // degree, logical identifiers, sorted
+            timer.start();
+            uint64_t sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                sum += csr->get_out_degree(i);
+            }
+            timer.stop();
+            validate_sum_degree(sum);
+            g_samples.emplace_back("degree_logical_sorted", num_threads, timer.microseconds());
+
+            // degree, logical identifiers, unsorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                sum += csr->get_out_degree(g_vertices_logical[i]);            }
+            timer.stop();
+            validate_sum_degree(sum);
+            g_samples.emplace_back("degree_logical_unsorted", num_threads, timer.microseconds());
+
+            // point lookups, logical vertices, sorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                auto p = csr->get_out_interval(i);
+                if(p.second > p.first){ // otherwise the vertex does not have outgoing edges
+                    sum += csr->m_out_e[p.first];
+                }
+            }
+            timer.stop();
+            validate_sum_point_lookups(sum);
+            g_samples.emplace_back("point_logical_sorted", num_threads, timer.microseconds());
+
+            // point lookups, logical, unsorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                auto p = csr->get_out_interval(g_vertices_logical[i]);
+                if(p.second > p.first){ // otherwise the vertex does not have outgoing edges
+                    sum += csr->m_out_e[p.first];
+                }
+            }
+            timer.stop();
+            validate_sum_point_lookups(sum);
+            g_samples.emplace_back("point_logical_unsorted", num_threads, timer.microseconds());
+
+            // scan, logical vertices, sorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                auto p = csr->get_out_interval(i);
+                for(uint64_t j = p.first; j < p.second; j++){
+                    sum += out_e[j];
+                }
+            }
+            timer.stop();
+            validate_sum_scan(sum);
+            g_samples.emplace_back("scan_logical_sorted", num_threads, timer.microseconds());
+
+            // scan, logical vertices, unsorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            for(uint64_t i = 0; i < num_vertices; i++){
+                auto p = csr->get_out_interval(g_vertices_logical[i]);
+                for(uint64_t j = p.first; j < p.second; j++){
+                    sum += out_e[j];
+                }
+            }
+            timer.stop();
+            validate_sum_scan(sum);
+            g_samples.emplace_back("scan_logical_unsorted", num_threads, timer.microseconds());
+        }
+    }
+}
+
+void run_csr(){ _bm_run_csr(); }
 
 #if defined(HAVE_TESEO)
 
@@ -853,7 +952,9 @@ static void compute_medians(){
 }
 
 static void load(){
-    if(g_library == "teseo" || g_library == "teseo-rw"){
+    if(g_library == "csr"){
+        g_interface.reset( new gfe::library::CSR( /* directed ? */ false ) );
+    } else if(g_library == "teseo" || g_library == "teseo-rw"){
 #if defined(HAVE_TESEO)
         g_interface.reset( new gfe::library::TeseoDriver(/* directed ? */ false) );
 #else
@@ -892,9 +993,7 @@ static void load(){
 #endif
     }
 
-    LOG("Loading the graph from " << g_path_graph << " ...");
-    auto edges = make_shared<gfe::graph::WeightedEdgeStream> ( g_path_graph );
-    edges->permute();
+
 
     { // list of vertices
         LOG("Loading the list of vertices...");
@@ -921,20 +1020,33 @@ static void load(){
         LOG("List of vertices loaded in " << timer);
     }
 
-    uint64_t num_threads = thread::hardware_concurrency();
-    if(g_library == "stinger"){ // best number of threads in stones2 according to the scalability results
-        num_threads = 1;
-    } else if(g_library == "llama"){
-        num_threads = 16;
-    } else if(g_library == "graphone"){
-        num_threads = 3;
-    }
+    if(g_library == "csr") {
+        LOG("Loading the graph from " << g_path_graph << " ... ");
+        common::Timer timer; timer.start();
+        dynamic_pointer_cast<gfe::library::LoaderInterface>(g_interface)->load(g_path_graph);
+        timer.stop();
+        LOG("Load performed in " << timer);
 
-    LOG("Inserting " << edges->num_edges() << " edges into `" << g_library << "' ...");
-    gfe::experiment::InsertOnly insert(dynamic_pointer_cast<gfe::library::UpdateInterface>(g_interface), edges, num_threads);
-    if(g_library == "llama"){ insert.set_build_frequency( 10s ); }
-    insert.set_scheduler_granularity(1ull < 20);
-    insert.execute();
+    } else {
+        LOG("Loading the graph from " << g_path_graph << " ...");
+        auto edges = make_shared<gfe::graph::WeightedEdgeStream> ( g_path_graph );
+        edges->permute();
+
+        uint64_t num_threads = thread::hardware_concurrency();
+        if(g_library == "stinger"){ // best number of threads in stones2 according to the scalability results
+            num_threads = 1;
+        } else if(g_library == "llama"){
+            num_threads = 16;
+        } else if(g_library == "graphone"){
+            num_threads = 3;
+        }
+
+        LOG("Inserting " << edges->num_edges() << " edges into `" << g_library << "' ...");
+        gfe::experiment::InsertOnly insert(dynamic_pointer_cast<gfe::library::UpdateInterface>(g_interface), edges, num_threads);
+        if(g_library == "llama"){ insert.set_build_frequency( 10s ); }
+        insert.set_scheduler_granularity(1ull < 20);
+        insert.execute();
+    }
 }
 
 static void parse_args(int argc, char* argv[]) {
@@ -970,8 +1082,8 @@ static void parse_args(int argc, char* argv[]) {
         } break;
         case 'l': {
             string library = optarg;
-            if(library != "teseo" && library != "teseo-rw" && library != "graphone" && library != "llama" && library != "stinger"){
-                cerr << "ERROR: Invalid library: `" << library << "'. Only \"teseo\", \"graphone\", \"llama\" and \"stinger\" are supported." << endl;
+            if(library != "csr" && library != "teseo" && library != "teseo-rw" && library != "graphone" && library != "llama" && library != "stinger"){
+                cerr << "ERROR: Invalid library: `" << library << "'. Only \"csr\", \"teseo\", \"graphone\", \"llama\" and \"stinger\" are supported." << endl;
             }
             g_library = library;
         } break;
@@ -1074,7 +1186,7 @@ static string string_usage(char* program_name) {
     ss << "Usage: " << program_name << " -G <graph> [-t <num_threads>] [-l <library>] [-R <num_repetitions>]\n";
     ss << "Where: \n";
     ss << "  -G <graph> is an .properties file of an undirected graph from the Graphalytics data set\n";
-    ss << "  -l <library> is the library to execute. Only \"teseo\" (default), \"teseo-rw\", \"graphone\", \"llama\" and \"stinger\" are supported\n";
+    ss << "  -l <library> is the library to execute. Only \"csr\", \"teseo\" (default), \"teseo-rw\", \"graphone\", \"llama\" and \"stinger\" are supported\n";
     ss << "  -R <num_repetitions> is the number of repetitions the same micro benchmarks need to be performed\n";
     ss << "  -t <num_threads> follows the page range format, e.g. 1-16,32\n";
     return ss.str();
