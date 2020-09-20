@@ -106,6 +106,7 @@ void Configuration::initialiase(int argc, char* argv[]){
         ("h, help", "Show this help menu")
         ("latency", "Measure the latency of inserts/updates, report the average, median, std. dev. and 90/95/97/99 percentiles")
         ("l, library", libraries_help_screen(), value<string>())
+        ("load", "Load the graph into the library in one go")
         ("log", "Repeat the log of updates specified in the given file", value<string>())
         ("max_weight", "The maximum weight that can be assigned when reading non weighted graphs", value<double>()->default_value(to_string(max_weight())))
         ("omp", "Maximum number of threads that can be used by OpenMP (0 = do not change)", value<int>()->default_value(to_string(num_threads_omp())))
@@ -210,6 +211,10 @@ void Configuration::initialiase(int argc, char* argv[]){
             if(library_found == end(libs)){ ERROR("Library not recognised: `" << result["library"].as<string>() << "'"); }
             m_library_name = library_found->m_name;
             m_library_factory = library_found->m_factory;
+        }
+
+        if( result["load"].count() > 0 ){
+            set_load(true);
         }
 
         if( result["undirected"].count() > 0 ){
@@ -333,6 +338,10 @@ void Configuration::set_build_frequency( uint64_t millisecs ){
     m_build_frequency = millisecs;
 }
 
+void Configuration::set_load( bool value ) {
+    m_load = value;
+}
+
 void Configuration::set_aging_step_size( double value ){
     if(value <= 0 || value > 1){
         ERROR("Invalid value for the aging step size. It must be in (0, 1]. Value given: " << value);
@@ -370,6 +379,10 @@ int Configuration::num_threads_omp() const {
 
 bool Configuration::is_aging2_timeout_set() const {
     return m_timeout_aging2;
+}
+
+bool Configuration::is_load() const {
+    return m_load;
 }
 
 std::unique_ptr<library::Interface> Configuration::generate_graph_library() {
@@ -427,6 +440,7 @@ void Configuration::save_parameters() {
     params.push_back(P{"timeout", to_string(get_timeout_per_operation())});
     params.push_back(P{"directed", to_string(is_graph_directed())});
     params.push_back(P{"library", get_library_name()});
+    params.push_back(P{"load", to_string(is_load())});
     if(!get_update_log().empty()) {
         // version 1: uniform distribution
         // version 2: log file, follow the same node degree distribution of the input graph

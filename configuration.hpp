@@ -68,6 +68,7 @@ class Configuration {
     double m_ef_edges = 1;  // expansion factor for the edges in the graph
     bool m_graph_directed = true; // whether the graph is undirected or directed
     std::string m_library_name; // the library to test
+    bool m_load = false; // whether to load the graph in one go
     double m_max_weight { 1.0 }; // the maximum weight that can be assigned when reading non weighted graphs
     bool m_measure_latency = false; // whether to measure the latency of the update operations (insert/deletion).
     uint64_t m_num_repetitions { 0 }; // when applicable, how many times the same experiment should be repeated
@@ -89,6 +90,7 @@ class Configuration {
     void set_coeff_aging(double value); // Set the coefficient for `aging', i.e. how many updates (insertions/deletions) to perform w.r.t. to the size of the loaded graph
     void set_ef_vertices(double value);
     void set_ef_edges(double value);
+    void set_load(bool value);
     void set_num_repetitions(uint64_t value); // Set how many times to repeat the Graphalytics suite of algorithms
     void set_num_threads_omp(int value); // The number of threads created by an OpenMP master
     void set_num_threads_read(int value); // Set the number of threads to use in the read operations.
@@ -176,6 +178,9 @@ public:
 
     // Is the timeout set for the aging2 experiment?
     bool is_aging2_timeout_set() const;
+
+    // Whether to load the graph in one go
+    bool is_load() const;
 
     // Retrieve the handle to the database connection, where the final results of the experiments are stored
     ::common::Database* db();

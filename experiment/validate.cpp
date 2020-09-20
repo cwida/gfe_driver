@@ -25,7 +25,7 @@ using namespace std;
 
 namespace gfe::experiment {
 
-uint64_t validate_updates(shared_ptr<gfe::library::UpdateInterface> ptr_interface, shared_ptr<gfe::graph::WeightedEdgeStream> ptr_stream) {
+uint64_t validate_updates(shared_ptr<gfe::library::Interface> ptr_interface, shared_ptr<gfe::graph::WeightedEdgeStream> ptr_stream) {
     auto interface = ptr_interface.get();
     auto stream = ptr_stream;
 

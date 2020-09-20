@@ -19,6 +19,7 @@
 #include "common/database.hpp"
 #include "common/error.hpp"
 #include "common/system.hpp"
+#include "common/timer.hpp"
 #include "experiment/aging2_experiment.hpp"
 #include "experiment/insert_only.hpp"
 #include "experiment/graphalytics.hpp"
@@ -62,8 +63,6 @@ static void run_standalone(int argc, char* argv[]){
     shared_ptr<library::Interface> impl { configuration().generate_graph_library() };
     impl->set_timeout(configuration().get_timeout_per_operation());
 
-    auto impl_upd = dynamic_pointer_cast<library::UpdateInterface>(impl);
-    if(impl_upd.get() == nullptr){ ERROR("The library does not support updates"); }
 
     auto impl_ga = dynamic_pointer_cast<library::GraphalyticsInterface>(impl);
     if(impl_ga.get() == nullptr && configuration().num_repetitions() > 0){ // Shall we execute the Graphalytics suite?
@@ -74,50 +73,75 @@ static void run_standalone(int argc, char* argv[]){
 
     uint64_t random_vertex = 0;
     int64_t num_validation_errors = -1; // -1 => no validation performed
-    if(configuration().get_update_log().empty()){
-        LOG("[driver] Loading the graph from " << path_graph);
-        auto stream = make_shared<graph::WeightedEdgeStream> ( configuration().get_path_graph() );
-        stream->permute();
-        if(stream->num_edges() > 0) random_vertex = stream->get(0).m_source;
+    if(configuration().is_load()){
+        auto impl_load = dynamic_pointer_cast<library::LoaderInterface>(impl);
+        if(impl_load.get() == nullptr){ ERROR("The library `" << configuration().get_library_name() << "' does not support loading"); }
 
-        LOG("[driver] Number of concurrent threads: " << configuration().num_threads(THREADS_WRITE) );
+        LOG("[driver] Loading the graph: " << path_graph);
 
-        if(configuration().measure_latency()) ERROR("[driver] InsertOnly, support for latency measurements removed");
+        common::Timer timer; timer.start();
+        impl_load->load(path_graph);
+        timer.stop();
+        LOG("[driver] Load performed in " << timer);
 
-        InsertOnly experiment { impl_upd, stream, configuration().num_threads(THREADS_WRITE) };
-        experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
-        experiment.set_scheduler_granularity(1ull < 20);
-        experiment.execute();
-        if(configuration().has_database()) experiment.save();
 
-        if(configuration().validate_inserts() && impl_upd->can_be_validated()){
-            num_validation_errors = validate_updates(impl_upd, stream);
+        if(configuration().validate_inserts() && impl_load->can_be_validated()){
+            auto stream = make_shared<graph::WeightedEdgeStream> ( configuration().get_path_graph() );
+            num_validation_errors = validate_updates(impl_load, stream);
         }
 
     } else {
-        LOG("[driver] Number of concurrent threads: " << configuration().num_threads(THREADS_WRITE) );
-        LOG("[driver] Aging2, path to the log of updates: " << configuration().get_update_log());
-        Aging2Experiment experiment;
-        experiment.set_library(impl_upd);
-        experiment.set_log(configuration().get_update_log());
-        experiment.set_parallelism_degree(configuration().num_threads(THREADS_WRITE));
-        experiment.set_report_progress(true);
-        experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
-        experiment.set_max_weight(configuration().max_weight());
-        experiment.set_measure_latency(configuration().measure_latency());
-        experiment.set_num_reports_per_ops(configuration().get_num_recordings_per_ops());
-        experiment.set_timeout(configuration().is_aging2_timeout_set());
+        auto impl_upd = dynamic_pointer_cast<library::UpdateInterface>(impl);
+        if(impl_upd.get() == nullptr){ ERROR("The library `" << configuration().get_library_name() << "' does not support updates"); }
 
-        auto result = experiment.execute();
-        if(configuration().has_database()) result.save(configuration().db());
-        random_vertex = result.get_random_vertex_id();
-
-        if(configuration().validate_inserts() && impl_upd->can_be_validated()){
-            LOG("[driver] Validation of updates requested, loading the original graph from: " << path_graph);
+        if(configuration().get_update_log().empty()){
+            LOG("[driver] Using the graph " << path_graph);
             auto stream = make_shared<graph::WeightedEdgeStream> ( configuration().get_path_graph() );
-            num_validation_errors = validate_updates(impl_upd, stream);
+            stream->permute();
+            if(stream->num_edges() > 0) random_vertex = stream->get(0).m_source;
+
+            LOG("[driver] Number of concurrent threads: " << configuration().num_threads(THREADS_WRITE) );
+
+            if(configuration().measure_latency()) ERROR("[driver] InsertOnly, support for latency measurements removed");
+
+            InsertOnly experiment { impl_upd, stream, configuration().num_threads(THREADS_WRITE) };
+            experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
+            experiment.set_scheduler_granularity(1ull < 20);
+            experiment.execute();
+            if(configuration().has_database()) experiment.save();
+
+            if(configuration().validate_inserts() && impl_upd->can_be_validated()){
+                num_validation_errors = validate_updates(impl_upd, stream);
+            }
+
+        } else {
+            LOG("[driver] Number of concurrent threads: " << configuration().num_threads(THREADS_WRITE) );
+            LOG("[driver] Aging2, path to the log of updates: " << configuration().get_update_log());
+            Aging2Experiment experiment;
+            experiment.set_library(impl_upd);
+            experiment.set_log(configuration().get_update_log());
+            experiment.set_parallelism_degree(configuration().num_threads(THREADS_WRITE));
+            experiment.set_report_progress(true);
+            experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
+            experiment.set_max_weight(configuration().max_weight());
+            experiment.set_measure_latency(configuration().measure_latency());
+            experiment.set_num_reports_per_ops(configuration().get_num_recordings_per_ops());
+            experiment.set_timeout(configuration().is_aging2_timeout_set());
+
+            auto result = experiment.execute();
+            if(configuration().has_database()) result.save(configuration().db());
+            random_vertex = result.get_random_vertex_id();
+
+            if(configuration().validate_inserts() && impl_upd->can_be_validated()){
+                LOG("[driver] Validation of updates requested, loading the original graph from: " << path_graph);
+                auto stream = make_shared<graph::WeightedEdgeStream> ( configuration().get_path_graph() );
+                num_validation_errors = validate_updates(impl_upd, stream);
+            }
         }
     }
+
+
+
 
     if(configuration().has_database()){
         vector<pair<string, string>> params;

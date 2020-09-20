@@ -31,6 +31,7 @@
 #include "common/timer.hpp"
 
 #include "baseline/adjacency_list.hpp"
+#include "baseline/csr.hpp"
 #include "baseline/dummy.hpp"
 #if defined(HAVE_LLAMA)
 #include "llama/llama_class.hpp"
@@ -79,6 +80,10 @@ ImplementationManifest::ImplementationManifest(const string& name, const string&
 
 std::unique_ptr<Interface> generate_baseline_adjlist(bool directed_graph){ // directed or undirected graph
     return unique_ptr<Interface>{ new AdjacencyList(directed_graph) };
+}
+
+std::unique_ptr<Interface> generate_csr(bool directed_graph){
+    return unique_ptr<Interface>{ new CSR(directed_graph) };
 }
 
 std::unique_ptr<Interface> generate_dummy(bool directed_graph){
@@ -185,6 +190,8 @@ vector<ImplementationManifest> implementations() {
     // v2 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     result.emplace_back("baseline_v2", "Sequential baseline, based on adjacency list", &generate_baseline_adjlist);
 
+    result.emplace_back("csr", "CSR baseline", &generate_csr);
+
     // v2 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     result.emplace_back("dummy_v2", "Dummy implementation of the interface, all operations are nop", &generate_dummy);
 
@@ -275,6 +282,10 @@ void Interface::updates_start() { }
 
 void Interface::updates_stop() { }
 
+bool Interface::can_be_validated() const {
+    return true;
+}
+
 /*****************************************************************************
  *                                                                           *
  *  Update interface                                                         *
@@ -347,10 +358,6 @@ void UpdateInterface::load(const string& path) {
 
 void UpdateInterface::build(){
     /* nop */
-}
-
-bool UpdateInterface::can_be_validated() const {
-    return true;
 }
 
 uint64_t UpdateInterface::num_levels() const {

@@ -21,13 +21,13 @@
 #include <memory>
 
 namespace gfe::graph { class WeightedEdgeStream; } // forward declaration
-namespace gfe::library { class UpdateInterface; } // forward declaration
+namespace gfe::library { class Interface; } // forward declaration
 
 namespace gfe::experiment {
 
 /**
  * Check that all edges in the stream are contained in the interface. Report the number of missing vertices (0 => validation successful).
  */
-uint64_t validate_updates(std::shared_ptr<gfe::library::UpdateInterface> interface, std::shared_ptr<gfe::graph::WeightedEdgeStream> stream);
+uint64_t validate_updates(std::shared_ptr<gfe::library::Interface> interface, std::shared_ptr<gfe::graph::WeightedEdgeStream> stream);
 
 } // namespace

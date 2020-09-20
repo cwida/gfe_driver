@@ -145,6 +145,11 @@ public:
     // To assess the overhead of the compaction phase in LLAMA
     virtual void updates_start();
     virtual void updates_stop();
+
+    /**
+     * Check whether we are allowed to validate the updates performed
+     */
+    virtual bool can_be_validated() const;
 };
 
 /**
@@ -239,11 +244,6 @@ public:
         double m_weight; // if < 0, this is an edge removal, otherwise it's an edge insertion with the given weight
     };
     virtual bool batch(const SingleUpdate* array, size_t array_sz, bool force = true);
-
-    /**
-     * Check whether we are allowed to validate the updates performed
-     */
-    virtual bool can_be_validated() const;
 };
 
 /**
