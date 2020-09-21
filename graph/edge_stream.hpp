@@ -85,7 +85,7 @@ public:
     std::unique_ptr<VertexList> vertex_list() const;
 
     // Get the set of vertices present. For each vertex, return the number of outgoing edges attached.
-    std::unique_ptr<cuckoohash_map<uint64_t, uint64_t>> vertex_table() const;
+    std::unique_ptr<libcuckoo::cuckoohash_map<uint64_t, uint64_t>> vertex_table() const;
 
     // Get the max vertex id present
     uint64_t max_vertex_id() const { return m_max_vertex_id; };

@@ -33,6 +33,7 @@
 #include "utility/timeout_service.hpp"
 #include "stinger_error.hpp"
 
+using namespace libcuckoo;
 using namespace std;
 
 // Macros

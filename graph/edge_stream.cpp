@@ -31,6 +31,7 @@
 #include "vertex_list.hpp"
 
 using namespace common;
+using namespace libcuckoo;
 using namespace std;
 
 namespace gfe::graph {

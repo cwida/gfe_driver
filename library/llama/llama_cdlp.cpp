@@ -29,6 +29,7 @@
 
 using namespace common;
 using namespace gfe::utility;
+using namespace libcuckoo;
 using namespace std;
 
 /*****************************************************************************

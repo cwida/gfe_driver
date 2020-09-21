@@ -31,6 +31,7 @@
 #include "llama_internal.hpp"
 
 using namespace gapbs;
+using namespace libcuckoo;
 using namespace std;
 
 /******************************************************************************

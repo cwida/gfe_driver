@@ -86,8 +86,8 @@
 #include "utility/timeout_service.hpp"
 
 using namespace common;
+using namespace libcuckoo;
 using namespace std;
-
 
 /*****************************************************************************
  *                                                                           *

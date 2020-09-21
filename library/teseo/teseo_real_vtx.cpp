@@ -36,6 +36,7 @@
 
 using namespace common;
 using namespace gapbs;
+using namespace libcuckoo;
 using namespace std;
 using namespace teseo;
 

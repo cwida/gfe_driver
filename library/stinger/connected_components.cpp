@@ -33,6 +33,7 @@ extern "C" {
 }
 #include "stinger_error.hpp"
 
+using namespace libcuckoo;
 using namespace std;
 
 // Macros

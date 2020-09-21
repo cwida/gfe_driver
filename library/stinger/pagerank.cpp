@@ -29,6 +29,7 @@
 #include "stinger_core/stinger.h"
 #include "stinger_error.hpp"
 
+using namespace libcuckoo;
 using namespace std;
 
 // Macros

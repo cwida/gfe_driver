@@ -24,6 +24,7 @@
 #include "stinger_core/stinger.h"
 
 using namespace common;
+using namespace libcuckoo;
 using namespace std;
 
 #define STINGER reinterpret_cast<struct stinger*>(m_stinger_graph)

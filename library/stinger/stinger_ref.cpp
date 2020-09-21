@@ -30,6 +30,7 @@
 #include "stinger_error.hpp"
 
 using namespace gapbs;
+using namespace libcuckoo;
 using namespace std;
 
 // Macros
