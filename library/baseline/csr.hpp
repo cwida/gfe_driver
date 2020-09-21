@@ -33,7 +33,7 @@ void _bm_run_csr(); // bm experiment
 
 namespace gfe::library {
 
-class CSR : public virtual LoaderInterface, public virtual GraphalyticsInterface  {
+class CSR : public virtual LoaderInterface, public virtual RandomVertexInterface, public virtual GraphalyticsInterface  {
     friend void ::_bm_run_csr();
 
 protected:
@@ -139,6 +139,11 @@ public:
      * Set the timeout for the Graphalytics kernels
      */
     void set_timeout(uint64_t seconds);
+
+    /**
+     * Get a random vertex ID
+     */
+    uint64_t get_random_vertex_id() const;
 
     /**
      * Perform a BFS from source_vertex_id to all the other vertices in the graph.

@@ -164,6 +164,17 @@ public:
 };
 
 /**
+ * Retrieve a random vertex ID
+ */
+class RandomVertexInterface : public virtual Interface {
+public:
+    /**
+     * Get a random vertex ID
+     */
+    virtual uint64_t get_random_vertex_id() const = 0;
+};
+
+/**
  * Update interface
  */
 class UpdateInterface : public virtual Interface, public virtual LoaderInterface {

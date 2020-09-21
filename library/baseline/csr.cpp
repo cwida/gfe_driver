@@ -23,6 +23,7 @@
 #include <limits>
 #include <mutex>
 #include <omp.h>
+#include <random>
 #include <sstream>
 #include <string>
 #include <unordered_set>
@@ -151,6 +152,13 @@ uint64_t CSR::get_out_degree(uint64_t logical_vertex_id) const {
 uint64_t CSR::get_in_degree(uint64_t logical_vertex_id) const {
     auto interval = get_in_interval(logical_vertex_id);
     return interval.second - interval.first;
+}
+
+uint64_t CSR::get_random_vertex_id() const {
+    std::mt19937_64 generator { /* seed */ std::random_device{}() };
+    std::uniform_int_distribution<uint64_t> distribution{ 0, m_num_vertices -1 };
+    uint64_t outcome = distribution(generator);
+    return m_log2ext[outcome];
 }
 
 void CSR::set_timeout(uint64_t seconds) {

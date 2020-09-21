@@ -71,25 +71,26 @@ static void run_standalone(int argc, char* argv[]){
 
     LOG("[driver] The library is set for a directed graph: " << (configuration().is_graph_directed() ? "yes" : "no"));
 
-    uint64_t random_vertex = 0;
+    uint64_t random_vertex = numeric_limits<uint64_t>::max();
     int64_t num_validation_errors = -1; // -1 => no validation performed
     if(configuration().is_load()){
         auto impl_load = dynamic_pointer_cast<library::LoaderInterface>(impl);
         if(impl_load.get() == nullptr){ ERROR("The library `" << configuration().get_library_name() << "' does not support loading"); }
+        auto impl_rndvtx = dynamic_pointer_cast<library::RandomVertexInterface>(impl);
+        if(impl_rndvtx.get() == nullptr){ ERROR("The library `" << configuration().get_library_name() << "' does not allow to fetch a random vertex"); }
 
         LOG("[driver] Loading the graph: " << path_graph);
-
         common::Timer timer; timer.start();
         impl_load->load(path_graph);
         timer.stop();
         LOG("[driver] Load performed in " << timer);
-
 
         if(configuration().validate_inserts() && impl_load->can_be_validated()){
             auto stream = make_shared<graph::WeightedEdgeStream> ( configuration().get_path_graph() );
             num_validation_errors = validate_updates(impl_load, stream);
         }
 
+        random_vertex = impl_rndvtx->get_random_vertex_id();
     } else {
         auto impl_upd = dynamic_pointer_cast<library::UpdateInterface>(impl);
         if(impl_upd.get() == nullptr){ ERROR("The library `" << configuration().get_library_name() << "' does not support updates"); }
@@ -139,9 +140,6 @@ static void run_standalone(int argc, char* argv[]){
             }
         }
     }
-
-
-
 
     if(configuration().has_database()){
         vector<pair<string, string>> params;
