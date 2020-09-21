@@ -18,6 +18,7 @@
 #include "csr.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -1284,6 +1285,225 @@ void CSR::sssp(uint64_t source_vertex_id, const char* dump2file) {
     }
 }
 
+
+/*****************************************************************************
+ *                                                                           *
+ *  LCC, sort-merge implementation                                           *
+ *                                                                           *
+ *****************************************************************************/
+/**
+ * Algorithm parameters
+ */
+//static const uint64_t LCC_NUM_WORKERS = thread::hardware_concurrency(); // number of workers / logical threads to use
+static const uint64_t LCC_NUM_WORKERS = 1; // number of workers / logical threads to use
+static constexpr uint64_t LCC_TASK_SIZE = 1ull << 10; // number of vertices processed in each task
+
+
+#undef COUT_CLASS_NAME
+#define COUT_CLASS_NAME "CSR_LCC"
+
+CSR_LCC::CSR_LCC(bool is_directed) : CSR(is_directed) {
+    if(is_directed) { ERROR("[CSR_LCC] Directed graphs are not supported"); }
+}
+
+void CSR_LCC::lcc(const char* dump2file){
+    double* scores = nullptr;
+    utility::TimeoutService timeout { m_timeout };
+    common::Timer timer; timer.start();
+
+    { // restrict the scope to allow the dtor to clean up
+        Master algorithm ( this, &timeout );
+        scores = algorithm.execute();
+    }
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
+
+    // Translate the vertex IDs
+    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
+    #pragma omp parallel for
+    for(uint64_t i = 0; i < m_num_vertices; i++){
+        external_ids.insert(m_log2ext[i], scores[i]);
+    }
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
+
+    // store the results in the given file
+    if(dump2file != nullptr){
+        COUT_DEBUG("save the results to: " << dump2file);
+        fstream handle(dump2file, ios_base::out);
+        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
+
+        auto hashtable = external_ids.lock_table();
+
+        for(const auto& keyvaluepair : hashtable){
+            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
+        }
+
+        handle.close();
+    }
+
+    delete[] scores;
+}
+
+#undef COUT_CLASS_NAME
+#define COUT_CLASS_NAME "CSR_LCC::Master"
+
+CSR_LCC::Master::Master(const CSR_LCC* csr, utility::TimeoutService* timeout) :
+        m_csr(csr), m_scores(nullptr), m_num_triangles(nullptr), m_next(0), m_timeout(timeout){
+}
+
+CSR_LCC::Master::~Master(){
+    delete[] m_scores; m_scores = nullptr;
+    delete[] m_num_triangles; m_num_triangles = nullptr;
+}
+
+void CSR_LCC::Master::initialise(){
+    assert(m_num_triangles == nullptr && "Already initialised");
+
+    m_scores = new double[m_csr->num_vertices()](); // init to 0
+    m_num_triangles = new atomic<uint64_t>[m_csr->num_vertices()](); // init to 0;
+}
+
+void CSR_LCC::Master::compute_scores(){
+    //common::Timer timer; timer.start();
+
+    for(uint64_t i = 0, N = m_csr->num_vertices(); i < N; i++){
+        uint64_t num_triangles = m_num_triangles[i];
+        if(num_triangles > 0){
+            uint64_t degree = m_csr->get_out_degree(i);
+            uint64_t max_num_edges = degree * (degree -1);
+            double score = static_cast<double>(num_triangles) / max_num_edges;
+            COUT_DEBUG("vertex: " << i << ", external id: " << m_csr->m_log2ext[i] << ", num triangles: " << num_triangles << ", degree: " << degree << ", score: " << score);
+            m_scores[i] = score;
+        } // else m_scores[i] = 0 (default value)
+    }
+
+    //timer.stop();
+    //COUT_DEBUG_FORCE("compute_scores executed in: " << timer);
+}
+
+double* CSR_LCC::Master::execute() {
+    common::Timer timer; timer.start();
+
+    // init the state and the side information for each vertex
+    initialise();
+    //COUT_DEBUG_FORCE("Initialisation time: " << timer);
+
+    // start the workers
+    assert(LCC_NUM_WORKERS >= 1 && "At least one worker should be set");
+    vector<Worker*> workers;
+    workers.reserve(LCC_NUM_WORKERS);
+    for(uint64_t worker_id = 0; worker_id < LCC_NUM_WORKERS; worker_id++ ){
+        workers.push_back(new Worker(m_csr, this));
+    }
+
+    // wait for the workers to terminate ...
+    for(uint64_t worker_id = 0; worker_id < workers.size(); worker_id++ ){
+        workers[worker_id]->join();
+        delete workers[worker_id]; workers[worker_id] = nullptr;
+    }
+    if(m_timeout->is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
+
+    compute_scores();
+
+    double* scores = m_scores;
+    m_scores = nullptr;
+    return scores;
+}
+
+bool CSR_LCC::Master::next_task(uint64_t* output_vtx_start /* inclusive */, uint64_t* output_vtx_end /* exclusive */) {
+    uint64_t logical_start = m_next.fetch_add(LCC_TASK_SIZE); /* return the previous value of m_next */
+    uint64_t num_vertices = m_csr->num_vertices();
+    if(logical_start >= num_vertices || m_timeout->is_timeout()){
+        return false;
+    } else {
+        uint64_t logical_end = std::min(logical_start + LCC_TASK_SIZE, num_vertices);
+
+        *output_vtx_start = logical_start;
+        *output_vtx_end = logical_end;
+
+        return true;
+    }
+}
+
+atomic<uint64_t>& CSR_LCC::Master::num_triangles(uint64_t vertex_id) {
+    return m_num_triangles[vertex_id];
+}
+
+#undef COUT_CLASS_NAME
+#define COUT_CLASS_NAME "CSR_LCC::Worker"
+
+CSR_LCC::Worker::Worker(const CSR_LCC* csr, Master* master) : m_csr(csr), m_master(master) {
+    m_handle = thread { &Worker::execute, this };
+}
+
+CSR_LCC::Worker::~Worker(){ }
+
+void CSR_LCC::Worker::execute() {
+    COUT_DEBUG("Worker started");
+
+    uint64_t v_start, v_end;
+    while(m_master->next_task(&v_start, &v_end)){
+        for(uint64_t v = v_start; v < v_end; v++){
+            process_vertex(v);
+        }
+    }
+
+    COUT_DEBUG("Worker terminated");
+}
+
+void CSR_LCC::Worker::join(){
+    m_handle.join();
+}
+
+void CSR_LCC::Worker::process_vertex(uint64_t n1) {
+    COUT_DEBUG("vertex: " << n1);
+    uint64_t num_triangles = 0; // current number of triangles found for `n1'
+    m_neighbours.clear();
+    uint64_t* __restrict out_e = m_csr->m_out_e;
+
+    auto n1_interval = m_csr->get_out_interval(n1);
+    for(uint64_t i = n1_interval.first; i < n1_interval.second; i++){
+        uint64_t n2 = out_e[i];
+        if(n2 > n1) break; // we're done with n1
+
+        m_neighbours.push_back(n2);
+        uint64_t marker = 0; // current position in the neighbours vector, to merge shared neighbours
+
+        auto n2_interval = m_csr->get_out_interval(n2);
+        for(uint64_t j = n2_interval.first; j < n2_interval.second; j++){
+            uint64_t n3 = out_e[j];
+            if(n3 > n2) break; // we're done with n2
+            assert(n1 > n2 && n2 > n3); // we're looking for triangles of the kind c - b - a, with c > b && b > a
+
+            COUT_DEBUG("  candidate: " << n1 << " - " << n2 << " - " << n3 << ", marker[" << marker << "] = " << m_neighbours[marker]);
+
+            if(n3 > m_neighbours[marker]){ // merge with m_neighbours
+                do {
+                    marker ++;
+                } while(marker < m_neighbours.size() && n3 > m_neighbours[marker]);
+                if(marker >= m_neighbours.size()) break; // there is nothing left to merge
+            }
+
+            if(n3 == m_neighbours[marker]){ // match !
+                COUT_DEBUG("    match: " << n1 << " - " << n2 << " - " << n3 << " and " << n1 << " - " << n3 << " - " << n2);
+
+                num_triangles += 2; // we've discovered both n1 - n2 - n3 and n1 - n3 - n2; with n1 > n2 > n3
+
+                // increase the contribution for n2
+                m_master->num_triangles(n2) += 2;
+
+                // increase the contribution for n3
+                m_master->num_triangles(n3) += 2;
+
+                marker++;
+                if(marker >= m_neighbours.size()) break; // there is nothing left to merge
+            }
+        }
+    }
+
+    if(num_triangles != 0){
+        m_master->num_triangles(n1) += num_triangles;
+    }
+}
 
 } // namespace
 

@@ -17,12 +17,17 @@
 
 #pragma once
 
+#include <atomic>
+#include <chrono>
 #include <cinttypes>
 #include <memory>
+#include <thread>
 #include <unordered_map>
+#include <vector>
 
 #include "common/error.hpp"
 #include "library/interface.hpp"
+
 
 // Forward declarations
 namespace gapbs { class Bitmap; }
@@ -192,6 +197,82 @@ public:
      * Dump the content of the graph to given stream
      */
     void dump_ostream(std::ostream& out) const;
+};
+
+
+/**
+ * Merge-sort implementation of the LCC kernel for the CSR
+ */
+class CSR_LCC : public CSR {
+    CSR_LCC(const CSR_LCC& ) = delete;
+    CSR_LCC& operator=(const CSR_LCC& ) = delete;
+
+    class Master {
+        const CSR_LCC* m_csr; // CSR data structure
+        double* m_scores; // the final scores of the LCC algorithm
+        std::atomic<uint64_t>* m_num_triangles; // number of triangles counted so far for the given vertex, array of num_vertices
+        std::atomic<uint64_t> m_next; // counter to select the next task among the workers
+        utility::TimeoutService* m_timeout; // timer to check whether we are not spending more time than what allocated (1 hour typically)
+
+        // Reserve the space in the hash maps m_score and m_state so that they can be operated concurrently by each thread/worker
+        void initialise();
+
+        // Compute the final scores
+        void compute_scores();
+
+    public:
+        // Constructor
+        Master(const CSR_LCC* csr, utility::TimeoutService* timeout);
+
+        // Destructor
+        ~Master();
+
+        // Execute the algorithm
+        double* execute();
+
+        // Select the next window to process, in the form [vertex_start, vertex_end);
+        // Return true if a window/task has been fetched, false if there are no more tasks to process
+        bool next_task(uint64_t* output_vtx_start /* inclusive */, uint64_t* output_vtx_end /* exclusive */);
+
+        // Retrieve the number of triangles associated to the given vertex
+        std::atomic<uint64_t>& num_triangles(uint64_t vertex_id);
+    };
+
+    class Worker {
+        const CSR_LCC* m_csr; // handle to the CSR instance
+        Master* m_master; // handle to the master instance
+        std::thread m_handle; // underlying thread
+        std::vector<uint64_t> m_neighbours; // neighbours of the vertex to be processed, internal state
+
+        // Process the given vertex
+        void process_vertex(uint64_t vertex_id);
+
+    public:
+        // Init
+        Worker(const CSR_LCC* csr, Master* master);
+
+        // Destructor
+        ~Worker();
+
+        // Main thread
+        void execute();
+
+        // Wait for the worker's thread to terminate
+        void join();
+    };
+
+    friend class Master;
+    friend class Worker;
+public:
+    /**
+     * Constructor, same arguments of its base class
+     */
+    CSR_LCC(bool is_directed);
+
+    /**
+     * Specialised implementation of the kernel LCC
+     */
+    virtual void lcc(const char* dump2file = nullptr);
 };
 
 } // namespace

@@ -228,7 +228,7 @@ void LCC_Master::execute() {
 bool LCC_Master::next_task(uint64_t* output_vtx_start /* inclusive */, uint64_t* output_vtx_end /* exclusive */) {
     uint64_t logical_start = m_next.fetch_add(LCC_TASK_SIZE); /* return the previous value of m_next */
     uint64_t num_vertices = m_transaction.num_vertices();
-    if(logical_start >= num_vertices){
+    if(logical_start >= num_vertices || m_timeout.is_timeout()){
         return false;
     } else {
         uint64_t logical_end = std::min(logical_start + LCC_TASK_SIZE, num_vertices);

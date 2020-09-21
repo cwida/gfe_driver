@@ -85,6 +85,10 @@ std::unique_ptr<Interface> generate_baseline_adjlist(bool directed_graph){ // di
 std::unique_ptr<Interface> generate_csr(bool directed_graph){
     return unique_ptr<Interface>{ new CSR(directed_graph) };
 }
+std::unique_ptr<Interface> generate_csr_lcc(bool directed_graph){
+    return unique_ptr<Interface>{ new CSR_LCC(directed_graph) };
+}
+
 
 std::unique_ptr<Interface> generate_dummy(bool directed_graph){
     return unique_ptr<Interface>{ new Dummy(directed_graph) };
@@ -191,6 +195,7 @@ vector<ImplementationManifest> implementations() {
     result.emplace_back("baseline_v2", "Sequential baseline, based on adjacency list", &generate_baseline_adjlist);
 
     result.emplace_back("csr", "CSR baseline", &generate_csr);
+    result.emplace_back("csr-lcc", "CSR baseline, sort-merge impl for the LCC kernel", &generate_csr_lcc);
 
     // v2 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     result.emplace_back("dummy_v2", "Dummy implementation of the interface, all operations are nop", &generate_dummy);
