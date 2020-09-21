@@ -489,7 +489,7 @@ void CSR::do_bfs_BitmapToQueue(const gapbs::Bitmap &bm, gapbs::SlidingQueue<int6
     {
         gapbs::QueueBuffer<int64_t> lqueue(queue);
         #pragma omp for
-        for (int64_t n=0; n < m_num_vertices; n++)
+        for (uint64_t n=0; n < m_num_vertices; n++)
             if (bm.get_bit(n))
                 lqueue.push_back(n);
         lqueue.flush();
@@ -536,7 +536,7 @@ unique_ptr<int64_t[]> CSR::do_bfs(uint64_t root, utility::TimeoutService& timer,
                 awake_count = do_bfs_BUStep(distances, distance, front, curr);
                 front.swap(curr);
                 distance++;
-            } while ((awake_count >= old_awake_count) || (awake_count > m_num_vertices / beta));
+            } while ((awake_count >= old_awake_count) || (awake_count > (int64_t) m_num_vertices / beta));
             do_bfs_BitmapToQueue(front, queue);
             scout_count = 1;
         } else {
@@ -566,7 +566,9 @@ void CSR::bfs(uint64_t external_source_id, const char* dump2file) {
 
     #pragma omp parallel for
     for(uint64_t logical_id = 0; logical_id < m_num_vertices; logical_id++){
-        external_ids.insert(m_log2ext[logical_id], result[logical_id]);
+        uint64_t external_id = m_log2ext[logical_id];
+        int64_t distance = result[logical_id];
+        external_ids.insert(external_id, distance);
     }
 
     if(timeout.is_timeout()){
