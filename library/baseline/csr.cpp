@@ -1294,8 +1294,8 @@ void CSR::sssp(uint64_t source_vertex_id, const char* dump2file) {
 /**
  * Algorithm parameters
  */
-//static const uint64_t LCC_NUM_WORKERS = thread::hardware_concurrency(); // number of workers / logical threads to use
-static const uint64_t LCC_NUM_WORKERS = 1; // number of workers / logical threads to use
+static const uint64_t LCC_NUM_WORKERS = thread::hardware_concurrency(); // number of workers / logical threads to use
+//static const uint64_t LCC_NUM_WORKERS = 1; // number of workers / logical threads to use
 static constexpr uint64_t LCC_TASK_SIZE = 1ull << 10; // number of vertices processed in each task
 
 
