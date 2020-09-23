@@ -68,6 +68,12 @@ void Aging2Result::save(common::Database* handle) {
         db.add("num_operations", m_progress[i]);
     }
 
+    for(auto record: m_memory_footprint){
+        auto db = handle->add("aging_intermediate_memory_usage");
+        db.add("tick", (int64_t) record.first );
+        db.add("memory_usage", (int64_t) record.second );
+    }
+
     if(m_latency_stats.get() != nullptr){
         m_latency_stats[0].save("inserts");
         m_latency_stats[1].save("deletes");

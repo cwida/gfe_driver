@@ -249,6 +249,7 @@ void Aging2Worker::main_execute_updates(){
         }
 
         COUT_DEBUG("Releasing a buffer of cardinality " << operations->size() << ", " << m_updates.size() -1 << " buffers left");
+        m_updates_mem_usage -= m_updates[0]->capacity() * sizeof(m_updates[0][0]); // update the memory footprint of this worker
         delete m_updates[0];
         m_updates.pop();
     }
@@ -292,6 +293,11 @@ void Aging2Worker::main_load_edges(uint64_t* edges, uint64_t num_edges){
 
             last->emplace_back(sources[i], destinations[i], weight);
         }
+    }
+
+    // compute the amount of space used by the vectors in m_updates
+    for(uint64_t i = 0; i < m_updates.size(); i++){
+        m_updates_mem_usage += sizeof(gfe::graph::WeightedEdge) * m_updates[i]->capacity();
     }
 }
 
@@ -408,6 +414,10 @@ uint64_t Aging2Worker::num_deletions() const {
 
 uint64_t Aging2Worker::num_operations() const {
     return m_num_operations;
+}
+
+uint64_t Aging2Worker::memory_footprint() const {
+    return m_updates_mem_usage;
 }
 
 } // namespace

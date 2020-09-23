@@ -86,6 +86,9 @@ class Aging2Master {
     // Grab the vertex id of a random (final) edge
     void set_random_vertex_id(uint64_t* edges, uint64_t num_edges);
 
+    // Get the current memory footprint of the experiment, in bytes
+    uint64_t memory_footprint() const;
+
 public:
     Aging2Master(const Aging2Experiment& parameters);
 

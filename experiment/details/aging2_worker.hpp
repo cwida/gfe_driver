@@ -40,6 +40,7 @@ class Aging2Worker {
     library::UpdateInterface* m_library; // the library being evaluated
     const int m_worker_id; // this id is passed to the interface #on_worker_init and #on_worker_destroy
     common::CircularArray<std::vector<gfe::graph::WeightedEdge>*> m_updates; // the updates to perform
+    uint64_t m_updates_mem_usage {0}; // total amount of space used by the vectors `m_updates', in bytes
     std::mt19937_64 m_random { std::random_device{}() }; // pseudo-random generator
     std::uniform_real_distribution<double> m_uniform{ 0., 1. }; // uniform distribution in [0, 1]
     uint64_t* m_latency_insertions {nullptr};
@@ -132,6 +133,9 @@ public:
 
     // Total number of operations performed so far
     uint64_t num_operations() const;
+
+    // Rough estimate of the memory footprint consumed by this worker, in bytes
+    uint64_t memory_footprint() const;
 };
 
 } // namespace

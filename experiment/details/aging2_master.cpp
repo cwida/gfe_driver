@@ -256,6 +256,7 @@ uint64_t Aging2Master::num_edges_final_graph() const {
 void Aging2Master::wait_and_record() {
     bool done = false;
     m_results.m_progress.clear();
+    chrono::steady_clock::time_point last_memory_footprint_recording = chrono::steady_clock::now();
 
     do {
         auto tp = chrono::steady_clock::now() + 1s;
@@ -267,7 +268,17 @@ void Aging2Master::wait_and_record() {
             i++;
         }
 
-        if(!done){ m_results.m_progress.push_back(num_operations_sofar()); }
+        if(!done){
+            m_results.m_progress.push_back(num_operations_sofar());
+
+            if(last_memory_footprint_recording - tp >= 20s){
+                uint64_t tick = m_results.m_progress.size() -1;
+                uint64_t mem_bytes = common::get_memory_footprint() - memory_footprint();
+                m_results.m_memory_footprint.push_back(std::make_pair(tick, mem_bytes));
+                last_memory_footprint_recording = tp;
+            }
+
+        }
 
     } while(!done && m_results.m_progress.size() < 14400 /* 4 h */);
 //    } while(!done && m_results.m_progress.size() < 86400 /* 24 h */);
@@ -335,6 +346,22 @@ void Aging2Master::set_random_vertex_id(uint64_t* edges, uint64_t num_edges){
 
     if(i < num_edges)
         m_results.m_random_vertex_id = sources[i];
+}
+
+uint64_t Aging2Master::memory_footprint() const {
+    uint64_t result = 0;
+    // workers
+    for(auto& w: m_workers){ result += w->memory_footprint(); }
+
+    // size of the internal vectors
+    result += sizeof(uint64_t) * static_cast<uint64_t>( m_parameters.m_num_reports_per_operations * ::ceil( static_cast<double>(num_operations_total())/num_edges_final_graph()) + 1 );
+    result += m_results.m_progress.capacity() * sizeof(uint64_t);
+    result += m_results.m_memory_footprint.capacity() * sizeof(m_results.m_memory_footprint[0]);
+    if(m_latencies != nullptr){
+        result += sizeof(uint64_t) * m_results.m_num_operations_total;
+    }
+
+    return result;
 }
 
 } // namespace
