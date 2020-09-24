@@ -277,7 +277,6 @@ void Aging2Master::wait_and_record() {
                 m_results.m_memory_footprint.push_back(std::make_pair(tick, mem_bytes));
                 last_memory_footprint_recording = tp;
             }
-
         }
 
     } while(!done && m_results.m_progress.size() < 14400 /* 4 h */);
