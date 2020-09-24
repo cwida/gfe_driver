@@ -210,6 +210,10 @@ void Aging2Worker::main_thread(){
 }
 
 void Aging2Worker::main_execute_updates(){
+    // compute the amount of space used by the vectors in m_updates
+    for(uint64_t i = 0; i < m_updates.size(); i++){ m_updates_mem_usage += m_updates[i]->capacity() * sizeof(gfe::graph::WeightedEdge); } // either size() or capacity()
+    COUT_DEBUG("Initial memory footprint: " << m_updates_mem_usage << " bytes");
+
     const int64_t num_total_ops = m_master.num_operations_total();
     const bool report_progress = m_master.parameters().m_report_progress;
     // reports_per_ops only affects how often a report is saved in the db, not the report to the stdout
@@ -249,7 +253,8 @@ void Aging2Worker::main_execute_updates(){
         }
 
         COUT_DEBUG("Releasing a buffer of cardinality " << operations->size() << ", " << m_updates.size() -1 << " buffers left");
-        m_updates_mem_usage -= m_updates[0]->capacity() * sizeof(m_updates[0][0]); // update the memory footprint of this worker
+        m_updates_mem_usage -= m_updates[0]->capacity() * sizeof(gfe::graph::WeightedEdge); // update the memory footprint of this worker
+        COUT_DEBUG("Memory footprint: " << m_updates_mem_usage << " bytes");
         delete m_updates[0];
         m_updates.pop();
     }
@@ -293,11 +298,6 @@ void Aging2Worker::main_load_edges(uint64_t* edges, uint64_t num_edges){
 
             last->emplace_back(sources[i], destinations[i], weight);
         }
-    }
-
-    // compute the amount of space used by the vectors in m_updates
-    for(uint64_t i = 0; i < m_updates.size(); i++){
-        m_updates_mem_usage += sizeof(gfe::graph::WeightedEdge) * m_updates[i]->capacity();
     }
 }
 
@@ -350,7 +350,6 @@ template<bool with_latency>
 void Aging2Worker::graph_insert_edge(graph::WeightedEdge edge){
     if(!m_master.is_directed() && m_uniform(m_random) < 0.5) edge.swap_src_dst(); // noise
     COUT_DEBUG("edge: " << edge);
-
 
     if(with_latency == false){
         // the function returns true if the edge has been inserted. Repeat the loop if it cannot insert the edge as one of
