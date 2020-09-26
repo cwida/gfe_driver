@@ -32,8 +32,7 @@ class Stinger : public virtual UpdateInterface, public virtual GraphalyticsInter
 protected:
     void* m_stinger_graph {nullptr}; // opaque object, container of the handle to the stinger graph
     const bool m_directed; // is the graph directed
-    mutable common::SpinLock m_spin_lock; // sync vertex creations and removals
-    uint64_t m_num_vertices = 0; // number of vertices
+    std::atomic<uint64_t> m_num_vertices = 0; // number of vertices
     uint64_t m_timeout = 0; // available time, in seconds, to complete the computation
 #if !defined(STINGER_USE_INTERNAL_MAPPING)
     cuckoohash_map<uint64_t, int64_t> m_vertex_mappings_e2i; // name mappings (external to internal)

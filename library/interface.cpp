@@ -216,9 +216,10 @@ vector<ImplementationManifest> implementations() {
     // v2 12/06/2020: OMP dynamic scheduling in the Graphalytics kernels
     // v3 29/06/2020: add_edge_v2
     // v4 24/09/2020: do not use OpenMP in updates
-    result.emplace_back("stinger4", "Stinger library", &generate_stinger);
-    result.emplace_back("stinger4-dv", "Stinger with dense vertices", &generate_stinger_dv);
-    result.emplace_back("stinger4-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
+    // v5 26/09/2020: completely disable vertex deletions
+    result.emplace_back("stinger5", "Stinger library", &generate_stinger);
+    result.emplace_back("stinger5-dv", "Stinger with dense vertices", &generate_stinger_dv);
+    result.emplace_back("stinger5-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
 #endif
 
 #if defined(HAVE_GRAPHONE)

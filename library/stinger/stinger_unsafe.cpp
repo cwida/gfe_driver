@@ -149,25 +149,10 @@ int64_t Stinger::get_or_create_vertex_id(uint64_t external_vertex_id) {
     switch(rc){
     case -1:
         ERROR("Cannot insert the given vertex_id: " << external_vertex_id << ". Stinger is full");
-    case 0: {
-        // because we cannot delete an existing mapping, here we use the convention of setting a vertex type to 1
-        // if the vertex is supposed to be deleted
-        scoped_lock<SpinLock> lock(m_spin_lock);
-
-        vtype_t type = stinger_vtype_get(STINGER, internal_vertex_id);
-        switch(type){
-        case 0:// the mapping already existed and the vertex is active (type = 0)
-            return internal_vertex_id;
-        case 1: // the mapping already existed but the vertex was deleted (type = 1)
-            stinger_vtype_set(STINGER, internal_vertex_id, 0); // reset to active
-            m_num_vertices ++;
-            return internal_vertex_id;
-        default:
-            ERROR("Invalid type: " << type);
-        }
+    case 0: { // the mapping already exists
+        return internal_vertex_id;
     } break;
-    case 1: {
-        scoped_lock<SpinLock> lock(m_spin_lock);
+    case 1: { // mapping created
         m_num_vertices++;
         return internal_vertex_id; // mapping created
     }
@@ -235,8 +220,6 @@ uint64_t Stinger::num_edges() const {
 }
 
 uint64_t Stinger::num_vertices() const {
-    // return stinger_num_active_vertices(STINGER); // stinger_num_active_vertices only checks for vertices that have not been created
-    scoped_lock<SpinLock> lock(m_spin_lock);
     return m_num_vertices;
 }
 
@@ -302,25 +285,26 @@ bool Stinger::add_vertex(uint64_t vertex_id){
     switch(rc){
     case -1:
         ERROR("Cannot insert the given vertex_id: " << vertex_id << ". Stinger is full");
-    case 0: {
-        // because we cannot delete an existing mapping, here we use the convention of setting a vertex type to 1
-        // if the vertex is supposed to be deleted
-        scoped_lock<SpinLock> lock(m_spin_lock);
-
-        vtype_t type = stinger_vtype_get(STINGER, internal_vertex_id);
-        switch(type){
-        case 0:// the mapping already existed and the vertex is active (type = 0)
-            return false;
-        case 1: // the mapping already existed but the vertex was deleted (type = 1)
-            stinger_vtype_set(STINGER, internal_vertex_id, 0); // reset to active
-            m_num_vertices ++;
-            return true;
-        default:
-            ERROR("Invalid type: " << type);
-        }
-    } break;
+    case 0: // the mapping already exists
+        return false;
+//    case 0: {
+//        // because we cannot delete an existing mapping, here we use the convention of setting a vertex type to 1
+//        // if the vertex is supposed to be deleted
+//        scoped_lock<SpinLock> lock(m_spin_lock);
+//
+//        vtype_t type = stinger_vtype_get(STINGER, internal_vertex_id);
+//        switch(type){
+//        case 0:// the mapping already existed and the vertex is active (type = 0)
+//            return false;
+//        case 1: // the mapping already existed but the vertex was deleted (type = 1)
+//            stinger_vtype_set(STINGER, internal_vertex_id, 0); // reset to active
+//            m_num_vertices ++;
+//            return true;
+//        default:
+//            ERROR("Invalid type: " << type);
+//        }
+//    } break;
     case 1: {
-        scoped_lock<SpinLock> lock(m_spin_lock);
         m_num_vertices++;
         return true; // mapping created
     }
@@ -330,24 +314,31 @@ bool Stinger::add_vertex(uint64_t vertex_id){
 }
 
 bool Stinger::remove_vertex(uint64_t external_vertex_id){
-    int64_t internal_vertex_id = get_internal_id(external_vertex_id);
-    if(internal_vertex_id < 0) return false; // the vertex does not even have a mapping
-
     // remove all edges (directed and undirected) for the internal_vertex_id.
     // It should also remove the mapping, but the current Stinger implementation does not support this, returning -1.
-    // As workaround, we set the vertex type to 1, to signal the vertex as inactive
-    auto rc = stinger_remove_vertex(STINGER, internal_vertex_id);
+    //auto rc = stinger_remove_vertex(STINGER, internal_vertex_id);
 
-    scoped_lock<SpinLock> lock(m_spin_lock);
-    if(rc == -1){
-        if(stinger_vtype_get(STINGER, internal_vertex_id) == 1){ // already previously marked as inactive
-            return false;
-        } else {
-            stinger_vtype_set(STINGER, internal_vertex_id, 1);
-        }
-    }
-    assert(m_num_vertices > 0);
-    m_num_vertices--;
+    assert(0 && "Operation not supported");
+    return false;
+
+//    int64_t internal_vertex_id = get_internal_id(external_vertex_id);
+//    if(internal_vertex_id < 0) return false; // the vertex does not even have a mapping
+//
+//    // remove all edges (directed and undirected) for the internal_vertex_id.
+//    // It should also remove the mapping, but the current Stinger implementation does not support this, returning -1.
+//    // As workaround, we set the vertex type to 1, to signal the vertex as inactive
+//    auto rc = stinger_remove_vertex(STINGER, internal_vertex_id);
+//
+//    scoped_lock<SpinLock> lock(m_spin_lock);
+//    if(rc == -1){
+//        if(stinger_vtype_get(STINGER, internal_vertex_id) == 1){ // already previously marked as inactive
+//            return false;
+//        } else {
+//            stinger_vtype_set(STINGER, internal_vertex_id, 1);
+//        }
+//    }
+//    assert(m_num_vertices > 0);
+//    m_num_vertices--;
 
     return true;
 }
