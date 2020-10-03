@@ -993,8 +993,6 @@ static void load(){
 #endif
     }
 
-
-
     { // list of vertices
         LOG("Loading the list of vertices...");
         common::Timer timer;
@@ -1034,7 +1032,7 @@ static void load(){
 
         uint64_t num_threads = thread::hardware_concurrency();
         if(g_library == "stinger"){ // best number of threads in stones2 according to the scalability results
-            num_threads = 1;
+            num_threads = 20;
         } else if(g_library == "llama"){
             num_threads = 16;
         } else if(g_library == "graphone"){
