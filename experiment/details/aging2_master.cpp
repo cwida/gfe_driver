@@ -271,11 +271,11 @@ void Aging2Master::wait_and_record() {
         if(!done){
             m_results.m_progress.push_back(num_operations_sofar());
 
-            if(tp - last_memory_footprint_recording >= 20s){
-                uint64_t tick = m_results.m_progress.size(); // 20, 40, 60, ...
+            if(/* first tick */ (m_results.m_progress.size() == 1) || tp - last_memory_footprint_recording >= 10s){
+                uint64_t tick = m_results.m_progress.size(); // 1, 10, 20, 30, 40, 50, 60, ...
                 uint64_t mem_bytes = common::get_memory_footprint() - memory_footprint();
                 m_results.m_memory_footprint.push_back(std::make_pair(tick, mem_bytes));
-                last_memory_footprint_recording = tp;
+                if(m_results.m_progress.size() > 1) { last_memory_footprint_recording = tp; } // beyond the first tick
                 //COUT_DEBUG("tick: " << tick << ", memory footprint: " << mem_bytes << " bytes");
             }
         }
