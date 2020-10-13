@@ -166,6 +166,13 @@ void CSR::set_timeout(uint64_t seconds) {
     m_timeout = seconds;
 }
 
+uint64_t* CSR::out_v() const { return m_out_v; }
+uint64_t* CSR::out_e() const { return m_out_e; }
+double* CSR::out_w() const { return m_out_w; }
+uint64_t* CSR::in_v() const { return m_in_v; }
+uint64_t* CSR::in_e() const { return m_in_e; }
+double* CSR::in_w() const { return m_in_w; }
+
 /*****************************************************************************
  *                                                                           *
  *  Load                                                                     *
@@ -174,15 +181,21 @@ void CSR::set_timeout(uint64_t seconds) {
 void CSR::load(const std::string& path){
     if(m_out_v != nullptr) ERROR("Already initialised & loaded");
 
+    ::gfe::graph::WeightedEdgeStream stream { path };
+    load(stream);
+}
+
+void CSR::load(gfe::graph::WeightedEdgeStream& stream){
+    if(m_out_v != nullptr) ERROR("Already initialised & loaded");
+
     if(m_is_directed){
-        load_directed(path);
+        load_directed(stream);
     } else {
-        load_undirected(path);
+        load_undirected(stream);
     }
 }
 
-void CSR::load_directed(const std::string& path){
-    ::gfe::graph::WeightedEdgeStream stream { path };
+void CSR::load_directed(gfe::graph::WeightedEdgeStream& stream){
     m_num_edges = stream.num_edges();
 
     { // init the mapping of vertices
@@ -263,9 +276,9 @@ void CSR::load_directed(const std::string& path){
     }
 }
 
-void CSR::load_undirected(const std::string& path){
+void CSR::load_undirected(gfe::graph::WeightedEdgeStream& stream){
     // We rely to load_directed to build a directed graph first
-    load_directed(path);
+    load_directed(stream);
 
     // init the final vectors
     unique_ptr<uint64_t[]> ptr_out_v_undirected { new uint64_t[m_num_vertices]() };
@@ -426,6 +439,15 @@ them in parent array as negative numbers. Thus the encoding of parent is:
     November 2012.
 
 */
+
+//#define DEBUG_BFS
+#if defined(DEBUG_BFS)
+#define COUT_DEBUG_BFS(msg) COUT_DEBUG(msg)
+#else
+#define COUT_DEBUG_BFS(msg)
+#endif
+
+
 int64_t CSR::do_bfs_BUStep(int64_t* distances, int64_t distance, gapbs::Bitmap &front, gapbs::Bitmap &next) const {
     int64_t awake_count = 0;
     next.reset();
@@ -433,6 +455,8 @@ int64_t CSR::do_bfs_BUStep(int64_t* distances, int64_t distance, gapbs::Bitmap &
 
     #pragma omp parallel for schedule(dynamic, 1024) reduction(+ : awake_count)
     for (uint64_t u = 0; u < m_num_vertices; u++) {
+        COUT_DEBUG_BFS("explore " << u << " [external vertex = " << m_log2ext[u] << "], distance: " << distances[u]);
+
         if (distances[u] < 0){ // the node has not been visited yet
             auto in_interval = get_in_interval(u);
             uint64_t degree = in_interval.second - in_interval.first;
@@ -440,8 +464,10 @@ int64_t CSR::do_bfs_BUStep(int64_t* distances, int64_t distance, gapbs::Bitmap &
 
             for(uint64_t i = in_interval.first; i < in_interval.second; i++){
                 uint64_t dst = in_e[i];
+                COUT_DEBUG_BFS("\tincoming edge: " << dst << " [external vertex = " << m_log2ext[dst] << "]");
 
                 if(front.get_bit(dst)) {
+                    COUT_DEBUG_BFS("\t-> distance updated to " << distance << " via vertex #" << dst << " [external vertex = " << m_log2ext[dst] << "]");
                     distances[u] = distance; // on each BUStep, all nodes will have the same distance
                     awake_count++;
                     next.set_bit(u);
@@ -465,15 +491,18 @@ int64_t CSR::do_bfs_TDStep(int64_t* distances, int64_t distance, gapbs::SlidingQ
         #pragma omp for schedule(dynamic, 64)
         for (auto q_iter = queue.begin(); q_iter < queue.end(); q_iter++) {
             int64_t u = *q_iter;
+            COUT_DEBUG_BFS("explore: " << u << " [external vertex = "  << m_log2ext[u] << "]");
             auto out_interval = get_out_interval(u);
             uint64_t degree = out_interval.second - out_interval.first;
             if(degree == 0) continue;
 
             for(uint64_t i = out_interval.first; i < out_interval.second; i++){
                 uint64_t dst = out_e[i];
+                COUT_DEBUG_BFS("\toutgoing edge: " << dst << " [external vertex = " << m_log2ext[dst] << "]");
 
                 int64_t curr_val = distances[dst];
                 if (curr_val < 0 && gapbs::compare_and_swap(distances[dst], curr_val, distance)) {
+                    COUT_DEBUG_BFS("\t-> distance updated to " << distance << " via vertex #" << dst << " [external vertex = " << m_log2ext[dst] << "]");
                     lqueue.push_back(dst);
                     scout_count += -curr_val;
                 }
@@ -565,6 +594,7 @@ void CSR::bfs(uint64_t external_source_id, const char* dump2file) {
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
     uint64_t root = m_ext2log.at(external_source_id);
+    COUT_DEBUG_BFS("root: " << root << " [external vertex: " << external_source_id << "]");
 
     // Run the BFS algorithm
     unique_ptr<int64_t[]> ptr_result = do_bfs(root, timeout);
@@ -1010,8 +1040,18 @@ void CSR::cdlp(uint64_t max_iterations, const char* dump2file) {
 #define COUT_DEBUG_LCC(msg)
 #endif
 
-// loosely based on the impl~ made for GraphOne
 unique_ptr<double[]> CSR::do_lcc(utility::TimeoutService& timer) const {
+    if(m_is_directed){
+        return do_lcc_directed(timer);
+    } else {
+        return do_lcc_undirected(timer);
+    }
+}
+
+// loosely based on the impl~ made for GraphOne
+unique_ptr<double[]> CSR::do_lcc_directed(utility::TimeoutService& timer) const {
+    assert(m_is_directed && "Implementation for directed graphs");
+
     unique_ptr<double[]> ptr_lcc { new double[m_num_vertices] };
     double* lcc = ptr_lcc.get();
     uint64_t* __restrict out_e = m_out_e;
@@ -1030,7 +1070,7 @@ unique_ptr<double[]> CSR::do_lcc(utility::TimeoutService& timer) const {
 
             // Cfr. Spec v.0.9.0 pp. 15: "If the number of neighbors of a vertex is less than two, its coefficient is defined as zero"
             uint64_t v_degree_out = get_out_degree(v);
-            uint64_t v_degree_in = m_is_directed ? get_in_degree(v) : 0;
+            uint64_t v_degree_in = get_in_degree(v);
             uint64_t v_degree_ub = v_degree_in + v_degree_out; // upper bound for directed graphs, exact degree for those undirected
             if(v_degree_ub < 2) continue;
 
@@ -1048,20 +1088,18 @@ unique_ptr<double[]> CSR::do_lcc(utility::TimeoutService& timer) const {
             }
 
             // Incoming edges (only directed graphs)
-            if(m_is_directed){
-                auto in_interval = get_in_interval(v);
-                for(uint64_t i = in_interval.first; i < in_interval.second; i++){
-                    uint64_t u = in_e[i];
-                    auto result = neighbours.insert(u);
-                    if(result.second){ // the element was actually inserted
-                        edges.push_back(u);
-                    }
+            auto in_interval = get_in_interval(v);
+            for(uint64_t i = in_interval.first; i < in_interval.second; i++){
+                uint64_t u = in_e[i];
+                auto result = neighbours.insert(u);
+                if(result.second){ // the element was actually inserted
+                    edges.push_back(u);
                 }
             }
             const uint64_t v_degree = edges.size();
 
             // Now we know is the actual degree of v, perform the proper check for directed graphs
-            if(m_is_directed && v_degree  < 2) continue;
+            if(v_degree  < 2) continue;
 
             // again, visit all neighbours of v
             // for directed graphs, edges1 contains the intersection of both the incoming and the outgoing edges
@@ -1091,6 +1129,62 @@ unique_ptr<double[]> CSR::do_lcc(utility::TimeoutService& timer) const {
         }
     }
 
+    return ptr_lcc;
+}
+
+unique_ptr<double[]> CSR::do_lcc_undirected(utility::TimeoutService& timer) const {
+    assert(!m_is_directed && "Implementation for undirected graphs");
+
+    unique_ptr<double[]> ptr_lcc { new double[m_num_vertices] };
+    double* lcc = ptr_lcc.get();
+    uint64_t* __restrict out_e = m_out_e;
+
+    #pragma omp parallel for schedule(dynamic, 64)
+    for(uint64_t v = 0; v < m_num_vertices; v++){
+        COUT_DEBUG_LCC("> Node " << v);
+        if(timer.is_timeout()) continue; // exhausted the budget of available time
+        lcc[v] = 0.0;
+        uint64_t num_triangles = 0; // number of triangles found so far for the node v
+
+        // Cfr. Spec v.0.9.0 pp. 15: "If the number of neighbors of a vertex is less than two, its coefficient is defined as zero"
+        uint64_t v_degree_out = get_out_degree(v);
+        if(v_degree_out < 2) continue;
+
+        // Build the list of neighbours of v
+        unordered_set<uint64_t> neighbours;
+
+        // Outgoing edges
+        auto out_interval = get_out_interval(v);
+        for(uint64_t i = out_interval.first; i < out_interval.second; i++){
+            uint64_t u = out_e[i];
+            neighbours.insert(u);
+        }
+
+        // again, visit all neighbours of v
+        for(uint64_t i = out_interval.first; i < out_interval.second; i++){
+            uint64_t u = out_e[i];
+            COUT_DEBUG_LCC("[" << (i - out_interval.first) << "/" << v_degree_out << "] neighbour: " << u);
+            assert(neighbours.count(u) == 1 && "The set `neighbours' should contain all neighbours of v");
+
+            // For the Graphalytics spec v 0.9.0, only consider the outgoing edges for the neighbours u
+            auto u_out_interval = get_out_interval(u);
+
+            for(uint64_t j = u_out_interval.first; j < u_out_interval.second; j++){
+                uint64_t w = out_e[j];
+                COUT_DEBUG_LCC("---> [" << j << "/" << /* degree */ (u_out_interval.second - u_out_interval.first) << "] neighbour: " << w);
+                // check whether it's also a neighbour of v
+                if(neighbours.count(w) == 1){
+                    COUT_DEBUG_LCC("Triangle found " << v << " - " << u << " - " << w);
+                    num_triangles++;
+                }
+            }
+        }
+
+        // register the final score
+        uint64_t max_num_edges = v_degree_out * (v_degree_out -1);
+        lcc[v] = static_cast<double>(num_triangles) / max_num_edges;
+        COUT_DEBUG_LCC("Score computed: " << (num_triangles) << "/" << max_num_edges << " = " << lcc[v]);
+    }
     return ptr_lcc;
 }
 

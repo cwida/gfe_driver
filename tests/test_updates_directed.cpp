@@ -33,6 +33,10 @@
 #include "library/interface.hpp"
 #include "library/baseline/adjacency_list.hpp"
 
+#if defined(HAVE_LIVEGRAPH)
+#include "library/livegraph/livegraph_driver.hpp"
+#endif
+
 #if defined(HAVE_LLAMA)
 #include "library/llama/llama_class.hpp"
 #endif
@@ -120,7 +124,7 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
     interface->on_main_init(num_threads);
 
     // insert all edges
-    cuckoohash_map<uint64_t, bool> vertices;
+    libcuckoo::cuckoohash_map<uint64_t, bool> vertices;
     shared_ptr<gfe::graph::WeightedEdgeStream> edge_list = generate_edge_stream(num_vertices);
     edge_list->permute();
 
@@ -149,7 +153,7 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
     vector<thread> threads;
     uint64_t start = 0;
     for(int thread_id = 0; thread_id < num_threads; thread_id ++){
-        uint64_t length = edges_per_thread + (thread_id < odd_threads);
+        uint64_t length = edges_per_thread + ((uint64_t) thread_id < odd_threads);
         threads.emplace_back(routine_insert_edges, thread_id, start, length);
         start += length;
     }
@@ -191,7 +195,7 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
         threads.clear();
         start = 0;
         for(int thread_id = 0; thread_id < num_threads; thread_id ++){
-            uint64_t length = edges_per_thread + (thread_id < odd_threads);
+            uint64_t length = edges_per_thread + ((uint64_t) thread_id < odd_threads);
             threads.emplace_back(routine_remove_edges, thread_id, start, length);
             start += length;
         }
@@ -260,5 +264,14 @@ TEST(Stinger, UpdatesDirected) {
     sequential(stinger);
     parallel(stinger, 128);
     parallel(stinger, 1024);
+}
+#endif
+
+#if defined(HAVE_LIVEGRAPH)
+TEST(LiveGraph, UpdatesDirected){
+    auto livegraph = make_shared<LiveGraphDriver>(/* directed */ true);
+    sequential(livegraph);
+    parallel(livegraph, 128);
+    parallel(livegraph, 1024);
 }
 #endif

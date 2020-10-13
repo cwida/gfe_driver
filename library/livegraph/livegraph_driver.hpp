@@ -17,41 +17,47 @@
 
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include "library/interface.hpp"
 
 namespace gfe::library {
 
 /**
- * Wrapper to evaluate the Teseo library
+ * Wrapper to evaluate the LiveGraph library
  */
-class TeseoDriver : public virtual UpdateInterface, public virtual GraphalyticsInterface {
-    TeseoDriver(const TeseoDriver&) = delete;
-    TeseoDriver& operator=(const TeseoDriver&) = delete;
+class LiveGraphDriver : public virtual UpdateInterface, public virtual GraphalyticsInterface {
+    LiveGraphDriver(const LiveGraphDriver&) = delete;
+    LiveGraphDriver& operator=(const LiveGraphDriver&) = delete;
 
 protected:
-    void* m_pImpl; // pointer to the teseo library
+    void* m_pImpl; // pointer to the LiveGraph handle
+    void* m_pHashMap; // pointer to the TBB HashMap to translate the vertex identifiers into the dense IDs for livegraph
     const bool m_is_directed; // whether the underlying graph is directed or undirected
     const bool m_read_only; // whether to used read only transactions for graphalytics
-    std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
+    std::atomic<uint64_t> m_num_vertices {0}; // keep track of the total number of vertices
+    std::atomic<uint64_t> m_num_edges {0}; // keep track of the total number fo edges
+    std::chrono::seconds m_timeout {0}; // the budget to complete each of the algorithms in the Graphalytics suite
+
+
+    // Retrieve the internal vertex ID for the given external vertex. If the vertex does not exist, it raises an internal error
+    uint64_t ext2int(uint64_t external_vertex_id) const;
+
+    // Retrieve the internal vertex ID for the given internal vertex ID. If the vertex does not exist, it returns uint64_t::max()
+    uint64_t int2ext(void* transaction, uint64_t internal_vertex_id) const;
 
 public:
     /**
-     * Create an instance of Teseo
+     * Create an instance of LiveGraph
      * @param is_directed: whether the underlying graph should be directed or undirected
-     * @param read_only: whether to use read-only transactions for the algorithms in graphalytics
+     * @param read_only: whether to use read-only transactions for the algorithms in Graphalytics
      */
-    TeseoDriver(bool is_directed, bool read_only = true);
+    LiveGraphDriver(bool is_directed, bool read_only = true);
 
     /**
      * Destructor
      */
-    virtual ~TeseoDriver();
-
-    /**
-     * Dump the content of the graph to given stream
-     */
-    void dump_ostream(std::ostream& out) const;
+    virtual ~LiveGraphDriver();
 
     /**
      * Get the number of edges contained in the graph
@@ -97,15 +103,16 @@ public:
     virtual bool remove_vertex(uint64_t vertex_id);
 
     /**
-     * Add the given edge in the graph
+     * Add the given edge in the graph if it doesn't exist
      * @return true if the edge has been inserted, false if this edge already exists or one of the referred
      *         vertices does not exist.
      */
     virtual bool add_edge(gfe::graph::WeightedEdge e);
 
     /**
-     * Add the given edge in the graph. Implicitly create the referred vertices if they do not already exist
-     * @return true if the edge has been inserted, false otherwise (e.g. this edge already exists)
+     * Add the given edge in the graph. Implicitly create the referred vertices if they do not already exist.
+     * If the edge already exists, its weight is updated.
+     * @return always true.
      */
     virtual bool add_edge_v2(gfe::graph::WeightedEdge e);
 
@@ -116,14 +123,16 @@ public:
     virtual bool remove_edge(gfe::graph::Edge e);
 
     /**
-     * Callback, invoked when a thread is created
+     * Dump the content of the graph to given stream.
      */
-    virtual void on_thread_init(int thread_id);
+    virtual void dump_ostream(std::ostream& out) const;
 
     /**
-     * Callback, invoked when a thread is going to be removed
+     * Retrieve the opaque objects for the internal LiveGraph & Vertex Dictionary handles.
+     * For Debugging & Testing only
      */
-    virtual void on_thread_destroy(int thread_id);
+    void* livegraph(); // lg::Graph*
+    void* vertex_dictionary(); // tbb::concurrent_hash_map<uint64_t, lg::vertex_t>
 
     /**
      * Perform a BFS from source_vertex_id to all the other vertices in the graph.
@@ -167,11 +176,6 @@ public:
      * @param dump2file if not null, dump the result in the given path, following the format expected by the benchmark specification
      */
     virtual void sssp(uint64_t source_vertex_id, const char* dump2file = nullptr);
-
-    /**
-     * Retrieve the handle to the implementation, for debugging pruposes
-     */
-    void* handle_impl();
 };
 
-}
+} // namespace

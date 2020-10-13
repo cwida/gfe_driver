@@ -518,6 +518,41 @@ if ( test x"${with_graphone}" != x"" && test x"${with_graphone}" != "no" ); then
     AS_VAR_APPEND([CPPFLAGS], [" -DHAVE_GRAPHONE"])
 fi
 
+
+#############################################################################
+# Support for the GraphOne framework
+# Usage:
+# --with-livegraph=/path/to/livegraph/lib
+#
+AC_ARG_WITH([livegraph], [AS_HELP_STRING([--with-livegraph@<:@=ARG@:>@], [
+    Link to the LiveGraph library. The argument needs to be the path to the dynamic library.
+])], [])
+
+if ( test x"${with_livegraph}" != x"" && test x"${with_livegraph}" != "no" ); then
+    dnl check whether we can compile & link a program that makes usage of omp.h
+    if ( test "${have_openmp}" == "no" ); then
+        AC_MSG_FAILURE([LiveGraph: missing prerequisite header omp.h (OpenMP runtime library)])
+    fi
+    
+    AC_MSG_NOTICE([LiveGraph: checking whether Intel TBB is present in the machine...])
+    MY_INTEL_TBB()
+    
+    if( test x"${with_livegraph}" == x"yes" ); then
+        AC_MSG_ERROR(["the full path to the LiveGraph library needs to be set, e.g. --with-livegraph=/path/to/livegraph/lib"]);
+    fi
+    
+    path_livegraph_library=$(realpath "${with_livegraph}")
+        AC_CHECK_FILE([${path_livegraph_library}], 
+        [ LIBS="-L${path_livegraph_library} -Wl,-rpath=${path_livegraph_library} ${LIBS}" ], 
+        [ AC_MSG_ERROR(["the path does not exist: ${path_livegraph_library}"]) ]
+    )
+    
+    AC_SEARCH_LIBS([_ZN2lg5Graph17begin_transactionEv], [livegraph], [], [ AC_MSG_ERROR([cannot link the library livegraph]) ])
+    
+    AC_MSG_NOTICE([LiveGraph support enabled])
+    AS_VAR_APPEND([CPPFLAGS], [" -DHAVE_LIVEGRAPH"])
+fi
+
 #############################################################################
 # Remove extra blanks from our variables
 EXTRA_CPPFLAGS=$(echo ${EXTRA_CPPFLAGS} | xargs)

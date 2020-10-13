@@ -45,10 +45,13 @@
 #include "library/graphone/graphone.hpp"
 #endif
 
+#if defined(HAVE_LIVEGRAPH)
+#include "library/livegraph/livegraph_driver.hpp"
+#endif
+
 #if defined(HAVE_TESEO)
 #include "library/teseo/teseo_driver.hpp"
 #endif
-
 
 using namespace gfe::library;
 using namespace std;
@@ -156,11 +159,9 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
     interface->on_main_init(num_threads);
 
     // insert all edges
-    cuckoohash_map<uint64_t, bool> vertices;
+    libcuckoo::cuckoohash_map<uint64_t, bool> vertices;
     shared_ptr<gfe::graph::WeightedEdgeStream> edge_list = generate_edge_stream(num_vertices);
     edge_list->permute();
-
-//    cout << "num edges: " << edge_list->num_edges() << endl;
 
     auto routine_insert_edges = [interface, edge_list, &vertices](int thread_id, uint64_t start, uint64_t length){
         interface->on_thread_init(thread_id);
@@ -199,7 +200,7 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
 
     interface->on_thread_init(0);
     interface->build();
-//    interface->dump();
+    //interface->dump();
     interface->on_thread_destroy(0);
 
     // check all edges have been inserted
@@ -209,7 +210,9 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
         for(uint64_t i = thread_id +1; i < edge_list->max_vertex_id(); i += num_threads){
             for(uint64_t j = i +1; j < edge_list->max_vertex_id(); j++){
                 if((i + j) % 2 == 0){ // the edge should be present
+                    //cout << "check " << i << " -> " << j << endl;
                     ASSERT_TRUE(interface->has_edge(i, j));
+                    //cout << "check " << j << " -> " << i << endl;
                     ASSERT_TRUE(interface->has_edge(j, i));
                     uint32_t expected_value = j * 1000 + i;
                     ASSERT_EQ(interface->get_weight(i, j), expected_value);
@@ -336,6 +339,21 @@ TEST(GraphOne, UpdatesUndirected){
     auto graphone = make_shared<GraphOne>(/* directed ? */ false, /* vtx dict ? */ true, /* blind writes ? */ false, /* ignore build = */ false, /* GAP impl ? */ false, 1ull << 24);
     sequential(graphone, true, false, 16);
     parallel(graphone, 32);
+
+    parallel_check = false; // global, reset to the default value
+    parallel_vertex_deletions = true; // global, reset to the default value
+}
+#endif
+
+#if defined(HAVE_LIVEGRAPH)
+TEST(LiveGraph, UpdatesUndirected) {
+    parallel_check = true; // global, check the weights in parallel
+    parallel_vertex_deletions = true; // global, enable vertex deletions
+
+    auto livegraph = make_shared<LiveGraphDriver>(/* directed */ false);
+    sequential(livegraph);
+    parallel(livegraph, 128);
+    parallel(livegraph, 1024);
 
     parallel_check = false; // global, reset to the default value
     parallel_vertex_deletions = true; // global, reset to the default value

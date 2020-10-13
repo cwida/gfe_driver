@@ -40,6 +40,9 @@
 #if defined(HAVE_GRAPHONE)
 #include "library/graphone/graphone.hpp"
 #endif
+#if defined(HAVE_LIVEGRAPH)
+#include "library/livegraph/livegraph_driver.hpp"
+#endif
 #if defined(HAVE_TESEO)
 #include "library/teseo/teseo_driver.hpp"
 #include "library/teseo/teseo_lcc.hpp"
@@ -375,6 +378,24 @@ TEST(GraphOneRef, GraphalyticsUndirected){
 }
 #endif
 
+#if defined(HAVE_LIVEGRAPH)
+TEST(LiveGraph, GraphalyticsUndirected){
+    auto graph = make_unique<LiveGraphDriver>(/* directed */ false);
+    load_graph(graph.get(), path_example_undirected);
+    validate(graph.get(), path_example_undirected);
+}
+TEST(LiveGraph, GraphalyticsDirected){
+    auto graph = make_unique<LiveGraphDriver>(/* directed */ true);
+    load_graph(graph.get(), path_example_directed);
+
+    /**
+     * On directed graphs, for LiveGraph we only have an implementation of WCC & SSSP. All the other kernel implementations
+     * rely on the knowledge of incoming edges, which we are not keeping atm.
+     */
+    validate(graph.get(), path_example_directed, GA_WCC | GA_SSSP);
+}
+#endif
+
 #if defined(HAVE_TESEO)
 TEST(Teseo, GraphalyticsUndirected){
     auto graph = make_unique<TeseoDriver>(/* directed */ false);
@@ -393,5 +414,4 @@ TEST(TeseoLCC_UserAPI, GraphalyticsUndirected){
     load_graph(graph.get(), path_example_undirected);
     validate(graph.get(), path_example_undirected, GA_LCC);
 }
-
 #endif

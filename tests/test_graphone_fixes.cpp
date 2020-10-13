@@ -15,8 +15,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-
-// Tests specific to the LLAMA implementation
 #include "gtest/gtest.h"
 
 #if defined(HAVE_GRAPHONE)
@@ -31,7 +29,7 @@
 #include "configuration.hpp"
 #include "graph/edge.hpp"
 #include "graph/edge_stream.hpp"
-#if defined(HAVE_LLAMA)
+#if defined(HAVE_LLAMA) // to cross check with the implementation of LLAMA
 #include "library/llama/llama_class.hpp"
 #include "library/llama-dv/llama-dv.hpp"
 #endif

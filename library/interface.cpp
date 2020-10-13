@@ -46,6 +46,9 @@
 #if defined(HAVE_GRAPHONE)
 #include "graphone/graphone.hpp"
 #endif
+#if defined(HAVE_LIVEGRAPH)
+#include "livegraph/livegraph_driver.hpp"
+#endif
 #if defined(HAVE_TESEO)
 #include "teseo/teseo_driver.hpp"
 #include "teseo/teseo_lcc.hpp"
@@ -172,6 +175,15 @@ std::unique_ptr<Interface> generate_graphone_ref_ignore_build(bool directed_grap
 }
 #endif
 
+#if defined(HAVE_LIVEGRAPH)
+std::unique_ptr<Interface> generate_livegraph_ro(bool directed_graph){ // read only transactions for Graphalytics
+    return unique_ptr<Interface>( new LiveGraphDriver(directed_graph, /*read_only ? */ true));
+}
+std::unique_ptr<Interface> generate_livegraph_rw(bool directed_graph){ // read-write transactions for Graphalytics
+    return unique_ptr<Interface>( new LiveGraphDriver(directed_graph, /*read_only ? */ false));
+}
+#endif
+
 #if defined(HAVE_TESEO)
 std::unique_ptr<Interface> generate_teseo(bool directed_graph){
     return unique_ptr<Interface>{ new TeseoDriver(directed_graph) };
@@ -234,6 +246,11 @@ vector<ImplementationManifest> implementations() {
     result.emplace_back("g1_v4-bw-dv-ignore-build", "GraphOne, blind writes, dense vertices, new deltas/levels cannot be explicitly created", &generate_graphone_bw_dv_ignore_build);
     result.emplace_back("g1_v4-ref", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref);
     result.emplace_back("g1_v4-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
+#endif
+
+#if defined(HAVE_LIVEGRAPH)
+    result.emplace_back("livegraph_ro", "LiveGraph, use read-only transactions for the Graphalytics kernels", &generate_livegraph_ro);
+    result.emplace_back("livegraph_rw", "LiveGraph, use read-write transactions for the Graphalytics kernels", &generate_livegraph_rw);
 #endif
 
 #if defined(HAVE_TESEO)

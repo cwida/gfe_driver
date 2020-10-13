@@ -28,11 +28,11 @@
 #include "common/error.hpp"
 #include "library/interface.hpp"
 
-
 // Forward declarations
 namespace gapbs { class Bitmap; }
 namespace gapbs { template <typename T> class SlidingQueue; }
 namespace gapbs { template <typename T> class pvector; }
+namespace gfe::graph { class WeightedEdgeStream; }
 namespace gfe::utility { class TimeoutService; }
 void _bm_run_csr(); // bm experiment
 
@@ -72,8 +72,8 @@ protected:
 
 private:
     // Load an undirected graph
-    void load_undirected(const std::string& path);
-    void load_directed(const std::string& path);
+    void load_undirected(gfe::graph::WeightedEdgeStream& stream);
+    void load_directed(gfe::graph::WeightedEdgeStream& stream);
 
     // BFS implementation
     std::unique_ptr<int64_t[]> do_bfs(uint64_t root, utility::TimeoutService& timer, int alpha = 15, int beta = 18) const;
@@ -94,6 +94,8 @@ private:
 
     // LCC implementation
     std::unique_ptr<double[]> do_lcc(utility::TimeoutService& timer) const;
+    std::unique_ptr<double[]> do_lcc_directed(utility::TimeoutService& timer) const;
+    std::unique_ptr<double[]> do_lcc_undirected(utility::TimeoutService& timer) const;
 
     // SSSP implementation
     gapbs::pvector<double> do_sssp(uint64_t source, double delta, utility::TimeoutService& timer) const;
@@ -139,6 +141,7 @@ public:
      * Load the whole graph representation from the given path
      */
     void load(const std::string& path);
+    void load(gfe::graph::WeightedEdgeStream& stream); // it modifies the stream
 
     /**
      * Set the timeout for the Graphalytics kernels
@@ -149,6 +152,16 @@ public:
      * Get a random vertex ID
      */
     uint64_t get_random_vertex_id() const;
+
+    /**
+     * Retrieve the internal pointers to the CSR arrays. For Debug & Testing only
+     */
+    uint64_t* out_v() const; // outgoing edges, vertex array of size |V|
+    uint64_t* out_e() const; // outgoing edges, edge array of size |E|
+    double* out_w() const; // outgoing edges, weight array of size |E|
+    uint64_t* in_v() const; // incoming edges (only directed graphs), vertex array
+    uint64_t* in_e() const; // incoming edges (only directed graphs), edge array
+    double* in_w() const; // incoming edges (only directed graphs), weight array
 
     /**
      * Perform a BFS from source_vertex_id to all the other vertices in the graph.
