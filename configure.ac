@@ -259,7 +259,7 @@ if ( test x"${with_teseo}" != x"" && test x"${with_teseo}" != "no" ); then
     
     MY_LIBEVENT()
     
-    path_teseo=$(realpath "${with_teseo}") 
+    path_teseo=$(realpath "${with_teseo}")
     path_teseo_library="${path_teseo}/libteseo.a"
     AC_CHECK_FILE([${path_teseo_library}], [  ],  [ AC_MSG_ERROR([file not found: ${path_teseo_library}]) ])
     
