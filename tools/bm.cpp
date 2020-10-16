@@ -64,6 +64,12 @@
 #include "library/graphone/internal.hpp"
 #endif
 
+// livegraph
+#if defined(HAVE_LIVEGRAPH)
+#include "library/livegraph/livegraph_driver.hpp"
+#include "third-party/livegraph/livegraph.hpp"
+#endif
+
 // llama
 #if defined(HAVE_LLAMA)
 #include "library/llama/llama_ref.hpp"
@@ -109,11 +115,15 @@ static void compute_medians(); // populate g_medians
 static void load();
 static void parse_args(int argc, char* argv[]);
 static void run();
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
 [[maybe_unused]] static void run_csr();
 [[maybe_unused]] static void run_teseo(bool read_only);
 [[maybe_unused]] static void run_graphone();
 [[maybe_unused]] static void run_llama();
+[[maybe_unused]] static void run_livegraph(bool read_only);
 [[maybe_unused]] static void run_stinger();
+#pragma GCC diagnostic pop
 static void print_results();
 static void save_results(const std::string& where);
 static string string_usage(char* program_name);
@@ -166,6 +176,12 @@ static void run(){
         run_graphone();
 #else
         assert(0 && "Support for graphone disabled");
+#endif
+    } else if(g_library == "livegraph-ro" || g_library == "livegraph-rw"){
+#if defined(HAVE_LIVEGRAPH)
+        run_livegraph(/* read only ? */ g_library == "livegraph-ro");
+#else
+        assert(0 && "Support for livegraph disabled");
 #endif
     } else if(g_library == "llama"){
 #if defined(HAVE_LLAMA)
@@ -791,9 +807,139 @@ static void run_llama(){
 }
 #endif
 
+#if defined(HAVE_LIVEGRAPH)
+static void run_livegraph(bool read_only){
+    auto interface = dynamic_cast<library::LiveGraphDriver*>(g_interface.get());
+    auto livegraph = reinterpret_cast<lg::Graph*>( interface->livegraph() );
+    const uint64_t max_vertex_id = livegraph->get_max_vertex_id();
+    auto transaction = read_only ? livegraph->begin_read_only_transaction() : livegraph->begin_transaction();
+
+    // perform a new permutation of the logical vertices, based on max_vertex_id
+    unique_ptr<uint64_t[]> ptr_permutation { new uint64_t[max_vertex_id] };
+    uint64_t* permutation = ptr_permutation.get(); // do not init the values 0, 1, 2, 3...
+    common::permute(permutation, max_vertex_id, configuration().seed() + 91);
+
+    common::Timer timer;
+
+    for(int r = 0; r < g_num_repetitions; r++){
+        LOG("Repetition: " << (r +1) << "/" << g_num_repetitions);
+        for(auto num_threads: g_num_threads){
+            LOG("    num threads: " << num_threads);
+
+            // degree, logical identifiers, sorted
+            timer.start();
+            uint64_t sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            for(uint64_t i = 0; i < max_vertex_id; i++){
+                uint64_t vertex_id = i;
+                if(transaction.get_vertex(vertex_id).empty()) continue; // skip non existing vertices
+                // there is no #degree method in Livegraph. We must perform a full pass of the iterator
+                // to discover the degree
+                uint64_t degree = 0;
+                auto iterator = transaction.get_edges(vertex_id, /* label */ 0);
+                while(iterator.valid()){
+                    degree++;
+                    iterator.next();
+                }
+
+                sum += degree;
+            }
+            timer.stop();
+            validate_sum_degree(sum);
+            g_samples.emplace_back("degree_logical_sorted", num_threads, timer.microseconds());
+
+            // degree, logical identifiers, unsorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            for(uint64_t i = 0; i < max_vertex_id; i++){
+                uint64_t vertex_id = permutation[i];
+                if(transaction.get_vertex(vertex_id).empty()) continue; // skip non existing vertices
+                // there is no #degree method in Livegraph. We must perform a full pass of the iterator
+                // to discover the degree
+                uint64_t degree = 0;
+                auto iterator = transaction.get_edges(vertex_id, /* label */ 0);
+                while(iterator.valid()){
+                    degree++;
+                    iterator.next();
+                }
+
+                sum += degree;
+            }
+            timer.stop();
+            validate_sum_degree(sum);
+            g_samples.emplace_back("degree_logical_unsorted", num_threads, timer.microseconds());
+
+            // point lookups, logical vertices, sorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            for(uint64_t i = 0; i < max_vertex_id; i++){
+                uint64_t vertex_id = i;
+                if(transaction.get_vertex(vertex_id).empty()) continue; // skip non existing vertices
+                auto iterator = transaction.get_edges(vertex_id, /* label */ 0);
+                if(iterator.valid()){ sum += iterator.dst_id(); }
+            }
+            timer.stop();
+            validate_sum_point_lookups(sum);
+            g_samples.emplace_back("point_logical_sorted", num_threads, timer.microseconds());
+
+            // point lookups, logical, unsorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            for(uint64_t i = 0; i < max_vertex_id; i++){
+                uint64_t vertex_id = permutation[i];
+                if(transaction.get_vertex(vertex_id).empty()) continue; // skip non existing vertices
+                auto iterator = transaction.get_edges(vertex_id, /* label */ 0);
+                if(iterator.valid()){ sum += iterator.dst_id(); }
+            }
+            timer.stop();
+            validate_sum_point_lookups(sum);
+            g_samples.emplace_back("point_logical_unsorted", num_threads, timer.microseconds());
+
+            // scan, logical vertices, sorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            for(uint64_t i = 0; i < max_vertex_id; i++){
+                uint64_t vertex_id = i;
+                if(transaction.get_vertex(vertex_id).empty()) continue; // skip non existing vertices
+                auto iterator = transaction.get_edges(vertex_id, /* label */ 0);
+                while(iterator.valid()){
+                    sum += iterator.dst_id();
+                    iterator.next();
+                }
+            }
+            timer.stop();
+            validate_sum_scan(sum);
+            g_samples.emplace_back("scan_logical_sorted", num_threads, timer.microseconds());
+
+            // scan, logical vertices, unsorted
+            timer.start();
+            sum = 0;
+            #pragma omp parallel for num_threads(num_threads) reduction(+:sum) schedule(dynamic, 4096)
+            for(uint64_t i = 0; i < max_vertex_id; i++){
+                uint64_t vertex_id = permutation[i];
+                if(transaction.get_vertex(vertex_id).empty()) continue; // skip non existing vertices
+                auto iterator = transaction.get_edges(vertex_id, /* label */ 0);
+                while(iterator.valid()){
+                    sum += iterator.dst_id();
+                    iterator.next();
+                }
+            }
+            timer.stop();
+            validate_sum_scan(sum);
+            g_samples.emplace_back("scan_logical_unsorted", num_threads, timer.microseconds());
+        }
+    }
+
+    transaction.abort(); // we're done
+}
+#endif
+
 
 #if defined(HAVE_STINGER)
-
 static uint64_t stinger_point_lookup(struct stinger* stinger, uint64_t vertex_id){
     STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(stinger, vertex_id) {
         return STINGER_EDGE_DEST;
@@ -984,6 +1130,13 @@ static void load(){
         cerr << "ERROR: gfe configured and built without linking the library llama\n";
         exit(EXIT_FAILURE);
 #endif
+    } else if(g_library == "livegraph-ro" || g_library == "livegraph-rw"){
+#if defined(HAVE_LIVEGRAPH)
+        g_interface.reset( new gfe::library::LiveGraphDriver(/* directed ? */ false));
+#else
+        cerr << "ERROR: gfe configured and built without linking the library livegraph\n";
+        exit(EXIT_FAILURE);
+#endif
     } else if(g_library == "stinger"){
 #if defined(HAVE_STINGER)
         g_interface.reset( new library::StingerRef(/* directed ? */ false) );
@@ -1037,9 +1190,11 @@ static void load(){
             num_threads = 16;
         } else if(g_library == "graphone"){
             num_threads = 3;
+        } else if(g_library == "livegraph-ro" || g_library == "livegraph-rw"){
+            num_threads = 20;
         }
 
-        LOG("Inserting " << edges->num_edges() << " edges into `" << g_library << "' ...");
+        LOG("Inserting " << edges->num_edges() << " edges into `" << g_library << "' using " << num_threads << " threads ...");
         gfe::experiment::InsertOnly insert(dynamic_pointer_cast<gfe::library::UpdateInterface>(g_interface), edges, num_threads);
         if(g_library == "llama"){ insert.set_build_frequency( 10s ); }
         insert.set_scheduler_granularity(1ull < 20);
@@ -1080,7 +1235,9 @@ static void parse_args(int argc, char* argv[]) {
         } break;
         case 'l': {
             string library = optarg;
-            if(library != "csr" && library != "teseo" && library != "teseo-rw" && library != "graphone" && library != "llama" && library != "stinger"){
+            if(library == "livegraph"){
+                library = "livegraph-ro";
+            } else if(library != "csr" && library != "teseo" && library != "teseo-rw" && library != "graphone" && library != "llama" && library != "stinger" && library != "livegraph-ro" && library != "livegraph-rw"){
                 cerr << "ERROR: Invalid library: `" << library << "'. Only \"csr\", \"teseo\", \"graphone\", \"llama\" and \"stinger\" are supported." << endl;
             }
             g_library = library;
@@ -1147,7 +1304,6 @@ static void parse_args(int argc, char* argv[]) {
         }
     }
 
-
     if(g_path_graph.empty()){
         cerr << "ERROR: Input graph (-G) not specified\n";
         cerr << string_usage(argv[0]);
@@ -1184,7 +1340,7 @@ static string string_usage(char* program_name) {
     ss << "Usage: " << program_name << " -G <graph> [-t <num_threads>] [-l <library>] [-R <num_repetitions>]\n";
     ss << "Where: \n";
     ss << "  -G <graph> is an .properties file of an undirected graph from the Graphalytics data set\n";
-    ss << "  -l <library> is the library to execute. Only \"csr\", \"teseo\" (default), \"teseo-rw\", \"graphone\", \"llama\" and \"stinger\" are supported\n";
+    ss << "  -l <library> is the library to execute. Only \"csr\", \"teseo\" (default), \"teseo-rw\", \"graphone\", \"livegraph\", \"livegraph-rw\", \"llama\", and \"stinger\" are supported\n";
     ss << "  -R <num_repetitions> is the number of repetitions the same micro benchmarks need to be performed\n";
     ss << "  -t <num_threads> follows the page range format, e.g. 1-16,32\n";
     return ss.str();

@@ -96,6 +96,14 @@ void LiveGraphDriver::set_timeout(uint64_t seconds) {
     m_timeout = chrono::seconds{ seconds };
 }
 
+void* LiveGraphDriver::livegraph() {
+    return m_pImpl;
+}
+
+void* LiveGraphDriver::vertex_dictionary() {
+    return m_pHashMap;
+}
+
 uint64_t LiveGraphDriver::ext2int(uint64_t external_vertex_id) const {
     vertex_dictionary_t::const_accessor accessor;
     if ( VertexDictionary->find(accessor, external_vertex_id ) ){
