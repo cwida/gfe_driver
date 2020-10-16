@@ -80,6 +80,9 @@ class Aging2Master {
     // Wait for the workers to complete, record the throughput in the meanwhile
     void wait_and_record();
 
+    // Wait idle for the cool-off period
+    void cooloff(std::chrono::steady_clock::time_point start_time);
+
     // print to stdout the number of vertices/edges expected and effectively stored in the final library. The two values should be equal.
     void log_num_vtx_edges();
 

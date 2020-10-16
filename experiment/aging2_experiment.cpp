@@ -88,13 +88,17 @@ void Aging2Experiment::set_measure_latency(bool value){
     m_measure_latency = value;
 }
 
-void Aging2Experiment::set_timeout(bool value){
-    m_has_timeout = value;
+void Aging2Experiment::set_timeout(std::chrono::seconds secs){
+    m_timeout = secs;
 }
 
 void Aging2Experiment::set_worker_granularity(uint64_t value){
     if(value < 1){ INVALID_ARGUMENT("value < 1: " << value); }
     m_worker_granularity = value;
+}
+
+void Aging2Experiment::set_cooloff(std::chrono::seconds secs){
+    m_cooloff = secs;
 }
 
 Aging2Result Aging2Experiment::execute(){

@@ -61,7 +61,7 @@ static void run_standalone(int argc, char* argv[]){
     // implementation to evaluate
     LOG("[driver] Library name: " << configuration().get_library_name() );
     shared_ptr<library::Interface> impl { configuration().generate_graph_library() };
-    impl->set_timeout(configuration().get_timeout_per_operation());
+    impl->set_timeout(configuration().get_timeout_graphalytics());
 
 
     auto impl_ga = dynamic_pointer_cast<library::GraphalyticsInterface>(impl);
@@ -127,7 +127,8 @@ static void run_standalone(int argc, char* argv[]){
             experiment.set_max_weight(configuration().max_weight());
             experiment.set_measure_latency(configuration().measure_latency());
             experiment.set_num_reports_per_ops(configuration().get_num_recordings_per_ops());
-            experiment.set_timeout(configuration().is_aging2_timeout_set());
+            experiment.set_timeout(chrono::seconds { configuration().get_timeout_aging2() });
+            experiment.set_cooloff(chrono::seconds { configuration().get_aging_cooloff_seconds() });
 
             auto result = experiment.execute();
             if(configuration().has_database()) result.save(configuration().db());

@@ -52,7 +52,8 @@ class Aging2Experiment {
     bool m_report_progress = false; // whether to report the current progress
     uint64_t m_num_reports_per_operations = 1; // how often to save in the database progress done
     bool m_measure_latency = false; // whether to measure the latency of updates
-    bool m_has_timeout = false; // stop the experiment after 4 hours?
+    std::chrono::seconds m_timeout {0}; // max time to run the simulation (excl. cool-off time)
+    std::chrono::seconds m_cooloff {0}; // number of seconds to wait after the experiment terminates, to check the effectiveness of the GC
 
 public:
     // Instantiate the factory class
@@ -86,8 +87,11 @@ public:
     // Measure the latency of updates?
     void set_measure_latency(bool value);
 
-    // Stop the experiment after four hours
-    void set_timeout(bool value);
+    // Set the max time to run the experiment
+    void set_timeout(std::chrono::seconds secs);
+
+    // Cool-off period. Number of seconds to wait idle after the simulation terminated, measuring the memory footprint
+    void set_cooloff(std::chrono::seconds secs);
 
     // [Internal parameter]
     // Set the granularity of a task for a worker thread. This is the number of contiguos operations (inserts/deletes) done

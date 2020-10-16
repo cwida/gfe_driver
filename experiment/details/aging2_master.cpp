@@ -182,6 +182,7 @@ void Aging2Master::do_run_experiment(){
     // init the build service (the one that creates the new snapshots/deltas)
     BuildThread build_service { parameters().m_library , static_cast<int>(parameters().m_num_threads) +1, parameters().m_build_frequency };
 
+    auto start_time = chrono::steady_clock::now();
     Timer timer; timer.start();
     m_parameters.m_library->updates_start();
     for(auto w: m_workers) w->execute_updates();
@@ -192,6 +193,7 @@ void Aging2Master::do_run_experiment(){
     timer.stop();
     LOG("[Aging2] Experiment completed!");
     LOG("[Aging2] Updates performed with " << parameters().m_num_threads << " threads in " << timer);
+    cooloff(start_time);
     m_results.m_completion_time = timer.microseconds();
     m_results.m_num_build_invocations = build_service.num_invocations();
     m_results.m_num_levels_created = m_parameters.m_library->num_levels();
@@ -256,10 +258,13 @@ uint64_t Aging2Master::num_edges_final_graph() const {
 void Aging2Master::wait_and_record() {
     bool done = false;
     m_results.m_progress.clear();
-    chrono::steady_clock::time_point last_memory_footprint_recording = chrono::steady_clock::now();
+
+    chrono::steady_clock::time_point now = chrono::steady_clock::now();
+    chrono::steady_clock::time_point last_memory_footprint_recording = now;
+    chrono::steady_clock::time_point timeout = now + ( m_parameters.m_timeout == 0s ? /* 1 month */ 31 * 24h : m_parameters.m_timeout );
 
     do {
-        auto tp = chrono::steady_clock::now() + 1s;
+        auto tp = now + 1s;
 
         done = true;
         uint64_t i = 0, num_workers = m_workers.size();
@@ -267,6 +272,7 @@ void Aging2Master::wait_and_record() {
             done &= m_workers[i]->wait(tp);
             i++;
         }
+        now = tp;
 
         if(!done){
             m_results.m_progress.push_back(num_operations_sofar());
@@ -279,13 +285,11 @@ void Aging2Master::wait_and_record() {
                 //COUT_DEBUG("tick: " << tick << ", memory footprint: " << mem_bytes << " bytes");
             }
         }
-
-//    } while(!done && m_results.m_progress.size() < 14400 /* 4 h */);
-    } while(!done && m_results.m_progress.size() < 86400 /* 24 h */);
+    } while(!done && now < timeout);
 
     if(!done){
         // forcedly stop the experiment
-        if(m_parameters.m_has_timeout){
+        if(m_parameters.m_timeout != 0s){
             LOG("TIMEOUT HIT, Terminating the experiment ... ");
             m_stop_experiment = true;
         }
@@ -293,6 +297,26 @@ void Aging2Master::wait_and_record() {
         // wait the workers to terminate
         for(auto& w : m_workers) w->wait();
     }
+}
+
+void Aging2Master::cooloff(std::chrono::steady_clock::time_point start){
+    if(m_parameters.m_cooloff.count() == 0) return; // nothing to do
+
+    LOG("[Aging2] Cool-off period of " << m_parameters.m_cooloff.count() << " seconds ... ");
+    auto now = chrono::steady_clock::now();
+    const auto end = now + m_parameters.m_cooloff;
+    chrono::seconds next_tick { /* multiples of 10 */ (chrono::duration_cast<chrono::seconds>(now - start).count() / 10) * 10 };
+    if(next_tick.count() == 0){ next_tick = 1s; }
+    do {
+        this_thread::sleep_until(start + next_tick);
+        uint64_t mem_bytes = common::get_memory_footprint() - memory_footprint();
+        m_results.m_memory_footprint.push_back(std::make_pair(next_tick.count(), mem_bytes));
+        next_tick = (next_tick == 1s) ? 10s : next_tick + 10s;
+
+        now = chrono::steady_clock::now();
+    } while( now < end );
+
+    LOG("[Aging2] Cool-off period terminated");
 }
 
 void Aging2Master::store_results(){
