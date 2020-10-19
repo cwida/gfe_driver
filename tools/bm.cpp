@@ -1239,6 +1239,7 @@ static void parse_args(int argc, char* argv[]) {
                 library = "livegraph-ro";
             } else if(library != "csr" && library != "teseo" && library != "teseo-rw" && library != "graphone" && library != "llama" && library != "stinger" && library != "livegraph-ro" && library != "livegraph-rw"){
                 cerr << "ERROR: Invalid library: `" << library << "'. Only \"csr\", \"teseo\", \"graphone\", \"llama\" and \"stinger\" are supported." << endl;
+                exit(EXIT_FAILURE);
             }
             g_library = library;
         } break;
