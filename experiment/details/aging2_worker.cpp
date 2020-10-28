@@ -211,7 +211,7 @@ void Aging2Worker::main_thread(){
 
 void Aging2Worker::main_execute_updates(){
     // compute the amount of space used by the vectors in m_updates
-    for(uint64_t i = 0; i < m_updates.size(); i++){ m_updates_mem_usage += m_updates[i]->capacity() * sizeof(gfe::graph::WeightedEdge); } // either size() or capacity()
+    for(uint64_t i = 0; i < m_updates.size(); i++){ m_updates_mem_usage += m_updates[i]->size() * sizeof(gfe::graph::WeightedEdge); } // either size() or capacity()
     COUT_DEBUG("Initial memory footprint: " << m_updates_mem_usage << " bytes");
 
     const int64_t num_total_ops = m_master.num_operations_total();

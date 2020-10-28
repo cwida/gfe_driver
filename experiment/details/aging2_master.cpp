@@ -281,7 +281,8 @@ void Aging2Master::wait_and_record() {
                 uint64_t tick = m_results.m_progress.size(); // 1, 10, 20, 30, 40, 50, 60, ...
                 uint64_t mem_footprint_process = common::get_memory_footprint();
                 uint64_t mem_overhead = memory_footprint();
-                //LOG("[memory footprint #" << tick << "] process: " << (mem_footprint_process / (1ull<<10)) << " kB" << ", overhead: " << (mem_overhead / (1ull<<10)) << " kB");
+                //LOG("[memory footprint #" << tick << "] process: " << (mem_footprint_process / (1ull<<20)) << " MB" << ", overhead: " << (mem_overhead / (1ull<<20)) << " MB, "
+                //     "total: " << (static_cast<int64_t>(mem_footprint_process) - static_cast<int64_t>(mem_overhead)) / (1ll << 20) << " MB");
 
                 uint64_t mem_bytes = mem_footprint_process - mem_overhead;
                 m_results.m_memory_footprint.push_back(std::make_pair(tick, mem_bytes));
@@ -382,9 +383,9 @@ uint64_t Aging2Master::memory_footprint() const {
     for(auto& w: m_workers){ result += w->memory_footprint(); }
 
     // size of the internal vectors
-    result += sizeof(uint64_t) * static_cast<uint64_t>( m_parameters.m_num_reports_per_operations * ::ceil( static_cast<double>(num_operations_total())/num_edges_final_graph()) + 1 );
-    result += m_results.m_progress.capacity() * sizeof(uint64_t);
-    result += m_results.m_memory_footprint.capacity() * sizeof(m_results.m_memory_footprint[0]);
+    //result += sizeof(uint64_t) * static_cast<uint64_t>( m_parameters.m_num_reports_per_operations * ::ceil( static_cast<double>(num_operations_total())/num_edges_final_graph()) + 1 );
+    result += m_results.m_progress.size() * sizeof(m_results.m_progress[0]);
+    result += m_results.m_memory_footprint.size() * sizeof(m_results.m_memory_footprint[0]);
     if(m_latencies != nullptr){
         result += sizeof(uint64_t) * m_results.m_num_operations_total;
     }
