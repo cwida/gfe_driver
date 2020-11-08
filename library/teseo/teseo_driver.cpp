@@ -285,7 +285,7 @@ int64_t BUStep(Teseo* teseo, Transaction transaction, pvector<int64_t>& distance
         if (distances[u] < 0){ // the node has not been visited yet
 
             bool done = false;
-            s3.m_iterator.edges(u, true, [u, &done, &awake_count, &distances, distance, &front, &next](uint64_t n, double){
+            s3.m_iterator.edges(u, true, [u, &done, &awake_count, &distances, distance, &front, &next](uint64_t n){
 
                 if (front.get_bit(n)) {
                     distances[u] = distance; // on each BUStep, all nodes will have the same distance
@@ -314,15 +314,13 @@ int64_t TDStep(Teseo* teseo, Transaction transaction, pvector<int64_t>& distance
         for (auto q_iter = queue.begin(); q_iter < queue.end(); q_iter++) {
             int64_t u = *q_iter;
 
-            s3.m_iterator.edges(u, true, [&distances, distance, &lqueue, &scout_count](uint64_t destination, double weight){
+            s3.m_iterator.edges(u, true, [&distances, distance, &lqueue, &scout_count](uint64_t destination){
                 int64_t curr_val = distances[destination];
 
                 if (curr_val < 0 && compare_and_swap(distances[destination], curr_val, distance)) {
                     lqueue.push_back(destination);
                     scout_count += -curr_val;
                 }
-
-                return true;
             });
         }
         lqueue.flush();
@@ -570,9 +568,8 @@ unique_ptr<double[]> teseo_pagerank(Teseo* teseo, Transaction transaction, uint6
         for(uint64_t v = 0; v < num_vertices; v++){
 
             double incoming_total = 0;
-            s3.m_iterator.edges(v, /* logical ? */ true, [&incoming_total, &outgoing_contrib](uint64_t destination, double weight){
+            s3.m_iterator.edges(v, /* logical ? */ true, [&incoming_total, &outgoing_contrib](uint64_t destination){
                incoming_total += outgoing_contrib[destination];
-               return true;
             });
 
             // update the score
@@ -712,7 +709,7 @@ unique_ptr<uint64_t[]> teseo_wcc(Teseo* teseo, const Transaction& transaction, u
         #pragma omp parallel for firstprivate(s3)
         for (uint64_t u = 0; u < N; u++){
 
-            s3.m_iterator.edges(u, true, [comp, u, &change](uint64_t v, double){
+            s3.m_iterator.edges(u, true, [comp, u, &change](uint64_t v){
                 uint64_t comp_u = comp[u];
                 uint64_t comp_v = comp[v];
                 if (comp_u == comp_v) return true;
@@ -810,9 +807,8 @@ static unique_ptr<uint64_t[]> teseo_cdlp(Teseo* teseo, Transaction transaction, 
 
             // compute the histogram from both the outgoing & incoming edges. The aim is to find the number of each label
             // shared among the neighbours of node_id
-            s3.m_iterator.edges(v, true, [&histogram, labels0](uint64_t u, double){
+            s3.m_iterator.edges(v, true, [&histogram, labels0](uint64_t u){
                 histogram[labels0[u]]++;
-                return true;
             });
 
             // get the max label
@@ -911,27 +907,22 @@ static unique_ptr<double[]> teseo_lcc(Teseo* teseo, Transaction transaction, uti
         // Build the list of neighbours of v
         unordered_set<uint64_t> neighbours;
 
-        s3.m_iterator.edges(v, true, [&neighbours](uint64_t destination, double){
+        s3.m_iterator.edges(v, true, [&neighbours](uint64_t destination){
             neighbours.insert(destination);
-            return true;
         });
 
         // again, visit all neighbours of v
-        s3.m_iterator.edges(v, true, [&neighbours, &num_triangles, &s3](uint64_t u, double){
+        s3.m_iterator.edges(v, true, [&neighbours, &num_triangles, &s3](uint64_t u){
             assert(neighbours.count(u) == 1 && "The set `neighbours' should contain all neighbours of v");
 
-            s3.m_iterator.edges(u, true, [&neighbours, &num_triangles](uint64_t w, double){
+            s3.m_iterator.edges(u, true, [&neighbours, &num_triangles](uint64_t w){
                 // check whether it's also a neighbour of v
                 if(neighbours.count(w) == 1){
                     //COUT_DEBUG_LCC("Triangle found " << v << " - " << u << " - " << w);
                     //COUT_DEBUG_LCC("  -> " << transaction.vertex_id(v) << " - " << transaction.vertex_id(u) << " - " << transaction.vertex_id(w));
                     num_triangles++;
                 }
-
-                return true;
             });
-
-            return true;
         });
 
         // register the final score

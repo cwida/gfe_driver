@@ -294,13 +294,13 @@ void LCC_Worker::process_vertex(uint64_t n1) {
     m_neighbours.clear();
     m_num_triangles = 0; // reset the number of triangles
 
-    m_iterator.edges(n1, false, [this](uint64_t n2, double){
+    m_iterator.edges(n1, false, [this](uint64_t n2){
         if(n2 > m_n1) return false; // we're done with n1
         m_n2 = n2;
         m_neighbours.push_back(n2);
         m_marker = 0; // reset the marker
 
-        m_iterator.edges(n2, false, [this](uint64_t n3, double){
+        m_iterator.edges(n2, false, [this](uint64_t n3){
             if(n3 > m_n2) return false; // we're done with `n2'
             assert(m_n1 > m_n2 && m_n2 > n3); // we're looking for triangles of the kind c - b - a, with c > b && b > a
 

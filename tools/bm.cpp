@@ -395,7 +395,7 @@ static void run_teseo(bool read_only){
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
-                s3.m_iterator.edges(g_vertices_sorted[i], false, [&sum](uint64_t destination, double weight){
+                s3.m_iterator.edges(g_vertices_sorted[i], false, [&sum](uint64_t destination){
                     sum += destination;
                     return false; // stop the iteration
                 });
@@ -409,7 +409,7 @@ static void run_teseo(bool read_only){
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
-                s3.m_iterator.edges(g_vertices_unsorted[i], false, [&sum](uint64_t destination, double weight){
+                s3.m_iterator.edges(g_vertices_unsorted[i], false, [&sum](uint64_t destination){
                     sum += destination;
                     return false; // stop the iteration
                 });
@@ -425,7 +425,7 @@ static void run_teseo(bool read_only){
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
-                s3.m_iterator.edges(i, true, [&sum](uint64_t destination, double weight){
+                s3.m_iterator.edges(i, true, [&sum](uint64_t destination){
                     sum += destination;
                     return false; // stop the iteration
                 });
@@ -438,7 +438,7 @@ static void run_teseo(bool read_only){
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
-                s3.m_iterator.edges(g_vertices_logical[i], true, [&sum](uint64_t destination, double weight){
+                s3.m_iterator.edges(g_vertices_logical[i], true, [&sum](uint64_t destination){
                     sum += destination;
                     return false; // stop the iteration
                 });
@@ -454,9 +454,8 @@ static void run_teseo(bool read_only){
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
-                s3.m_iterator.edges(g_vertices_sorted[i], false, [&sum](uint64_t destination, double weight){
+                s3.m_iterator.edges(g_vertices_sorted[i], false, [&sum](uint64_t destination){
                     sum += destination;
-                    return true; // stop the iteration
                 });
             }
             timer.stop();
@@ -468,9 +467,8 @@ static void run_teseo(bool read_only){
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
-                s3.m_iterator.edges(g_vertices_unsorted[i], false, [&sum](uint64_t destination, double weight){
+                s3.m_iterator.edges(g_vertices_unsorted[i], false, [&sum](uint64_t destination){
                     sum += destination;
-                    return true; // stop the iteration
                 });
             }
             timer.stop();
@@ -484,9 +482,8 @@ static void run_teseo(bool read_only){
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
-                s3.m_iterator.edges(i, true, [&sum](uint64_t destination, double weight){
+                s3.m_iterator.edges(i, true, [&sum](uint64_t destination){
                     sum += destination;
-                    return true; // stop the iteration
                 });
             }
             timer.stop();
@@ -499,9 +496,8 @@ static void run_teseo(bool read_only){
             sum = 0;
             #pragma omp parallel for num_threads(num_threads) reduction(+:sum) firstprivate(s3) schedule(dynamic, 4096)
             for(uint64_t i = 0; i < num_vertices; i++){
-                s3.m_iterator.edges(g_vertices_logical[i], true, [&sum](uint64_t destination, double weight){
+                s3.m_iterator.edges(g_vertices_logical[i], true, [&sum](uint64_t destination){
                     sum += destination;
-                    return true; // stop the iteration
                 });
             }
             timer.stop();
