@@ -218,10 +218,11 @@ vector<ImplementationManifest> implementations() {
     // v4 13/05/2020: fair mutex for compactation, it's a major bug fix as new delta levels were not issued every 10s due to starvation. All experiments should be repeated
     // v5 12/06/2020: OMP dynamic scheduling in the Graphalytics kernels
     // v6 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
-    result.emplace_back("llama6", "LLAMA library", &generate_llama);
-    result.emplace_back("llama6-dv", "LLAMA with dense vertices", &generate_llama_dv);
-    result.emplace_back("llama6-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
-    result.emplace_back("llama6-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
+    // v6b 15/09/2020: Same implementation of v6, but differentiate the database the results with the memory footprint
+    result.emplace_back("llama6b", "LLAMA library", &generate_llama);
+    result.emplace_back("llama6b-dv", "LLAMA with dense vertices", &generate_llama_dv);
+    result.emplace_back("llama6b-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
+    result.emplace_back("llama6b-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
 #endif
 
 #if defined(HAVE_STINGER)
