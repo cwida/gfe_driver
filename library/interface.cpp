@@ -263,10 +263,11 @@ vector<ImplementationManifest> implementations() {
     // v5 26/06/2020: updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     // v6 18/07/2020: vertex table
     // v7 08/11/2020: vertical partitioning
-    result.emplace_back("teseo.7", "Teseo", &generate_teseo);
-    result.emplace_back("teseo-rw.7", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
-    result.emplace_back("teseo-lcc.7", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
-    result.emplace_back("teseo-dv.7", "Teseo, dense vertices", &generate_teseo_real_vtx);
+    // v8 23/11/2020: variable length leaves
+    result.emplace_back("teseo.8", "Teseo", &generate_teseo);
+    result.emplace_back("teseo-rw.8", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
+    result.emplace_back("teseo-lcc.8", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
+    result.emplace_back("teseo-dv.8", "Teseo, dense vertices", &generate_teseo_real_vtx);
 #endif
 
     return result;
