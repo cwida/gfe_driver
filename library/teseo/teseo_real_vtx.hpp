@@ -79,4 +79,25 @@ public:
     virtual void sssp(uint64_t source_vertex_id, const char* dump2file = nullptr);
 };
 
+/**
+ * Specialised implementation of the LCC kernel
+ */
+class TeseoRealVerticesLCC : public TeseoRealVertices {
+    TeseoRealVerticesLCC(const TeseoRealVerticesLCC& ) = delete;
+    TeseoRealVerticesLCC& operator=(const TeseoRealVerticesLCC& ) = delete;
+
+public:
+    /**
+     * Constructor
+     * @param is_directed whether the graph is directed
+     * @param read_only whether to create the transactions for the algorithms in Graphalytics as read-only
+     */
+    TeseoRealVerticesLCC(bool is_directed, bool read_only = true);
+
+    /**
+     * Specialised implementation of the kernel LCC
+     */
+    virtual void lcc(const char* dump2file = nullptr);
+};
+
 } // namespace

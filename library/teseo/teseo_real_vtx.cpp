@@ -1011,4 +1011,322 @@ void TeseoRealVertices::sssp(uint64_t source_vertex_id, const char* dump2file) {
     }
 }
 
+/*****************************************************************************
+ *                                                                           *
+ *  LCC, sort-merge implementation                                           *
+ *                                                                           *
+ *****************************************************************************/
+/**
+ * Algorithm parameters
+ */
+static const uint64_t LCC_NUM_WORKERS = thread::hardware_concurrency(); // number of workers / logical threads to use
+//static const uint64_t LCC_NUM_WORKERS = 1; // number of workers / logical threads to use
+static constexpr uint64_t LCC_TASK_SIZE = 1ull << 10; // number of vertices processed in each task
+
+namespace {
+
+/**
+ * Forward declarations
+ */
+class LCC_Master;
+class LCC_Worker;
+
+class LCC_Master {
+    Teseo * const m_teseo; // instance to the database
+    Transaction m_transaction; // the transaction providing isolation for the computation
+    double* m_scores; // the final scores of the LCC algorithm
+    std::atomic<uint64_t>* m_num_triangles; // number of triangles counted so far for the given vertex, array of num_vertices
+    std::atomic<uint64_t> m_next; // counter to select the next task among the workers
+    utility::TimeoutService* m_timeout; // timer to check whether we are not spending more time than what allocated (1 hour typically)
+
+    // Reserve the space in the hash maps m_score and m_state so that they can be operated concurrently by each thread/worker
+    void initialise();
+
+    // Compute the final scores
+    void compute_scores();
+
+public:
+    // Constructor
+    LCC_Master(Teseo* teseo, Transaction transaction, utility::TimeoutService* timeout);
+
+    // Destructor
+    ~LCC_Master();
+
+    // Execute the algorithm
+    double* execute();
+
+    // Select the next window to process, in the form [vertex_start, vertex_end);
+    // Return true if a window/task has been fetched, false if there are no more tasks to process
+    bool next_task(uint64_t* output_vtx_start /* inclusive */, uint64_t* output_vtx_end /* exclusive */);
+
+    // Retrieve the instance to the database
+    Teseo* teseo();
+
+    // Retrieve the number of triangles associated to the given vertex
+    std::atomic<uint64_t>& num_triangles(uint64_t vertex_id);
+};
+
+class LCC_Worker {
+    LCC_Master* m_master; // handle to the master instance
+    Transaction m_transaction;  // the transaction providing isolation for the computation
+    Iterator m_iterator; // an iterator attached to the transaction
+    thread m_handle; // underlying thread
+
+    // internal state for #process_vertex()
+    uint64_t m_n1 =0; // current vertex being processed
+    uint64_t m_n2 =0; // current neighbour being visited
+    vector<uint64_t> m_neighbours; // neighbours of n1
+    uint64_t m_marker =0; // current position in the neighbours vector, to merge shared neighbours
+    uint64_t m_num_triangles =0; // current number of triangles found for `n1'
+
+    // Process the given vertex
+    void process_vertex(uint64_t vertex_id);
+
+public:
+    // Init
+    LCC_Worker(LCC_Master* master, const Transaction& transaction);
+
+    // Destructor
+    ~LCC_Worker();
+
+    // Main thread
+    void execute();
+
+    // Wait for the worker's thread to terminate
+    void join();
+};
+
+/*****************************************************************************
+ *                                                                           *
+ *  LCC_Master                                                               *
+ *                                                                           *
+ *****************************************************************************/
+#undef COUT_CLASS_NAME
+#define COUT_CLASS_NAME "LCC_Master"
+
+LCC_Master::LCC_Master(Teseo* teseo, Transaction transaction, utility::TimeoutService* timeout)
+    : m_teseo(teseo), m_transaction(transaction), m_scores(nullptr), m_num_triangles(nullptr), m_next(0), m_timeout(timeout) {
+}
+
+LCC_Master::~LCC_Master() {
+    delete[] m_scores; m_scores = nullptr;
+    delete[] m_num_triangles; m_num_triangles = nullptr;
+}
+
+void LCC_Master::initialise(){
+    assert(m_num_triangles == nullptr && "Already initialised");
+
+    const uint64_t num_vertices = m_transaction.num_vertices();
+    m_scores = new double[num_vertices](); // init to 0
+    m_num_triangles = new atomic<uint64_t>[num_vertices](); // init to 0
+}
+
+void LCC_Master::compute_scores(){
+    //common::Timer timer; timer.start();
+
+    for(uint64_t i = 0, N = m_transaction.num_vertices(); i < N; i++){
+        uint64_t num_triangles = m_num_triangles[i];
+        if(num_triangles > 0){
+            uint64_t degree = m_transaction.degree(i, /* logical ? */ false);
+            uint64_t max_num_edges = degree * (degree -1);
+            double score = static_cast<double>(num_triangles) / max_num_edges;
+            m_scores[i] = score;
+        } // else m_scores[i] = 0 (default value)
+    }
+
+    //timer.stop();
+    //COUT_DEBUG_FORCE("compute_scores executed in: " << timer);
+}
+
+double* LCC_Master::execute() {
+    common::Timer timer; timer.start();
+
+    // init the state and the side information for each vertex
+    initialise();
+    //COUT_DEBUG_FORCE("Initialisation time: " << timer);
+
+    // start the workers
+    assert(LCC_NUM_WORKERS >= 1 && "At least one worker should be set");
+    vector<LCC_Worker*> workers;
+    workers.reserve(LCC_NUM_WORKERS);
+    for(uint64_t worker_id = 0; worker_id < LCC_NUM_WORKERS; worker_id++ ){
+        workers.push_back(new LCC_Worker(this, m_transaction));
+    }
+
+    // wait for the workers to terminate ...
+    for(uint64_t worker_id = 0; worker_id < workers.size(); worker_id++ ){
+        workers[worker_id]->join();
+        delete workers[worker_id]; workers[worker_id] = nullptr;
+    }
+    if(m_timeout->is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
+
+    compute_scores();
+
+    double* scores = m_scores;
+    m_scores = nullptr;
+    return scores;
+}
+
+bool LCC_Master::next_task(uint64_t* output_vtx_start /* inclusive */, uint64_t* output_vtx_end /* exclusive */) {
+    uint64_t logical_start = m_next.fetch_add(LCC_TASK_SIZE); /* return the previous value of m_next */
+    uint64_t num_vertices = m_transaction.num_vertices();
+    if(logical_start >= num_vertices || m_timeout->is_timeout()){
+        return false;
+    } else {
+        uint64_t logical_end = std::min(logical_start + LCC_TASK_SIZE, num_vertices);
+
+        *output_vtx_start = logical_start;
+        *output_vtx_end = logical_end;
+
+        return true;
+    }
+}
+
+Teseo* LCC_Master::teseo() {
+    return m_teseo;
+}
+
+atomic<uint64_t>& LCC_Master::num_triangles(uint64_t vertex_id) {
+    return m_num_triangles[vertex_id];
+}
+
+/*****************************************************************************
+ *                                                                           *
+ *  LCC_Worker                                                               *
+ *                                                                           *
+ *****************************************************************************/
+
+#undef COUT_CLASS_NAME
+#define COUT_CLASS_NAME "LCC_Worker"
+
+LCC_Worker::LCC_Worker(LCC_Master* master, const Transaction& transaction) : m_master(master), m_transaction(transaction), m_iterator(m_transaction.iterator()) {
+    m_handle = thread { &LCC_Worker::execute, this };
+}
+
+LCC_Worker::~LCC_Worker(){ }
+
+void LCC_Worker::execute() {
+    COUT_DEBUG("Worker started");
+
+    m_master->teseo()->register_thread();
+
+    uint64_t v_start, v_end;
+    while(m_master->next_task(&v_start, &v_end)){
+        for(uint64_t v = v_start; v < v_end; v++){
+            process_vertex(v);
+        }
+    }
+
+    m_iterator.close();
+    m_master->teseo()->unregister_thread();
+
+    COUT_DEBUG("Worker terminated");
+}
+
+void LCC_Worker::join(){
+    m_handle.join();
+}
+
+void LCC_Worker::process_vertex(uint64_t n1) {
+    COUT_DEBUG("vertex: " << n1);
+    m_n1 = n1;
+    m_neighbours.clear();
+    m_num_triangles = 0; // reset the number of triangles
+
+    m_iterator.edges(n1, /* logical ? */ false, [this](uint64_t n2){
+        if(n2 > m_n1) return false; // we're done with n1
+        m_n2 = n2;
+        m_neighbours.push_back(n2);
+        m_marker = 0; // reset the marker
+
+        m_iterator.edges(n2, /* logical ? */ false, [this](uint64_t n3){
+            if(n3 > m_n2) return false; // we're done with `n2'
+            assert(m_n1 > m_n2 && m_n2 > n3); // we're looking for triangles of the kind c - b - a, with c > b && b > a
+
+            COUT_DEBUG("  candidate: " << m_n1 << " - " << m_n2 << " - " << n3 << ", marker[" << m_marker << "] = " << m_neighbours[m_marker]);
+
+            if(n3 > m_neighbours[m_marker]){ // merge with m_neighbours
+                do {
+                    m_marker ++;
+                } while(m_marker < m_neighbours.size() && n3 > m_neighbours[m_marker]);
+                if(m_marker >= m_neighbours.size()) return false; // there is nothing left to merge
+            }
+
+            if(n3 == m_neighbours[m_marker]){ // match !
+                COUT_DEBUG("    match: " << m_n1 << " - " << m_n2 << " - " << n3 << " and " << m_n1 << " - " << n3 << " - " << m_n2);
+
+                m_num_triangles += 2; // we've discovered both n1 - n2 - n3 and n1 - n3 - n2; with n1 > n2 > n3
+
+                // increase the contribution for n2
+                m_master->num_triangles(m_n2) += 2;
+
+                // increase the contribution for n3
+                m_master->num_triangles(n3) += 2;
+
+                m_marker++;
+                if(m_marker >= m_neighbours.size()) return false; // there is nothing left to merge
+            }
+
+            return true; // keep scanning
+
+        });
+
+        return true; // keep scanning
+    });
+
+    if(m_num_triangles != 0){
+        m_master->num_triangles(m_n1) += m_num_triangles;
+    }
+}
+
+} // anon namespace
+
+#undef COUT_CLASS_NAME
+#define COUT_CLASS_NAME "TeseoRealVerticesLCC"
+
+TeseoRealVerticesLCC::TeseoRealVerticesLCC(bool is_directed, bool read_only) : TeseoRealVertices(is_directed, read_only){
+
+}
+
+void TeseoRealVerticesLCC::lcc(const char* dump2file){
+    double* scores = nullptr;
+    utility::TimeoutService timeout { m_timeout };
+    common::Timer timer; timer.start();
+    TESEO->register_thread();
+    RegisterThread rt { TESEO } ;
+    auto transaction = TESEO->start_transaction(/* read only ? */ m_read_only);
+
+    { // restrict the scope to allow the dtor to clean up
+        LCC_Master algorithm ( TESEO, transaction, &timeout );
+        scores = algorithm.execute();
+    }
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
+
+    // Translate the vertex IDs
+    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
+    const uint64_t num_vertices = transaction.num_vertices();
+    #pragma omp parallel for
+    for(uint64_t i = 0; i < num_vertices; i++){ // emulate the cost of the vertex translation
+        external_ids.insert(i, scores[i]);
+    }
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
+
+    // store the results in the given file
+    if(dump2file != nullptr){
+        COUT_DEBUG("save the results to: " << dump2file);
+        fstream handle(dump2file, ios_base::out);
+        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
+
+        auto hashtable = external_ids.lock_table();
+
+        for(const auto& keyvaluepair : hashtable){
+            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
+        }
+
+        handle.close();
+    }
+
+    delete[] scores;
+}
+
 } // namespace

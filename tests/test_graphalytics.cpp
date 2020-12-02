@@ -403,15 +403,10 @@ TEST(Teseo, GraphalyticsUndirected){
     validate(graph.get(), path_example_undirected);
 }
 
-TEST(TeseoLCC_LowLevelAPI, GraphalyticsUndirected){
-    auto graph = make_unique<TeseoLCC>(/* directed */ false, /* low level api ? */ true);
+TEST(TeseoLCC, GraphalyticsUndirected){
+    auto graph = make_unique<TeseoDriverLCC>(/* directed */ false);
     load_graph(graph.get(), path_example_undirected);
     validate(graph.get(), path_example_undirected, GA_LCC);
 }
 
-TEST(TeseoLCC_UserAPI, GraphalyticsUndirected){
-    auto graph = make_unique<TeseoLCC>(/* directed */ false, /* low level api ? */ false);
-    load_graph(graph.get(), path_example_undirected);
-    validate(graph.get(), path_example_undirected, GA_LCC);
-}
 #endif

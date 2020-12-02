@@ -174,4 +174,27 @@ public:
     void* handle_impl();
 };
 
+
+/**
+ * Specialised implementation of the LCC kernel
+ */
+class TeseoDriverLCC : public TeseoDriver {
+    TeseoDriverLCC(const TeseoDriverLCC& ) = delete;
+    TeseoDriverLCC& operator=(const TeseoDriverLCC& ) = delete;
+
+public:
+    /**
+     * Constructor
+     * @param is_directed whether the graph is directed
+     * @param read_only whether to create the transactions for the algorithms in Graphalytics as read-only
+     */
+    TeseoDriverLCC(bool is_directed, bool read_only = true);
+
+    /**
+     * Specialised implementation of the kernel LCC
+     */
+    virtual void lcc(const char* dump2file = nullptr);
+};
+
+
 }

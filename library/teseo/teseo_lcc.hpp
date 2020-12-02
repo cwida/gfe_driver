@@ -22,6 +22,10 @@
 namespace gfe::library {
 
 /**
+ * 02/12/2020: This was the original implementation of the LCC kernel. Now this code has been disabled. There are classes
+ * with a specialised implementation in teseo_driver.hpp and teseo_real_vtx.hpp that match the same implementation done
+ * in the CSR.
+ *
  * Driver for Teseo, with a specialised implementation of the LCC kernel
  */
 class TeseoLCC : public TeseoDriver {
