@@ -209,8 +209,8 @@ vector<ImplementationManifest> implementations() {
     // v2 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     result.emplace_back("baseline_v2", "Sequential baseline, based on adjacency list", &generate_baseline_adjlist);
 
-    result.emplace_back("csr", "CSR baseline", &generate_csr);
-    result.emplace_back("csr-lcc", "CSR baseline, sort-merge impl for the LCC kernel", &generate_csr_lcc);
+    result.emplace_back("csr-gcc", "CSR baseline", &generate_csr);
+    result.emplace_back("csr-lcc-gcc", "CSR baseline, sort-merge impl for the LCC kernel", &generate_csr_lcc);
 
     // v2 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     result.emplace_back("dummy_v2", "Dummy implementation of the interface, all operations are nop", &generate_dummy);
