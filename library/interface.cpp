@@ -209,8 +209,8 @@ vector<ImplementationManifest> implementations() {
     // v2 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     result.emplace_back("baseline_v2", "Sequential baseline, based on adjacency list", &generate_baseline_adjlist);
 
-    result.emplace_back("csr-gcc", "CSR baseline", &generate_csr);
-    result.emplace_back("csr-lcc-gcc", "CSR baseline, sort-merge impl for the LCC kernel", &generate_csr_lcc);
+    result.emplace_back("csr", "CSR baseline", &generate_csr);
+    result.emplace_back("csr-lcc", "CSR baseline, sort-merge impl for the LCC kernel", &generate_csr_lcc);
 
     // v2 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     result.emplace_back("dummy_v2", "Dummy implementation of the interface, all operations are nop", &generate_dummy);
@@ -221,11 +221,10 @@ vector<ImplementationManifest> implementations() {
     // v4 13/05/2020: fair mutex for compactation, it's a major bug fix as new delta levels were not issued every 10s due to starvation. All experiments should be repeated
     // v5 12/06/2020: OMP dynamic scheduling in the Graphalytics kernels
     // v6 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
-    // v6b 15/09/2020: Same implementation of v6, but differentiate the database the results with the memory footprint
-    result.emplace_back("llama6b", "LLAMA library", &generate_llama);
-    result.emplace_back("llama6b-dv", "LLAMA with dense vertices", &generate_llama_dv);
-    result.emplace_back("llama6b-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
-    result.emplace_back("llama6b-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
+    result.emplace_back("llama6", "LLAMA library", &generate_llama);
+    result.emplace_back("llama6-dv", "LLAMA with dense vertices", &generate_llama_dv);
+    result.emplace_back("llama6-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
+    result.emplace_back("llama6-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
 #endif
 
 #if defined(HAVE_STINGER)
@@ -233,24 +232,23 @@ vector<ImplementationManifest> implementations() {
     // v3 29/06/2020: add_edge_v2
     // v4 24/09/2020: do not use OpenMP in updates
     // v5 26/09/2020: completely disable vertex deletions
-    result.emplace_back("stinger5b", "Stinger library", &generate_stinger);
-    result.emplace_back("stinger5b-dv", "Stinger with dense vertices", &generate_stinger_dv);
-    result.emplace_back("stinger5b-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
+    result.emplace_back("stinger5", "Stinger library", &generate_stinger);
+    result.emplace_back("stinger5-dv", "Stinger with dense vertices", &generate_stinger_dv);
+    result.emplace_back("stinger5-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
 #endif
 
 #if defined(HAVE_GRAPHONE)
     // v2 11/06/2020: Bug fix for the properties on the static views + OMP dynamic scheduling. Repeat all experiments for Graphalytics.
     // v3 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     // v4 27/06/2020: Fix the number of vertices. It only affects the variations with dense vertices.
-    // v4c 17/11/2020: Same implementation of v4, but differentiate the database the results with the memory footprint
-    result.emplace_back("g1_v4c-cons-sp", "GraphOne, consistency for updates, sparse vertices (vertex dictionary)", &generate_graphone_cons_sp);
-    result.emplace_back("g1_v4c-cons-dv", "GraphOne, consistency for updates, dense vertices", &generate_graphone_cons_dv);
-    result.emplace_back("g1_v4c-bw-sp", "GraphOne, blind writes, sparse vertices (vertex dictionary)", &generate_graphone_bw_sp);
-    result.emplace_back("g1_v4c-bw-dv", "GraphOne, blind writes, dense vertices", &generate_graphone_bw_dv);
-    result.emplace_back("g1_v4c-bw-sp-ignore-build", "GraphOne, blind writes, sparse vertices (vertex dictionary), new deltas/levels cannot be explicitly created", &generate_graphone_bw_sp_ignore_build);
-    result.emplace_back("g1_v4c-bw-dv-ignore-build", "GraphOne, blind writes, dense vertices, new deltas/levels cannot be explicitly created", &generate_graphone_bw_dv_ignore_build);
-    result.emplace_back("g1_v4c-ref", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref);
-    result.emplace_back("g1_v4c-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
+    result.emplace_back("g1_v4-cons-sp", "GraphOne, consistency for updates, sparse vertices (vertex dictionary)", &generate_graphone_cons_sp);
+    result.emplace_back("g1_v4-cons-dv", "GraphOne, consistency for updates, dense vertices", &generate_graphone_cons_dv);
+    result.emplace_back("g1_v4-bw-sp", "GraphOne, blind writes, sparse vertices (vertex dictionary)", &generate_graphone_bw_sp);
+    result.emplace_back("g1_v4-bw-dv", "GraphOne, blind writes, dense vertices", &generate_graphone_bw_dv);
+    result.emplace_back("g1_v4-bw-sp-ignore-build", "GraphOne, blind writes, sparse vertices (vertex dictionary), new deltas/levels cannot be explicitly created", &generate_graphone_bw_sp_ignore_build);
+    result.emplace_back("g1_v4-bw-dv-ignore-build", "GraphOne, blind writes, dense vertices, new deltas/levels cannot be explicitly created", &generate_graphone_bw_dv_ignore_build);
+    result.emplace_back("g1_v4-ref", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref);
+    result.emplace_back("g1_v4-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
 #endif
 
 #if defined(HAVE_LIVEGRAPH)
@@ -267,11 +265,11 @@ vector<ImplementationManifest> implementations() {
     // v6 18/07/2020: vertex table
     // v7 08/11/2020: vertical partitioning
     // v8 23/11/2020: variable length leaves
-    result.emplace_back("teseo.8", "Teseo", &generate_teseo);
-    result.emplace_back("teseo-rw.8", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
-    result.emplace_back("teseo-lcc.8", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
-    result.emplace_back("teseo-dv.8", "Teseo, dense vertices", &generate_teseo_real_vtx);
-    result.emplace_back("teseo-lcc-dv.8", "Teseo, dense vertices and sort-merge implementation of the LCC kernel", &generate_teseo_real_vtx_lcc);
+    result.emplace_back("teseo.7", "Teseo", &generate_teseo);
+    result.emplace_back("teseo-rw.7", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
+    result.emplace_back("teseo-lcc.7", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
+    result.emplace_back("teseo-dv.7", "Teseo, dense vertices", &generate_teseo_real_vtx);
+    result.emplace_back("teseo-lcc-dv.7", "Teseo, dense vertices and sort-merge implementation of the LCC kernel", &generate_teseo_real_vtx_lcc);
 #endif
 
     return result;

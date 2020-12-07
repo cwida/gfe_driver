@@ -60,6 +60,8 @@ class Configuration {
 
     // properties
     uint64_t m_aging_cooloff_seconds { 0 }; // cool-off period in the aging experiment, in seconds.
+    bool m_aging_release_memory = true; // whether to release the memory from the driver as the experiment proceeds
+    bool m_aging_report_memfp = false; // whether to print stdout the measurements observed for the memory footprint
     std::vector<std::string> m_blacklist; // list of graph algorithms that cannot be executed
     uint64_t m_build_frequency { 0 }; // in the aging experiment, the amount of time that must pass before each invocation to #build(), in milliseconds
     double m_coeff_aging { 0.0 }; // coefficient for the additional updates to perform
@@ -183,6 +185,12 @@ public:
     // amount of seconds idle, checking the amount of memory used. The goal is to detect the impact of the garbage
     // collector of the evaluated library in reducing the memory footprint when no updates are being executed.
     uint64_t get_aging_cooloff_seconds() const { return m_aging_cooloff_seconds; }
+
+    // Whether to print to stdout the measurements observed for the memory footprint
+    bool get_aging_report_memfp() const { return m_aging_report_memfp; }
+
+    // Whether to release the memory from the driver as the experiment proceeds
+    bool get_aging_release_memory() const { return m_aging_release_memory; }
 
     // Check whether the configuration/results need to be stored into a database
     bool has_database() const;

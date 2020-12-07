@@ -97,6 +97,8 @@ void Configuration::initialiase(int argc, char* argv[]){
 
     options.add_options("Generic")
         ("aging_cooloff", "The amount of time to wait idle after the simulation completed in the Aging2 experiment. The purpose is to measure the memory footprint of the test library when no updates are being executed", value<DurationQuantity>())
+        ("aging_release_memory", "Whether to log to stdout the memory footprint measurements observed", value<bool>()->default_value("true"))
+        ("aging_report_memfp", "Whether to log to stdout the memory footprint measurements observed", value<bool>()->default_value("false"))
         ("aging_step_size", "The step of each recording for the measured progress in the Aging2 experiment. Valid values are 0.1, 0.25, 0.5 and 1.0", value<double>()->default_value("1"))
         ("aging_timeout", "Force terminating the aging experiment after the given amount of time (excl. cool-off time)", value<DurationQuantity>())
         ("blacklist", "Comma separated list of graph algorithms to blacklist and do not execute", value<string>())
@@ -239,6 +241,14 @@ void Configuration::initialiase(int argc, char* argv[]){
 
         if( result["aging_cooloff"].count() > 0){
             set_aging_cooloff_seconds( result["aging_cooloff"].as<DurationQuantity>().as<chrono::seconds>().count() );
+        }
+
+        if(result["aging_report_memfp"].count() > 0){
+            m_aging_report_memfp = result["aging_report_memfp"].as<bool>();
+        }
+
+        if(result["aging_release_memory"].count() > 0){
+            m_aging_release_memory = result["aging_release_memory"].as<bool>();
         }
 
         if( result["blacklist"].count() > 0 ){
@@ -453,6 +463,8 @@ void Configuration::save_parameters() {
     params.push_back(P{"seed", to_string(seed())});
     params.push_back(P{"aging", to_string(m_coeff_aging)});
     params.push_back(P{"aging_cooloff", to_string(get_aging_cooloff_seconds())});
+    params.push_back(P{"aging_release_memory", to_string(get_aging_release_memory())});
+    params.push_back(P{"aging_report_memfp", to_string(get_aging_report_memfp())});
     params.push_back(P{"aging_step_size", to_string(get_aging_step_size())});
     params.push_back(P{"aging_timeout", to_string(get_timeout_aging2())});
     params.push_back(P{"build_frequency", to_string(get_build_frequency())}); // milliseconds

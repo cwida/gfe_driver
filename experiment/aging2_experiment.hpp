@@ -49,6 +49,8 @@ class Aging2Experiment {
     uint64_t m_worker_granularity = 1024; // the granularity of a task for a worker, that is the number of contiguous operations (inserts/deletes) performed inside the threads between each invocation to the scheduler.
     double m_max_weight = 1.0; // set the max weight for the edges to create
     std::chrono::milliseconds m_build_frequency {0}; // the frequency to create a new delta/snapshot, that is invoking the method #build()
+    bool m_release_driver_memory = true; // whether to release the driver's memory as the experiment proceeds. Otherwise, it's only released at the end of the experiment
+    bool m_report_memory_footprint = false; // whether to print to stdout the measurements observed for the memory footprint
     bool m_report_progress = false; // whether to report the current progress
     uint64_t m_num_reports_per_operations = 1; // how often to save in the database progress done
     bool m_measure_latency = false; // whether to measure the latency of updates
@@ -74,8 +76,14 @@ public:
     // Set how frequently create a new snapshot/delta in the library (0 = do not create new snapshots)
     void set_build_frequency(std::chrono::milliseconds millisecs);
 
+    // whether to release the driver's memory as the experiment proceeds. Otherwise, it's only released at the end of the experiment
+    void set_release_memory(bool value);
+
     // Whether to print to stdout the current progress of the experiment
     void set_report_progress(bool value);
+
+    // Whether to print to stdout the measurements observed for the memory footprint
+    void set_report_memory_footprint(bool value);
 
     // Set how often to save in the database the progress done. The minimum value is 1.
     // A value of N, implies that there will N reports every `num_edges' operations. For instance:

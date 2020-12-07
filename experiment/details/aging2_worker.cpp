@@ -216,16 +216,18 @@ void Aging2Worker::main_execute_updates(){
 
     const int64_t num_total_ops = m_master.num_operations_total();
     const bool report_progress = m_master.parameters().m_report_progress;
+    const bool release_memory = m_master.parameters().m_release_driver_memory;
     // reports_per_ops only affects how often a report is saved in the db, not the report to the stdout
     const double reports_per_ops = m_master.parameters().m_num_reports_per_operations;
     int lastset_coeff = 0;
 
-    while( ! m_updates.empty() ){
-        vector<graph::WeightedEdge>* operations = m_updates[0];
+    for(uint64_t i = 0, end = m_updates.size(); i < end; i++){
+        // if we're release the driver's memory, always fetch the first. Otherwise follow the index.
+        vector<graph::WeightedEdge>* operations = m_updates[release_memory ? 0 : i];
 
         uint64_t num_loops = (operations->size() / granularity()) + (operations->size() % granularity() != 0);
         uint64_t start = 0;
-        for(uint64_t i = 0; i < num_loops; i++){
+        for(uint64_t j = 0; j < num_loops; j++){
             uint64_t end = std::min( start + granularity(), operations->size() );
 
             // execute a chunk of updates
@@ -236,7 +238,7 @@ void Aging2Worker::main_execute_updates(){
             // report progress
             if(report_progress && static_cast<int>(100.0 * num_ops_done/num_total_ops) > m_master.m_last_progress_reported){
                 m_master.m_last_progress_reported = 100.0 * num_ops_done/num_total_ops;
-                LOG("[thread: " << ::common::concurrency::get_thread_id() << ", worker_id: " << m_worker_id << "] Progress: " << 100.0 * num_ops_done/num_total_ops << "%");
+                LOG("[thread: " << ::common::concurrency::get_thread_id() << ", worker_id: " << m_worker_id << "] Progress: " << static_cast<int>(100.0 * num_ops_done/num_total_ops) << "%");
             }
 
             // report how long it took to perform 1x, 2x, ... updates w.r.t. to the size of the final graph
@@ -252,11 +254,13 @@ void Aging2Worker::main_execute_updates(){
             start = end;
         }
 
-        COUT_DEBUG("Releasing a buffer of cardinality " << operations->size() << ", " << m_updates.size() -1 << " buffers left");
-        m_updates_mem_usage -= m_updates[0]->capacity() * sizeof(gfe::graph::WeightedEdge); // update the memory footprint of this worker
-        COUT_DEBUG("Memory footprint: " << m_updates_mem_usage << " bytes");
-        delete m_updates[0];
-        m_updates.pop();
+        if(release_memory){
+            COUT_DEBUG("Releasing a buffer of cardinality " << operations->size() << ", " << m_updates.size() -1 << " buffers left");
+            m_updates_mem_usage -= m_updates[0]->capacity() * sizeof(gfe::graph::WeightedEdge); // update the memory footprint of this worker
+            COUT_DEBUG("Memory footprint: " << m_updates_mem_usage << " bytes");
+            delete m_updates[0];
+            m_updates.pop();
+        }
     }
 }
 

@@ -122,7 +122,9 @@ static void run_standalone(int argc, char* argv[]){
             experiment.set_library(impl_upd);
             experiment.set_log(configuration().get_update_log());
             experiment.set_parallelism_degree(configuration().num_threads(THREADS_WRITE));
+            experiment.set_release_memory(configuration().get_aging_release_memory());
             experiment.set_report_progress(true);
+            experiment.set_report_memory_footprint(configuration().get_aging_report_memfp());
             experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
             experiment.set_max_weight(configuration().max_weight());
             experiment.set_measure_latency(configuration().measure_latency());

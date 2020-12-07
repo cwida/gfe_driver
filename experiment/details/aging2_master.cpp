@@ -258,6 +258,7 @@ uint64_t Aging2Master::num_edges_final_graph() const {
 void Aging2Master::wait_and_record() {
     bool done = false;
     m_results.m_progress.clear();
+    const bool report_memfp = parameters().m_report_memory_footprint;
 
     chrono::steady_clock::time_point now = chrono::steady_clock::now();
     chrono::steady_clock::time_point last_memory_footprint_recording = now;
@@ -279,15 +280,13 @@ void Aging2Master::wait_and_record() {
 
             if(/* first tick */ (m_results.m_progress.size() == 1) || tp - last_memory_footprint_recording >= 10s){
                 uint64_t tick = m_results.m_progress.size(); // 1, 10, 20, 30, 40, 50, 60, ...
-                uint64_t mem_footprint_process = common::get_memory_footprint();
-                uint64_t mem_overhead = memory_footprint();
-                //LOG("[memory footprint #" << tick << "] process: " << (mem_footprint_process / (1ull<<20)) << " MB" << ", overhead: " << (mem_overhead / (1ull<<20)) << " MB, "
-                //     "total: " << (static_cast<int64_t>(mem_footprint_process) - static_cast<int64_t>(mem_overhead)) / (1ll << 20) << " MB");
-
-                uint64_t mem_bytes = mem_footprint_process - mem_overhead;
-                m_results.m_memory_footprint.push_back(std::make_pair(tick, mem_bytes));
+                uint64_t memfp_process = common::get_memory_footprint();
+                uint64_t memfp_driver = memory_footprint();
+                Aging2Result::MemoryFootprint memfp { tick, memfp_process, memfp_driver, /* cool off ? */ false };
+                m_results.m_memory_footprint.push_back( memfp );;
+                if(report_memfp){ LOG("Memory footprint after " << DurationQuantity( tick ) << ": " <<
+                        ComputerQuantity(memfp_process - memfp_driver, true) ); }
                 if(m_results.m_progress.size() > 1) { last_memory_footprint_recording = tp; } // beyond the first tick
-                //COUT_DEBUG("tick: " << tick << ", memory footprint: " << mem_bytes << " bytes");
             }
         }
     } while(!done && now < timeout);
@@ -306,17 +305,20 @@ void Aging2Master::wait_and_record() {
 
 void Aging2Master::cooloff(std::chrono::steady_clock::time_point start){
     if(m_parameters.m_cooloff.count() == 0) return; // nothing to do
+    const bool report_memfp = parameters().m_report_memory_footprint;
 
     LOG("[Aging2] Cool-off period of " << m_parameters.m_cooloff.count() << " seconds ... ");
     auto now = chrono::steady_clock::now();
     const auto end = now + m_parameters.m_cooloff;
-    chrono::seconds next_tick { /* multiples of 10 */ (chrono::duration_cast<chrono::seconds>(now - start).count() / 10) * 10 };
-    if(next_tick.count() == 0){ next_tick = 1s; }
+    chrono::seconds next_tick { chrono::duration_cast<chrono::seconds>(now - start) +1s };
     do {
         this_thread::sleep_until(start + next_tick);
-        uint64_t mem_bytes = common::get_memory_footprint() - memory_footprint();
-        m_results.m_memory_footprint.push_back(std::make_pair(next_tick.count(), mem_bytes));
-        next_tick = (next_tick == 1s) ? 10s : next_tick + 10s;
+        uint64_t memfp_process = common::get_memory_footprint();
+        uint64_t memfp_driver = memory_footprint();
+        Aging2Result::MemoryFootprint memfp { static_cast<uint64_t>(next_tick.count()), memfp_process, memfp_driver, /* cool off ? */ true };
+        m_results.m_memory_footprint.push_back(memfp);
+        if(report_memfp){ LOG("Memory footprint (cool-off) after " << DurationQuantity( (uint64_t) next_tick.count() ) << ": " << ComputerQuantity(memfp_process - memfp_driver, true) ); }
+        next_tick += 1s;
 
         now = chrono::steady_clock::now();
     } while( now < end );

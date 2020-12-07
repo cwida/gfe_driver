@@ -69,9 +69,11 @@ void Aging2Result::save(common::Database* handle) {
     }
 
     for(auto record: m_memory_footprint){
-        auto db = handle->add("aging_intermediate_memory_usage");
-        db.add("tick", (int64_t) record.first );
-        db.add("memory_usage", (int64_t) record.second );
+        auto db = handle->add("aging_intermediate_memory_usage_v2");
+        db.add("tick", record.m_tick );
+        db.add("memfp_process", record.m_memory_process );
+        db.add("memfp_driver", record.m_memory_driver );
+        db.add("cooloff", (int64_t) record.m_is_cooloff);
     }
 
     if(m_latency_stats.get() != nullptr){

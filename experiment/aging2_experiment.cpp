@@ -75,8 +75,16 @@ void Aging2Experiment::set_build_frequency(std::chrono::milliseconds millisecs){
     m_build_frequency = millisecs;
 }
 
+void Aging2Experiment::set_release_memory(bool value){
+    m_release_driver_memory = value;
+}
+
 void Aging2Experiment::set_report_progress(bool value){
     m_report_progress = value;
+}
+
+void Aging2Experiment::set_report_memory_footprint(bool value){
+    m_report_memory_footprint = value;
 }
 
 void Aging2Experiment::set_num_reports_per_ops(uint64_t value){
