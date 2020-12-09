@@ -157,7 +157,7 @@ static void run(){
     common::Timer timer;
     timer.start();
 
-    if(g_library == "csr"){
+    if(g_library == "csr" || g_library == "csr-numa"){
         run_csr();
     } else if(g_library == "teseo"){
 #if defined(HAVE_TESEO)
@@ -1095,7 +1095,9 @@ static void compute_medians(){
 
 static void load(){
     if(g_library == "csr"){
-        g_interface.reset( new gfe::library::CSR( /* directed ? */ false ) );
+        g_interface.reset( new gfe::library::CSR( /* directed ? */ false, /* numa interleaved */ false ) );
+    } else if(g_library == "csr-numa"){
+        g_interface.reset( new gfe::library::CSR( /* directed ? */ false, /* numa interleaved */ true ) );
     } else if(g_library == "teseo" || g_library == "teseo-rw"){
 #if defined(HAVE_TESEO)
         g_interface.reset( new gfe::library::TeseoDriver(/* directed ? */ false) );
@@ -1167,7 +1169,7 @@ static void load(){
         LOG("List of vertices loaded in " << timer);
     }
 
-    if(g_library == "csr") {
+    if(g_library == "csr" || g_library == "csr-numa") {
         LOG("Loading the graph from " << g_path_graph << " ... ");
         common::Timer timer; timer.start();
         dynamic_pointer_cast<gfe::library::LoaderInterface>(g_interface)->load(g_path_graph);
@@ -1233,8 +1235,8 @@ static void parse_args(int argc, char* argv[]) {
             string library = optarg;
             if(library == "livegraph"){
                 library = "livegraph-ro";
-            } else if(library != "csr" && library != "teseo" && library != "teseo-rw" && library != "graphone" && library != "llama" && library != "stinger" && library != "livegraph-ro" && library != "livegraph-rw"){
-                cerr << "ERROR: Invalid library: `" << library << "'. Only \"csr\", \"teseo\", \"graphone\", \"llama\" and \"stinger\" are supported." << endl;
+            } else if(library != "csr" && library != "csr-numa" && library != "teseo" && library != "teseo-rw" && library != "graphone" && library != "llama" && library != "stinger" && library != "livegraph-ro" && library != "livegraph-rw"){
+                cerr << "ERROR: Invalid library: `" << library << "'. Only \"csr\", \"csr-numa\", \"teseo\", \"graphone\", \"llama\" and \"stinger\" are supported." << endl;
                 exit(EXIT_FAILURE);
             }
             g_library = library;
@@ -1337,7 +1339,7 @@ static string string_usage(char* program_name) {
     ss << "Usage: " << program_name << " -G <graph> [-t <num_threads>] [-l <library>] [-R <num_repetitions>]\n";
     ss << "Where: \n";
     ss << "  -G <graph> is an .properties file of an undirected graph from the Graphalytics data set\n";
-    ss << "  -l <library> is the library to execute. Only \"csr\", \"teseo\" (default), \"teseo-rw\", \"graphone\", \"livegraph\", \"livegraph-rw\", \"llama\", and \"stinger\" are supported\n";
+    ss << "  -l <library> is the library to execute. Only \"csr\", \"csr-numa\" \"teseo\" (default), \"teseo-rw\", \"graphone\", \"livegraph\", \"livegraph-rw\", \"llama\", and \"stinger\" are supported\n";
     ss << "  -R <num_repetitions> is the number of repetitions the same micro benchmarks need to be performed\n";
     ss << "  -t <num_threads> follows the page range format, e.g. 1-16,32\n";
     return ss.str();
