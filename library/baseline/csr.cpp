@@ -76,7 +76,6 @@ CSR::CSR(bool is_directed, bool numa_interleaved) : m_is_directed(is_directed), 
         ERROR("[CSR] Cannot allocate the memory interleaved, a call to numa_available() returns a negative value (=> NUMA not available)");
     }
 #endif
-    cout << "numa interleaved: " << m_numa_interleaved << endl;
 }
 
 CSR::~CSR(){

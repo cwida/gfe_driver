@@ -18,11 +18,13 @@
 #include "edge_stream.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <future>
 #include <memory>
 #include <thread>
 #include <unordered_map>
 #include "common/permutation.hpp"
+#include "common/sorting.hpp"
 #include "common/timer.hpp"
 #include "reader/reader.hpp"
 #include "cbytearray.hpp"
@@ -200,15 +202,11 @@ unique_ptr<cuckoohash_map<uint64_t, uint64_t>> WeightedEdgeStream::vertex_table(
     LOG("Computing the list of vertices ... ")
     Timer timer; timer.start();
 
-//    unique_ptr<cuckoohash_map<uint64_t, bool>> ptr_vertex_table;
     auto ptr_vertex_table = make_unique<cuckoohash_map<uint64_t, uint64_t>>();
     auto vertex_table = ptr_vertex_table.get();
 
     auto populate_vertex_table = [this, vertex_table](uint64_t start, uint64_t length){
         for(uint64_t i = start, end = start + length; i < end; i++){
-//            LOG("source: " << m_sources->get_value_at(i) << ", destination: " << m_destinations->get_value_at(i));
-//            vertex_table->insert(m_sources->get_value_at(i), true);
-//            vertex_table->insert(m_destinations->get_value_at(i), true);
             vertex_table->upsert(m_sources->get_value_at(i), [](uint64_t& value){ value +=1; }, 1);
             vertex_table->upsert(m_destinations->get_value_at(i), [](uint64_t& value){ value += 1; }, 1);
         }
@@ -251,8 +249,7 @@ void WeightedEdgeStream::sort_by_src_dst(){
     uint64_t* __restrict permutation = ptr_permutation.get();
     for(size_t i = 0; i < m_num_edges; i++){ permutation[i] = i; }
 
-    std::sort(permutation, permutation + m_num_edges, [this](uint64_t i, uint64_t j){
-        assert(i != j);
+    common::sort(permutation, m_num_edges, [this](uint64_t i, uint64_t j){
         uint64_t source_i = m_sources->get_value_at(i);
         uint64_t source_j = m_sources->get_value_at(j);
         if(source_i < source_j) {
@@ -286,8 +283,7 @@ void WeightedEdgeStream::sort_by_dst_src(){
     uint64_t* __restrict permutation = ptr_permutation.get();
     for(size_t i = 0; i < m_num_edges; i++){ permutation[i] = i; }
 
-    std::sort(permutation, permutation + m_num_edges, [this](uint64_t i, uint64_t j){
-        assert(i != j);
+    common::sort(permutation, m_num_edges, [this](uint64_t i, uint64_t j){
         return m_destinations->get_value_at(i) < m_destinations->get_value_at(j) ||
                 (m_destinations->get_value_at(i) == m_destinations->get_value_at(j) && m_sources->get_value_at(i) < m_sources->get_value_at(j));
     });

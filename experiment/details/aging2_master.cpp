@@ -264,8 +264,6 @@ void Aging2Master::wait_and_record() {
     chrono::steady_clock::time_point last_memory_footprint_recording = now;
     chrono::steady_clock::time_point timeout = now + ( m_parameters.m_timeout == 0s ? /* 1 month */ 31 * 24h : m_parameters.m_timeout );
 
-    LOG("memfp threshold: " << ComputerQuantity(parameters().m_memfp_threshold, true));
-
     do {
         auto tp = now + 1s;
 
