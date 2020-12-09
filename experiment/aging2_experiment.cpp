@@ -109,6 +109,10 @@ void Aging2Experiment::set_cooloff(std::chrono::seconds secs){
     m_cooloff = secs;
 }
 
+void Aging2Experiment::set_memfp_threshold(uint64_t value) {
+    m_memfp_threshold = value;
+}
+
 Aging2Result Aging2Experiment::execute(){
     if(m_library.get() == nullptr) ERROR("Library not set. Use #set_library to set it.");
     if(m_path_log.empty()) ERROR("Path to the log file not set. Use #set_log to set it.")

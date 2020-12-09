@@ -60,6 +60,7 @@ class Configuration {
 
     // properties
     uint64_t m_aging_cooloff_seconds { 0 }; // cool-off period in the aging experiment, in seconds.
+    uint64_t m_aging_memfp_threshold { 0 }; // forcedly stop the execution of the aging2 experiment if the process is using more memory than this threshold, in bytes
     bool m_aging_release_memory = true; // whether to release the memory from the driver as the experiment proceeds
     bool m_aging_report_memfp = false; // whether to print stdout the measurements observed for the memory footprint
     std::vector<std::string> m_blacklist; // list of graph algorithms that cannot be executed
@@ -89,6 +90,7 @@ class Configuration {
     bool m_validate_output = false; // whether to validate the execution results of the Graphalytics algorithms
 
     void set_aging_cooloff_seconds(uint64_t value);
+    void set_aging_memfp_threshold(uint64_t bytes);
     void set_aging_step_size(double value); // The step in each recording in the progress for the Agin2 experiment. In (0, 1].
     void set_build_frequency(uint64_t millisecs);
     void set_coeff_aging(double value); // Set the coefficient for `aging', i.e. how many updates (insertions/deletions) to perform w.r.t. to the size of the loaded graph
@@ -185,6 +187,9 @@ public:
     // amount of seconds idle, checking the amount of memory used. The goal is to detect the impact of the garbage
     // collector of the evaluated library in reducing the memory footprint when no updates are being executed.
     uint64_t get_aging_cooloff_seconds() const { return m_aging_cooloff_seconds; }
+
+    // Forcedly stop the execution of the aging2 experiment if the process is using more memory than this threshold, in bytes
+    uint64_t get_aging_memfp_threshold() const { return m_aging_memfp_threshold; }
 
     // Whether to print to stdout the measurements observed for the memory footprint
     bool get_aging_report_memfp() const { return m_aging_report_memfp; }

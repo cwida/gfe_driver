@@ -53,6 +53,8 @@ class Aging2Master {
 
     // Stinger is so slow, that we stop the experiment after four hours
     std::atomic<bool> m_stop_experiment = false;
+    enum class StopReason { NOT_SET, TIMEOUT_HIT, MEMORY_FOOTPRINT }; // the reason the experiment has been stopped
+    StopReason m_stop_reason = StopReason::NOT_SET;
 
     Aging2Result m_results; // final results of the experiment
 

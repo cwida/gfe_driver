@@ -97,6 +97,7 @@ void Configuration::initialiase(int argc, char* argv[]){
 
     options.add_options("Generic")
         ("aging_cooloff", "The amount of time to wait idle after the simulation completed in the Aging2 experiment. The purpose is to measure the memory footprint of the test library when no updates are being executed", value<DurationQuantity>())
+        ("aging_memfp_threshold", "Forcedly stop the execution of the aging experiment if the memory footprint of the whole process is above this threshold", value<ComputerQuantity>())
         ("aging_release_memory", "Whether to log to stdout the memory footprint measurements observed", value<bool>()->default_value("true"))
         ("aging_report_memfp", "Whether to log to stdout the memory footprint measurements observed", value<bool>()->default_value("false"))
         ("aging_step_size", "The step of each recording for the measured progress in the Aging2 experiment. Valid values are 0.1, 0.25, 0.5 and 1.0", value<double>()->default_value("1"))
@@ -243,6 +244,10 @@ void Configuration::initialiase(int argc, char* argv[]){
             set_aging_cooloff_seconds( result["aging_cooloff"].as<DurationQuantity>().as<chrono::seconds>().count() );
         }
 
+        if( result["aging_memfp_threshold"].count() > 0 ){
+            set_aging_memfp_threshold( result["aging_memfp_threshold"].as<ComputerQuantity>() );
+        }
+
         if(result["aging_report_memfp"].count() > 0){
             m_aging_report_memfp = result["aging_report_memfp"].as<bool>();
         }
@@ -380,6 +385,10 @@ void Configuration::set_aging_cooloff_seconds(uint64_t value){
     m_aging_cooloff_seconds = value;
 }
 
+void Configuration::set_aging_memfp_threshold(uint64_t bytes){
+    m_aging_memfp_threshold = bytes;
+}
+
 uint64_t Configuration::get_num_recordings_per_ops() const {
     double step_size = get_aging_step_size();
     if ( ::ceil(1.0/step_size) != ::floor(1.0/step_size) ){
@@ -463,6 +472,7 @@ void Configuration::save_parameters() {
     params.push_back(P{"seed", to_string(seed())});
     params.push_back(P{"aging", to_string(m_coeff_aging)});
     params.push_back(P{"aging_cooloff", to_string(get_aging_cooloff_seconds())});
+    params.push_back(P{"aging_memfp_threshold", to_string(get_aging_memfp_threshold())});
     params.push_back(P{"aging_release_memory", to_string(get_aging_release_memory())});
     params.push_back(P{"aging_report_memfp", to_string(get_aging_report_memfp())});
     params.push_back(P{"aging_step_size", to_string(get_aging_step_size())});

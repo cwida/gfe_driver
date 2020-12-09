@@ -238,7 +238,9 @@ void Aging2Worker::main_execute_updates(){
             // report progress
             if(report_progress && static_cast<int>(100.0 * num_ops_done/num_total_ops) > m_master.m_last_progress_reported){
                 m_master.m_last_progress_reported = 100.0 * num_ops_done/num_total_ops;
-                LOG("[thread: " << ::common::concurrency::get_thread_id() << ", worker_id: " << m_worker_id << "] Progress: " << static_cast<int>(100.0 * num_ops_done/num_total_ops) << "%");
+                if(!m_master.m_stop_experiment){
+                    LOG("[thread: " << ::common::concurrency::get_thread_id() << ", worker_id: " << m_worker_id << "] Progress: " << static_cast<int>(100.0 * num_ops_done/num_total_ops) << "%");
+                }
             }
 
             // report how long it took to perform 1x, 2x, ... updates w.r.t. to the size of the final graph

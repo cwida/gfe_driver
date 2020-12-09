@@ -53,7 +53,8 @@ class Aging2Result {
     std::vector<MemoryFootprint> m_memory_footprint;
     uint64_t m_random_vertex_id = 0; // the ID of a random vertex stored in the graph
     std::shared_ptr<details::LatencyStatistics[]> m_latency_stats; // 3 items, 0 = insertions, 1 = deletions, 2 = both insertions & deletions
-    bool m_timeout = false; // whether the experiment terminated due to the internal timeout
+    bool m_timeout_hit = false; // whether the experiment terminated due to the internal timeout
+    bool m_memfp_threshold_passed = false; // whether the experiment terminated due to the excessive usage of memory
 
 public:
     // Default ctor

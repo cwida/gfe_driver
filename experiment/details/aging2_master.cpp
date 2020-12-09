@@ -264,6 +264,8 @@ void Aging2Master::wait_and_record() {
     chrono::steady_clock::time_point last_memory_footprint_recording = now;
     chrono::steady_clock::time_point timeout = now + ( m_parameters.m_timeout == 0s ? /* 1 month */ 31 * 24h : m_parameters.m_timeout );
 
+    LOG("memfp threshold: " << ComputerQuantity(parameters().m_memfp_threshold, true));
+
     do {
         auto tp = now + 1s;
 
@@ -284,21 +286,25 @@ void Aging2Master::wait_and_record() {
                 uint64_t memfp_driver = memory_footprint();
                 Aging2Result::MemoryFootprint memfp { tick, memfp_process, memfp_driver, /* cool off ? */ false };
                 m_results.m_memory_footprint.push_back( memfp );;
-                if(report_memfp){ LOG("Memory footprint after " << DurationQuantity( tick ) << ": " <<
-                        ComputerQuantity(memfp_process - memfp_driver, true) ); }
+                if(report_memfp){ LOG("Memory footprint after " << DurationQuantity( tick ) << ": " << ComputerQuantity(memfp_process - memfp_driver, true)); }
                 if(m_results.m_progress.size() > 1) { last_memory_footprint_recording = tp; } // beyond the first tick
+
+                if(parameters().m_memfp_threshold > 0 && memfp_process >= parameters().m_memfp_threshold){
+                    m_stop_experiment = true;
+                    LOG("MEMORY THRESHOLD PASSED ( " <<  ComputerQuantity(parameters().m_memfp_threshold, true) << " ). Terminating the experiment ...");
+                    m_stop_reason = StopReason::MEMORY_FOOTPRINT;
+                }
+            }
+
+            if(now >= timeout){
+                m_stop_experiment = true;
+                LOG("TIMEOUT HIT, Terminating the experiment ... ");
+                m_stop_reason = StopReason::TIMEOUT_HIT;
             }
         }
-    } while(!done && now < timeout);
+    } while(!done && !m_stop_experiment);
 
-    if(!done){
-        // forcedly stop the experiment
-        if(m_parameters.m_timeout != 0s){
-            LOG("TIMEOUT HIT, Terminating the experiment ... ");
-            m_stop_experiment = true;
-        }
-
-        // wait the workers to terminate
+    if(m_stop_experiment){ // wait the workers to terminate
         for(auto& w : m_workers) w->wait();
     }
 }
@@ -351,7 +357,8 @@ void Aging2Master::store_results(){
         delete[] m_latencies; m_latencies = nullptr; // free some memory
     }
 
-    m_results.m_timeout = m_stop_experiment;
+    m_results.m_timeout_hit = (m_stop_reason == StopReason::TIMEOUT_HIT);
+    m_results.m_memfp_threshold_passed  = (m_stop_reason == StopReason::MEMORY_FOOTPRINT);
 }
 
 void Aging2Master::log_num_vtx_edges(){

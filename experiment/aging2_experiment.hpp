@@ -49,6 +49,7 @@ class Aging2Experiment {
     uint64_t m_worker_granularity = 1024; // the granularity of a task for a worker, that is the number of contiguous operations (inserts/deletes) performed inside the threads between each invocation to the scheduler.
     double m_max_weight = 1.0; // set the max weight for the edges to create
     std::chrono::milliseconds m_build_frequency {0}; // the frequency to create a new delta/snapshot, that is invoking the method #build()
+    uint64_t m_memfp_threshold = 0; // forcedly stop the execution of the experiment when the readings of the memory footprint are above this threshold (0 = infinite)
     bool m_release_driver_memory = true; // whether to release the driver's memory as the experiment proceeds. Otherwise, it's only released at the end of the experiment
     bool m_report_memory_footprint = false; // whether to print to stdout the measurements observed for the memory footprint
     bool m_report_progress = false; // whether to report the current progress
@@ -100,6 +101,9 @@ public:
 
     // Cool-off period. Number of seconds to wait idle after the simulation terminated, measuring the memory footprint
     void set_cooloff(std::chrono::seconds secs);
+
+    // Forcedly stop the execution of the experiment when the readings of the memory footprint are above this threshold (0 = infinite)
+    void set_memfp_threshold(uint64_t value);
 
     // [Internal parameter]
     // Set the granularity of a task for a worker thread. This is the number of contiguos operations (inserts/deletes) done

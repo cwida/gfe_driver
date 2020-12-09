@@ -53,7 +53,8 @@ void Aging2Result::save(common::Database* handle) {
     db.add("num_build_invocations", m_num_build_invocations);
     db.add("num_snapshots_created", m_num_levels_created);
     db.add("completion_time", m_completion_time); // microseconds
-    db.add("timeout", (int64_t) m_timeout);
+    db.add("has_terminated_for_timeout", (int64_t) m_timeout_hit);
+    db.add("has_terminated_for_memfp", (int64_t) m_memfp_threshold_passed);
 
     for(int i = 0, sz = m_reported_times.size(); i < sz; i++){
         if(m_reported_times[i] == 0) continue; // missing??

@@ -130,6 +130,7 @@ static void run_standalone(int argc, char* argv[]){
             experiment.set_measure_latency(configuration().measure_latency());
             experiment.set_num_reports_per_ops(configuration().get_num_recordings_per_ops());
             experiment.set_timeout(chrono::seconds { configuration().get_timeout_aging2() });
+            experiment.set_memfp_threshold(configuration().get_aging_memfp_threshold());
             experiment.set_cooloff(chrono::seconds { configuration().get_aging_cooloff_seconds() });
 
             auto result = experiment.execute();
