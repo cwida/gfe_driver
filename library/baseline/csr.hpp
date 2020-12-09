@@ -54,6 +54,7 @@ protected:
     uint64_t* m_in_e {nullptr}; // edge array for the incoming edges (only in directed graphs)
     double* m_in_w {nullptr}; // weights associated to the incoming edges
     uint64_t m_timeout = 0; // max time to complete a kernel of the graphalytics suite, in seconds
+    const bool m_numa_interleaved; // whether to use libnuma to allocate the internal arrays
 
     // Retrieve the [start, end) interval for the outgoing edges associated to the given logical vertex
     std::pair<uint64_t, uint64_t> get_out_interval(uint64_t logical_vertex_id) const;
@@ -69,6 +70,12 @@ protected:
 
     // Retrieve the number of incoming edges for the given vertex
     uint64_t get_in_degree(uint64_t logical_vertex_id) const;
+
+    template<typename T>
+    T* alloca_array(uint64_t sz);
+
+    template<typename T>
+    void free_array(T* array);
 
 private:
     // Load an undirected graph
@@ -104,8 +111,9 @@ public:
     /**
      * Constructor
      * @param is_directed: true if the graph is directed, false otherwise
+     * @param numa_interleaved: whether to allocate the internal array interleaved among the NUMA nodes
      */
-    CSR(bool is_directed);
+    CSR(bool is_directed, bool numa_interleaved = false);
 
     /**
      * Destructor
@@ -280,7 +288,7 @@ public:
     /**
      * Constructor, same arguments of its base class
      */
-    CSR_LCC(bool is_directed);
+    CSR_LCC(bool is_directed, bool numa_interleaved = false);
 
     /**
      * Specialised implementation of the kernel LCC

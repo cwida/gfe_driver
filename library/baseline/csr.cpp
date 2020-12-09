@@ -23,6 +23,9 @@
 #include <iostream>
 #include <limits>
 #include <mutex>
+#if defined(HAVE_LIBNUMA)
+#include <numa.h>
+#endif
 #include <omp.h>
 #include <random>
 #include <sstream>
@@ -65,26 +68,69 @@ namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
 
 namespace gfe::library {
 
-CSR::CSR(bool is_directed) : m_is_directed(is_directed), m_num_vertices (0), m_num_edges(0) {
-
+CSR::CSR(bool is_directed, bool numa_interleaved) : m_is_directed(is_directed), m_num_vertices (0), m_num_edges(0), m_numa_interleaved(numa_interleaved) {
+#if !defined(HAVE_LIBNUMA)
+    ERROR("[CSR] Cannot allocate the memory interleaved, dependency on libnuma missing");
+#else
+    if(numa_available() < 0){
+        ERROR("[CSR] Cannot allocate the memory interleaved, a call to numa_available() returns a negative value (=> NUMA not available)");
+    }
+#endif
+    cout << "numa interleaved: " << m_numa_interleaved << endl;
 }
 
 CSR::~CSR(){
-    delete[] m_out_v; m_out_v = nullptr;
-    delete[] m_out_e; m_out_e = nullptr;
-    delete[] m_out_w; m_out_w = nullptr;
+    free_array(m_out_v); m_out_v = nullptr;
+    free_array(m_out_e); m_out_e = nullptr;
+    free_array(m_out_w); m_out_w = nullptr;
 
     if(m_is_directed){ // otherwise, they are simply aliases to m_out_x
-        delete[] m_in_v;
-        delete[] m_in_e;
-        delete[] m_in_w;
+        free_array(m_in_v);
+        free_array(m_in_e);
+        free_array(m_in_w);
     }
 
     m_in_v = nullptr;
     m_in_e = nullptr;
     m_in_w = nullptr;
 
-    delete[] m_log2ext;
+    free_array(m_log2ext); m_log2ext = nullptr;
+}
+
+template<typename T>
+T* CSR::alloca_array(uint64_t array_sz){
+    if(m_numa_interleaved){
+#if defined(HAVE_LIBNUMA)
+        uint64_t required_bytes = /* header */ sizeof(uint64_t) + /* data */ sizeof(T) * array_sz;
+        void* ptr = numa_alloc_interleaved(required_bytes);
+        if(ptr == nullptr){ ERROR("[CSR] Cannot allocate an interleaved array of " << array_sz * sizeof(T) << " bytes"); }
+        memset(ptr, '\0', required_bytes);
+        uint64_t* header = reinterpret_cast<uint64_t*>(ptr);
+        header[0] = required_bytes;
+        return reinterpret_cast<T*>(header + 1);
+#else
+        return nullptr;
+#endif
+    } else {
+        return new T[array_sz]();
+    }
+}
+
+template<typename T>
+void CSR::free_array(T* array){
+    if(array == nullptr) return; // nop
+
+    if(m_numa_interleaved){
+#if defined(HAVE_LIBNUMA)
+        uint64_t* start = reinterpret_cast<uint64_t*>(array) -1;
+        uint64_t allocation_size = start[0];
+        numa_free(start, allocation_size);
+#else
+        return nullptr;
+#endif
+    } else {
+        delete[] array;
+    }
 }
 
 /*****************************************************************************
@@ -204,7 +250,7 @@ void CSR::load_directed(gfe::graph::WeightedEdgeStream& stream){
         m_num_vertices = vertices->num_vertices();
 
         m_ext2log.reserve(m_num_vertices);
-        m_log2ext = new uint64_t[m_num_vertices];
+        m_log2ext = alloca_array<uint64_t>(m_num_vertices);
 
         for(uint64_t i = 0; i < m_num_vertices; i++){
             uint64_t vertex_id = vertices->get(i);
@@ -215,9 +261,9 @@ void CSR::load_directed(gfe::graph::WeightedEdgeStream& stream){
 
     // init the outgoing edges
     stream.sort_by_src_dst();
-    m_out_v = new uint64_t[m_num_vertices](); // init to 0
-    m_out_e = new uint64_t[m_num_edges];
-    m_out_w = new double[m_num_edges];
+    m_out_v = alloca_array<uint64_t>(m_num_vertices); // init to 0
+    m_out_e = alloca_array<uint64_t>(m_num_edges);
+    m_out_w = alloca_array<double>(m_num_edges);
 
     { // restrict the scope
         uint64_t external_source_id = numeric_limits<uint64_t>::max();
@@ -247,9 +293,9 @@ void CSR::load_directed(gfe::graph::WeightedEdgeStream& stream){
     // init the incoming edges
     // do it for both directed and undirected graphs. For undirected graphs it's an intermediate step
     stream.sort_by_dst_src();
-    m_in_v = new uint64_t[m_num_vertices](); // init to 0
-    m_in_e = new uint64_t[m_num_edges];
-    m_in_w = new double[m_num_edges];
+    m_in_v = alloca_array<uint64_t>(m_num_vertices); // init to 0
+    m_in_e = alloca_array<uint64_t>(m_num_edges);
+    m_in_w = alloca_array<double>(m_num_edges);
 
     uint64_t external_destination_id = numeric_limits<uint64_t>::max();
     uint64_t logical_destination_id = 0;
@@ -281,9 +327,11 @@ void CSR::load_undirected(gfe::graph::WeightedEdgeStream& stream){
     load_directed(stream);
 
     // init the final vectors
-    unique_ptr<uint64_t[]> ptr_out_v_undirected { new uint64_t[m_num_vertices]() };
-    unique_ptr<uint64_t[]> ptr_out_e_undirected { new uint64_t[m_num_edges *2] };
-    unique_ptr<double[]> ptr_out_w_undirected { new double[m_num_edges *2] };
+    auto fn_free_array = [this](uint64_t* ptr){ this->free_array(ptr); };
+    unique_ptr<uint64_t, decltype(fn_free_array)> ptr_out_v_undirected { alloca_array<uint64_t>(m_num_vertices), fn_free_array };
+    unique_ptr<uint64_t, decltype(fn_free_array)> ptr_out_e_undirected { alloca_array<uint64_t>(m_num_edges *2), fn_free_array };
+    auto fn_free_array_dbl = [this](double* ptr){ this->free_array(ptr); };
+    unique_ptr<double, decltype(fn_free_array_dbl)> ptr_out_w_undirected { alloca_array<double>(m_num_edges *2), fn_free_array_dbl };
     auto out_v_undirected = ptr_out_v_undirected.get();
     auto out_e_undirected = ptr_out_e_undirected.get();
     auto out_w_undirected = ptr_out_w_undirected.get();
@@ -339,12 +387,12 @@ void CSR::load_undirected(gfe::graph::WeightedEdgeStream& stream){
     }
 
     // replace the out & in vectors
-    delete[] m_out_v;
-    delete[] m_out_e;
-    delete[] m_out_w;
-    delete[] m_in_v;
-    delete[] m_in_e;
-    delete[] m_in_w;
+    free_array(m_out_v);
+    free_array(m_out_e);
+    free_array(m_out_w);
+    free_array(m_in_v);
+    free_array(m_in_e);
+    free_array(m_in_w);
     m_out_v = m_in_v = ptr_out_v_undirected.release();
     m_out_e = m_in_e = ptr_out_e_undirected.release();
     m_out_w = m_in_w = ptr_out_w_undirected.release();
@@ -1396,7 +1444,7 @@ static constexpr uint64_t LCC_TASK_SIZE = 1ull << 10; // number of vertices proc
 #undef COUT_CLASS_NAME
 #define COUT_CLASS_NAME "CSR_LCC"
 
-CSR_LCC::CSR_LCC(bool is_directed) : CSR(is_directed) {
+CSR_LCC::CSR_LCC(bool is_directed, bool numa_interleaved) : CSR(is_directed, numa_interleaved) {
     if(is_directed) { ERROR("[CSR_LCC] Directed graphs are not supported"); }
 }
 

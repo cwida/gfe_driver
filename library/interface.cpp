@@ -85,12 +85,17 @@ std::unique_ptr<Interface> generate_baseline_adjlist(bool directed_graph){ // di
 }
 
 std::unique_ptr<Interface> generate_csr(bool directed_graph){
-    return unique_ptr<Interface>{ new CSR(directed_graph) };
+    return unique_ptr<Interface>{ new CSR(directed_graph, /* numa interleaved ? */ false) };
 }
 std::unique_ptr<Interface> generate_csr_lcc(bool directed_graph){
-    return unique_ptr<Interface>{ new CSR_LCC(directed_graph) };
+    return unique_ptr<Interface>{ new CSR_LCC(directed_graph, /* numa interleaved ? */ false) };
 }
-
+std::unique_ptr<Interface> generate_csr_numa(bool directed_graph){
+    return unique_ptr<Interface>{ new CSR(directed_graph, /* numa interleaved ? */ true) };
+}
+std::unique_ptr<Interface> generate_csr_lcc_numa(bool directed_graph){
+    return unique_ptr<Interface>{ new CSR_LCC(directed_graph, /* numa interleaved ? */ true) };
+}
 
 std::unique_ptr<Interface> generate_dummy(bool directed_graph){
     return unique_ptr<Interface>{ new Dummy(directed_graph) };
@@ -211,6 +216,8 @@ vector<ImplementationManifest> implementations() {
 
     result.emplace_back("csr", "CSR baseline", &generate_csr);
     result.emplace_back("csr-lcc", "CSR baseline, sort-merge impl for the LCC kernel", &generate_csr_lcc);
+    result.emplace_back("csr-numa", "CSR baseline, allocate the internal arrays using all NUMA nodes", &generate_csr_numa);
+    result.emplace_back("csr-lcc-numa", "CSR baseline, allocate the internal arrays using all NUMA nodes, sort-merge impl for the LCC kernel", &generate_csr_lcc_numa);
 
     // v2 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     result.emplace_back("dummy_v2", "Dummy implementation of the interface, all operations are nop", &generate_dummy);
