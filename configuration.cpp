@@ -511,8 +511,13 @@ void Configuration::save_parameters() {
         params.push_back(P{"blacklist", ss.str()});
     }
 
-
-
+    CompilerInfo compiler; // detect the compiler used to build this source file
+    string compiler_name = compiler.name();
+    transform(begin(compiler_name), end(compiler_name), begin(compiler_name), ::tolower);
+    params.push_back(P{"compiler", compiler_name});
+    params.push_back(P{"compiler_major", to_string(compiler.major())});
+    params.push_back(P{"compiler_minor", to_string(compiler.minor())});
+    params.push_back(P{"compiler_patch", to_string(compiler.patch())});
 
     sort(begin(params), end(params));
     db()->store_parameters(params);
