@@ -1,7 +1,7 @@
 #############################################################################
 # Initialization
 AC_PREREQ([2.69])
-AC_INIT([graph_libs_eval], [0.1])
+AC_INIT([graph_libs_eval], [0.2])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_PRESERVE_HELP_ORDER
 AC_LANG([C++])
@@ -11,10 +11,10 @@ AC_LANG([C++])
 AC_CONFIG_FILES([Makefile])
 
 #############################################################################
-# Set the compiler $CC and $CXX. Prefer clang over gcc
+# Set the compiler $CC and $CXX. Prefer gcc over clang
 old_CFLAGS="${CFLAGS}"; old_CXXFLAGS="${CXXFLAGS}" dnl Do not automatically set -g -O2
-AC_PROG_CC([clang cc gcc icc])
-AC_PROG_CXX([clang++ c++ cxx g++ icpc])
+AC_PROG_CC([gcc clang cc icc])
+AC_PROG_CXX([g++ clang++ c++ cxx icpc])
 CFLAGS="${old_CFLAGS}"; unset old_CFLAGS; CXXFLAGS="${old_CXXFLAGS}"; unset old_CXXFLAGS;
 AX_CXX_COMPILE_STDCXX_17 dnl Ask for C++17, thanks!
 
