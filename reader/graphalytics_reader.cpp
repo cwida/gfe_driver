@@ -224,8 +224,8 @@ public:
     ~GraphalyticsZlibDecompressInput(){
         inflateEnd(&m_stream); // ignore rc
         m_handle.close();
-        delete m_input_buffer; m_input_buffer = nullptr;
-        delete m_output_buffer; m_output_buffer = nullptr;
+        delete[] m_input_buffer; m_input_buffer = nullptr;
+        delete[] m_output_buffer; m_output_buffer = nullptr;
     }
 
     bool read(T* item){
