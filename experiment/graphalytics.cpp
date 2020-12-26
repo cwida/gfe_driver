@@ -144,7 +144,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
                 if(m_validate_output_enabled){
                     string path_reference = get_validation_path("BFS");
                     if(common::filesystem::exists(path_reference)){
-                        GraphalyticsValidate::bfs(path_tmp, path_reference, max_num_errors);
+                        GraphalyticsValidate::bfs(path_tmp, path_reference, max_num_errors, get_validation_map());
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("bfs", ValidationResult::SUCCEEDED);
                         std::filesystem::remove(path_tmp);
@@ -178,7 +178,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
                 if(m_validate_output_enabled){
                     string path_reference = get_validation_path("CDLP");
                     if(common::filesystem::exists(path_reference)){
-                        GraphalyticsValidate::cdlp(path_tmp, path_reference, max_num_errors);
+                        GraphalyticsValidate::cdlp(path_tmp, path_reference, max_num_errors, get_validation_map());
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("cdlp", ValidationResult::SUCCEEDED);
                         std::filesystem::remove(path_tmp);
@@ -212,7 +212,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
                 if(m_validate_output_enabled){
                     string path_reference = get_validation_path("LCC");
                     if(common::filesystem::exists(path_reference)){
-                        GraphalyticsValidate::lcc(path_tmp, path_reference, max_num_errors);
+                        GraphalyticsValidate::lcc(path_tmp, path_reference, max_num_errors, get_validation_map());
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("lcc", ValidationResult::SUCCEEDED);
                         std::filesystem::remove(path_tmp);
@@ -246,7 +246,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
                 if(m_validate_output_enabled){
                     string path_reference = get_validation_path("PR");
                     if(common::filesystem::exists(path_reference)){
-                        GraphalyticsValidate::pagerank(path_tmp, path_reference, max_num_errors);
+                        GraphalyticsValidate::pagerank(path_tmp, path_reference, max_num_errors, get_validation_map());
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("pagerank", ValidationResult::SUCCEEDED);
                         std::filesystem::remove(path_tmp);
@@ -280,7 +280,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
                 if(m_validate_output_enabled){
                     string path_reference = get_validation_path("SSSP");
                     if(common::filesystem::exists(path_reference)){
-                        GraphalyticsValidate::sssp(path_tmp, path_reference, max_num_errors);
+                        GraphalyticsValidate::sssp(path_tmp, path_reference, max_num_errors, get_validation_map());
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("sssp", ValidationResult::SUCCEEDED);
                         std::filesystem::remove(path_tmp);
@@ -313,7 +313,7 @@ std::chrono::microseconds GraphalyticsSequential::execute(){
                 if(m_validate_output_enabled){
                     string path_reference = get_validation_path("WCC");
                     if(common::filesystem::exists(path_reference)){
-                        GraphalyticsValidate::wcc(path_tmp, path_reference, max_num_errors);
+                        GraphalyticsValidate::wcc(path_tmp, path_reference, max_num_errors, get_validation_map());
                         LOG(">> Validation succeeded");
                         m_validate_results.emplace_back("wcc", ValidationResult::SUCCEEDED);
                         std::filesystem::remove(path_tmp);
@@ -425,8 +425,56 @@ void GraphalyticsSequential::set_validate_output(const std::string& path_propert
         LOG("Temporary directory to store the output files: " << m_validate_output_temp_dir);
     }
 
-    m_validate_output_path_properties = path;
+    m_validate_path_expected = path;
     m_validate_output_enabled = true;
+}
+
+void GraphalyticsSequential::set_validate_remap_vertices(const std::string& path_property_file){
+    string path_results = path_property_file;
+    if(!common::filesystem::file_exists(path_results)){
+        path_results += ".properties"; // try again by adding the suffix .properties
+        if(!common::filesystem::file_exists(path_results)){
+            ERROR("The file `" + path_property_file + "' does not exist");
+        }
+    }
+    Timer timer; timer.start();
+    LOG("Validation: mapping the vertices from `" << m_validate_path_expected << "' into `" << path_results << "' ... ");
+
+    reader::GraphalyticsReader reader_expected { m_validate_path_expected };
+    reader::GraphalyticsReader reader_results { path_results };
+
+    uint64_t expected_num_vertices = stoull( reader_expected.get_property("meta.vertices") );
+    uint64_t results_num_vertices = stoull( reader_results.get_property("meta.vertices") );
+
+    if(expected_num_vertices != results_num_vertices) {
+        ERROR("The number of vertices in the two files `" << m_validate_path_expected << "' and `" << path_results << "' do not match: "
+                << expected_num_vertices << " != " << results_num_vertices)
+    }
+
+    // the vertices in the results file must have been remapped following the same sorted order of the expected file
+    bool vtx_stable_map = reader_results.get_property("meta.stable-map") == "true";
+    if(!vtx_stable_map){
+        ERROR("[Validation] We cannot compare `" << m_validate_path_expected << "' and `" << path_results << "' because the vertices have "
+               "not been mapped following the same sorted order of the expected input graph. The property `meta.stable-map' is not set or it is false "
+               "in the file: `" << path_results << "'.")
+    }
+
+    m_validate_path_expected.reserve(expected_num_vertices);
+
+    uint64_t vertex_expected, vertex_results;
+    while(reader_expected.read_vertex(vertex_expected) && reader_results.read_vertex(vertex_results)){
+        m_validation_map[vertex_expected] = vertex_results;
+    }
+
+    if(reader_expected.read_vertex(vertex_expected)){
+        ERROR("The file `" << m_validate_path_expected << "' contains more vertices than `" << path_results << "'");
+    }
+    if(reader_results.read_vertex(vertex_results)){
+        ERROR("The file `" << m_validate_path_expected << "' contains less vertices than `" << path_results << "'");
+    }
+
+    timer.stop();
+    LOG("Validation: mapping completed in " << timer);
 }
 
 string GraphalyticsSequential::get_temporary_path(const string& algorithm_name, uint64_t execution_no) const{
@@ -440,12 +488,20 @@ string GraphalyticsSequential::get_temporary_path(const string& algorithm_name, 
 
 string GraphalyticsSequential::get_validation_path(const string& algorithm_suffix) const {
     if(!m_validate_output_enabled) return "";
-    string path = m_validate_output_path_properties;
+    string path = m_validate_path_expected;
     auto index_of = path.find_last_of('.');
     if(index_of != string::npos && path.substr(index_of) == ".properties"){
         path = path.substr(0, index_of);
     }
     return path + "-" + algorithm_suffix;
+}
+
+const std::unordered_map<uint64_t, uint64_t>* GraphalyticsSequential::get_validation_map() const {
+    if(m_validation_map.empty()){ // no mapping required
+        return nullptr;
+    } else {
+        return &m_validation_map;
+    }
 }
 
 } // namespace experiment

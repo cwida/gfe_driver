@@ -22,6 +22,7 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace gfe::library { class GraphalyticsInterface; } // forward decl.
@@ -74,8 +75,9 @@ class GraphalyticsSequential{
     GraphalyticsAlgorithms m_properties; // the properties of the graphalytics algorithms
 
     bool m_validate_output_enabled = false; // whether to validate the output of the graphalytics algorithms
-    std::string m_validate_output_path_properties; // the full path to the .properties file for the graph
+    std::string m_validate_path_expected; // the full path to the .properties file for the graph
     std::string m_validate_output_temp_dir; // the path where to store the output files from the Graphalytics algorithm
+    std::unordered_map<uint64_t, uint64_t> m_validation_map; // map each vertex of the expected file to a vertex of the generated results
     enum class ValidationResult { SUCCEEDED, FAILED, SKIPPED };  // validation results
     std::vector<std::pair<std::string /* algorithm */, ValidationResult >> m_validate_results;
 
@@ -99,6 +101,11 @@ private:
      */
     std::string get_validation_path(const std::string& algorithm_suffix) const;
 
+    /**
+     * Pointer to the vertex hash table to map the vertices from the expected file into the results file
+     */
+    const std::unordered_map<uint64_t, uint64_t>* get_validation_map() const;
+
 public:
     /**
      * Create a new instance of the class
@@ -113,6 +120,13 @@ public:
      * @param path_properties_file full path to the LDBC graph .properties file
      */
     void set_validate_output(const std::string& path_properties_file);
+
+    /**
+     * Map the vertices from the expected file with the vertices of the results file. The assumption is that the `expected file' contains the same
+     * number of vertices of `results file' and the mapping follows the same order of the vertices appearing in the two files. That is, the vertex
+     * at position 3 in `expected' is mapped to the vertex at position 3 in `results'.
+     */
+    void set_validate_remap_vertices(const std::string& path_properties_file);
 
     /**
      * Execute the experiment

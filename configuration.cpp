@@ -121,7 +121,7 @@ void Configuration::initialiase(int argc, char* argv[]){
         ("t, threads", "The number of threads to use for both the read and write operations", value<int>()->default_value(to_string(num_threads(THREADS_TOTAL))))
         ("timeout", "Set the maximum time for an operation to complete, in seconds", value<uint64_t>()->default_value(to_string(get_timeout_graphalytics())))
         ("u, undirected", "Is the graph undirected? By default, it's considered directed.")
-        ("v, validate", "Whether to validate the output results of the Graphalytics algorithms")
+        ("v, validate", "Whether to validate the output results of the Graphalytics algorithms", value<string>()->implicit_value("<path>"))
         ("w, writers", "The number of client threads to use for the write operations", value<int>()->default_value(to_string(num_threads(THREADS_WRITE))))
     ;
 
@@ -230,6 +230,17 @@ void Configuration::initialiase(int argc, char* argv[]){
         if( result["validate"].count() > 0 ){
             m_validate_inserts = true;
             m_validate_output = true;
+
+            string path_validate_graph = result["validate"].as<string>();
+            if(path_validate_graph !=  "<path>" /* implicit */){
+                if(!common::filesystem::exists(path_validate_graph)){ ERROR("Option --validate=\"" << path_validate_graph << "\", the file does not exist."); }
+
+                auto abs_path_validate = common::filesystem::absolute_path(path_validate_graph);
+                auto abs_path_graph = common::filesystem::absolute_path(result["graph"].as<string>());
+                if(abs_path_validate != abs_path_graph){
+                    m_validate_graph = path_validate_graph;
+                }
+            }
         }
 
         if ( result["omp"].count() > 0 ){
@@ -442,6 +453,14 @@ void Configuration::blacklist(gfe::experiment::GraphalyticsAlgorithms& algorithm
     do_blacklist(algorithms.wcc.m_enabled, "wcc");
 }
 
+const std::string& Configuration::get_validation_graph() const {
+    if(m_validate_graph.empty()){
+        return get_path_graph();
+    } else {
+        return m_validate_graph;
+    }
+}
+
 /*****************************************************************************
  *                                                                           *
  *  Save parameters                                                          *
@@ -501,6 +520,7 @@ void Configuration::save_parameters() {
     params.push_back(P{"role", "standalone"});
     params.push_back(P{"validate_inserts", to_string(validate_inserts())});
     params.push_back(P{"validate_output", to_string(validate_output())});
+    params.push_back(P{"validate_output_graph", get_validation_graph()});
 
     if(!m_blacklist.empty()){
         stringstream ss;

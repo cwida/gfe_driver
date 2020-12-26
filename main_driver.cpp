@@ -175,7 +175,10 @@ static void run_standalone(int argc, char* argv[]){
 
         if(configuration().validate_output()){
             LOG("[driver] Enabling validation mode");
-            exp_seq.set_validate_output( path_graph );
+            exp_seq.set_validate_output( configuration().get_validation_graph() );
+            if(configuration().get_validation_graph() != path_graph){
+                exp_seq.set_validate_remap_vertices( path_graph );
+            }
         }
 
         exp_seq.execute();

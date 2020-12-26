@@ -86,6 +86,7 @@ class Configuration {
     uint64_t m_timeout_graphalytics { 3600 }; // max time to complete a kernel from Graphalytics, in seconds (0 => indefinite)
     std::string m_update_log; // aging experiment through the log file
     std::unique_ptr<library::Interface> (*m_library_factory)(bool directed) {nullptr} ; // function to retrieve an instance of the library `m_library_name'
+    std::string m_validate_graph; // validate the results from graphalytics against the given graph
     bool m_validate_inserts = false; // whether to validate the edges inserted
     bool m_validate_output = false; // whether to validate the execution results of the Graphalytics algorithms
 
@@ -143,6 +144,9 @@ public:
 
     // Whether to validate the edges inserted
     bool validate_inserts() const { return m_validate_inserts; }
+
+    // The path to the graph with the results to validate
+    const std::string& get_validation_graph() const;
 
     // Coefficient for the surplus of updates to perform (noise) w.r.t. the final graph  to load
     double coefficient_aging() const{ return m_coeff_aging; }

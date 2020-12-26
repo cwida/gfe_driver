@@ -18,6 +18,7 @@
 #include "graphalytics_validate.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
@@ -95,6 +96,33 @@ static pair<int64_t, T> parse_value(uint64_t lineno, char* buffer, const char* b
     return make_pair(vertex_id, value);
 };
 
+/**
+ * Relabel the vertex ID according to the given map
+ */
+static pair<int64_t, int64_t> relabel(const pair<int64_t, int64_t>& tuple, uint64_t lineno, const std::unordered_map<uint64_t, uint64_t>* vtx_map, bool relabel_value) {
+    if(vtx_map == nullptr) return tuple; // nothing to relabel
+
+    pair<int64_t, int64_t> result = tuple;
+
+    { // restrict the scope
+        auto remap = vtx_map->find(tuple.first); // vertex ID
+        if(remap == vtx_map->end()){
+            FATAL("[lineno=" << lineno << "] VALIDATION ERROR, cannot remap the vertex ID `" << tuple.first << "'");
+        }
+        result.first = remap->second;
+    }
+
+    if(relabel_value){
+        auto remap = vtx_map->find(tuple.second); // value
+        if(remap == vtx_map->end()){
+            FATAL("[lineno=" << lineno << "] VALIDATION ERROR, cannot remap the value for the vertex `" << tuple.second << "'");
+        }
+        result.second = remap->second;
+    }
+
+    return result;
+}
+
 namespace { template<typename T> struct Tuple { int64_t vertex_id; T value; uint64_t lineno; }; }
 
 /**
@@ -129,8 +157,9 @@ static unordered_map</* vertex id */ int64_t, /* value */ Tuple<T>> read_results
  *  Exact match                                                              *
  *                                                                           *
  *****************************************************************************/
-void GraphalyticsValidate::exact_match(const std::string& path_result, const std::string& path_expected, uint64_t max_num_errors){
+void GraphalyticsValidate::exact_match(const std::string& path_result, const std::string& path_expected, uint64_t max_num_errors, const vertex_map_t* vtx_map, bool vtx_relabel_values){
     ERROR_INIT
+    if(vtx_relabel_values && vtx_map == nullptr) FATAL("Vertex map not set to relabel the vertices");
 
     fstream handle_expected(path_expected, ios_base::in);
     if(!handle_expected.good()) FATAL("The reference file does not exist or is not accessible. Path: `" << path_expected << "'");
@@ -142,7 +171,7 @@ void GraphalyticsValidate::exact_match(const std::string& path_result, const std
     while(true){
         handle_expected.getline(buffer, BUFFER_SZ);
         if(handle_expected.eof()) break;
-        auto t_expected = parse_value<int64_t>(lineno, buffer, "expected");
+        auto t_expected = relabel( parse_value<int64_t>(lineno, buffer, "expected"), lineno, vtx_map, vtx_relabel_values );
 
         if(lineno >= hash_results.size()){
             ERROR_COUNT("[lineno=" << lineno << "] VALIDATION ERROR, the reference contains more vertices than the actual result file");
@@ -169,12 +198,12 @@ void GraphalyticsValidate::exact_match(const std::string& path_result, const std
     ERROR_EXIT
 }
 
-void GraphalyticsValidate::bfs(const std::string& result, const std::string& expected, uint64_t max_num_errors){
-    exact_match(result, expected, max_num_errors);
+void GraphalyticsValidate::bfs(const std::string& result, const std::string& expected, uint64_t max_num_errors, const vertex_map_t* vertex_map){
+    exact_match(result, expected, max_num_errors, vertex_map, false);
 }
 
-void GraphalyticsValidate::cdlp(const std::string& result, const std::string& expected, uint64_t max_num_errors){
-    exact_match(result, expected, max_num_errors);
+void GraphalyticsValidate::cdlp(const std::string& result, const std::string& expected, uint64_t max_num_errors, const vertex_map_t* vertex_map){
+    exact_match(result, expected, max_num_errors, vertex_map, true);
 }
 
 /*****************************************************************************
@@ -182,7 +211,7 @@ void GraphalyticsValidate::cdlp(const std::string& result, const std::string& ex
  *  Epsilon match                                                            *
  *                                                                           *
  *****************************************************************************/
-void GraphalyticsValidate::epsilon_match(const std::string& path_result, const std::string& path_expected, double epsilon, uint64_t max_num_errors){
+void GraphalyticsValidate::epsilon_match(const std::string& path_result, const std::string& path_expected, double epsilon, uint64_t max_num_errors, const vertex_map_t* vertex_map){
     ERROR_INIT
 
     fstream handle_expected(path_expected, ios_base::in);
@@ -197,6 +226,8 @@ void GraphalyticsValidate::epsilon_match(const std::string& path_result, const s
         if(handle_expected.eof()) break;
 
         auto t_expected = parse_value<double>(lineno, buffer, "expected");
+        if(vertex_map != nullptr) { t_expected.first = vertex_map->find(t_expected.first)->second; } // remap the vertex
+
         if(lineno >= hash_results.size()){
             ERROR_COUNT("[lineno=" << lineno << "] VALIDATION ERROR, the reference contains more vertices than the actual result file");
         } else {
@@ -232,17 +263,17 @@ void GraphalyticsValidate::epsilon_match(const std::string& path_result, const s
     ERROR_EXIT
 }
 
-void GraphalyticsValidate::pagerank(const std::string& result, const std::string& expected, uint64_t max_num_errors){
-    epsilon_match(result, expected, /* as defined in LDBC Graphalytics ~ PageRankValidationTest.java */ 0.0001, max_num_errors);
+void GraphalyticsValidate::pagerank(const std::string& result, const std::string& expected, uint64_t max_num_errors, const vertex_map_t* vertex_map){
+    epsilon_match(result, expected, /* as defined in LDBC Graphalytics ~ PageRankValidationTest.java */ 0.0001, max_num_errors, vertex_map);
 }
 
-void GraphalyticsValidate::lcc(const std::string& result, const std::string& expected, uint64_t max_num_errors){
-    epsilon_match(result, expected, 0.0001, max_num_errors);
+void GraphalyticsValidate::lcc(const std::string& result, const std::string& expected, uint64_t max_num_errors, const vertex_map_t* vertex_map){
+    epsilon_match(result, expected, 0.0001, max_num_errors, vertex_map);
 //    epsilon_match(result, expected, /* as defined in LDBC Graphalytics ~ LocalClusteringCoefficientValidationTest.java */ 0.000001);
 }
 
-void GraphalyticsValidate::sssp(const std::string& result, const std::string& expected, uint64_t max_num_errors){
-    epsilon_match(result, expected, 0.0001, max_num_errors);
+void GraphalyticsValidate::sssp(const std::string& result, const std::string& expected, uint64_t max_num_errors, const vertex_map_t* vertex_map){
+    epsilon_match(result, expected, 0.0001, max_num_errors, vertex_map);
 }
 
 
@@ -252,7 +283,7 @@ void GraphalyticsValidate::sssp(const std::string& result, const std::string& ex
  *                                                                           *
  *****************************************************************************/
 
-void GraphalyticsValidate::equivalence_match(const std::string& result, const std::string& expected, uint64_t max_num_errors){
+void GraphalyticsValidate::equivalence_match(const std::string& result, const std::string& expected, uint64_t max_num_errors, const vertex_map_t* vertex_map){
     ERROR_INIT
 
     fstream handle_result(result, ios_base::in);
@@ -283,6 +314,7 @@ void GraphalyticsValidate::equivalence_match(const std::string& result, const st
         handle_expected.getline(buffer, BUFFER_SZ);
         if(handle_expected.eof()) break;
         auto t_ref = parse_value<int64_t>(lineno, buffer, "reference");
+        if(vertex_map != nullptr) { t_ref.first = vertex_map->find(t_ref.first)->second; } // relabel the vertex
 
         // first of all, does this vertex exist in the result file?
         auto ptr_t_res = components_result.find(t_ref.first);
@@ -318,8 +350,8 @@ void GraphalyticsValidate::equivalence_match(const std::string& result, const st
     ERROR_EXIT
 }
 
-void GraphalyticsValidate::wcc(const std::string& result, const std::string& expected, uint64_t max_num_errors){
-    equivalence_match(result, expected, max_num_errors);
+void GraphalyticsValidate::wcc(const std::string& result, const std::string& expected, uint64_t max_num_errors, const vertex_map_t* vertex_map){
+    equivalence_match(result, expected, max_num_errors, vertex_map);
 }
 
 } // namespace

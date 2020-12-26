@@ -1311,7 +1311,7 @@ namespace cxxopts
 
   namespace
   {
-    constexpr int OPTION_LONGEST = 30;
+    constexpr int OPTION_LONGEST = 40;
     constexpr int OPTION_DESC_GAP = 2;
 
     std::basic_regex<char> option_matcher
@@ -1893,7 +1893,7 @@ Options::help_one_group(const std::string& g) const
   longest = std::min(longest, static_cast<size_t>(OPTION_LONGEST));
 
   //widest allowed description
-  auto allowed = size_t{76} - longest - OPTION_DESC_GAP;
+  auto allowed = size_t{86} - longest - OPTION_DESC_GAP;
 
   auto fiter = format.begin();
   for (const auto& o : options)
