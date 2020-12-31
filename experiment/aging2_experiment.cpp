@@ -109,6 +109,14 @@ void Aging2Experiment::set_cooloff(std::chrono::seconds secs){
     m_cooloff = secs;
 }
 
+void Aging2Experiment::set_memfp(bool value){
+    m_memfp = value;
+}
+
+void Aging2Experiment::set_memfp_physical(bool value){
+    m_memfp_physical = value;
+}
+
 void Aging2Experiment::set_memfp_threshold(uint64_t value) {
     m_memfp_threshold = value;
 }

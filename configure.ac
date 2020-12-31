@@ -94,6 +94,11 @@ AC_SEARCH_LIBS([pthread_create], [pthread], [],
     [ AC_MSG_ERROR([missing prerequisite: this program requires pthreads to work (dependency for sqlite3)]) ])
     
 #############################################################################
+# linker
+AC_SEARCH_LIBS([dlsym], [dl], [],
+    [ AC_MSG_ERROR([missing prerequisite: this program depends on the dynamic linker (-ldl)]) ])
+    
+#############################################################################
 # libnuma
 have_libnuma="yes"
 AC_CHECK_HEADERS([numaif.h numa.h], [], [have_libnuma="no"; break;], [ [/* avoid default includes */] ])

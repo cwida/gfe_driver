@@ -76,6 +76,7 @@ sources := \
 	reader/reader.cpp \
 	reader/utility.cpp \
 	utility/graphalytics_validate.cpp \
+	utility/memory_usage.cpp \
 	utility/timeout_service.cpp \
 	configuration.cpp \
 	main_driver.cpp
@@ -112,7 +113,7 @@ objects := $(filter-out ${objectdir}/main_%.o, ${objects_c} ${objects_cxx})
 .DEFAULT_GOAL = all
 .PHONY: all
 
-all: ${builddir}/gfe_driver
+all: ${builddir}/gfe_driver ${builddir}/gfe_memory_profiler.so
 
 #############################################################################
 # Artifacts to build
@@ -187,6 +188,11 @@ ${testgraphs}: | ${testbindir}
 	
 	
 #############################################################################
+# Tool ./gfe_memory_profiler.so
+gfe_memory_profiler.so: tools/memory_profiler.cpp
+	${CXX} $^ -std=c++17 -O3 -g -shared -fPIC -Wall -ldl -o $@
+
+#############################################################################
 # Tool ./bm
 bm: ${objectdir}/tools/bm.o ${dependencies} 
 	${CXX} $^ ${LDFLAGS} -o $@
@@ -239,8 +245,9 @@ clean:
 	rm -rf ${builddir}/third-party/libcommon
 	rm -rf ${gtestdir}
 	rm -rf ${testbindir}
-	rm -f bm
-	rm -f edges_per_vertex
+	rm -f ${builddir}/bm
+	rm -f ${builddir}/edges_per_vertex
+	rm -f ${builddir}/gfe_memory_profiler.so
 	
 #############################################################################
 # Regenerate the Makefile when the configuration has been changed

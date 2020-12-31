@@ -32,6 +32,7 @@
 #include "experiment/aging2_experiment.hpp"
 #include "graph/edge_stream.hpp"
 #include "library/interface.hpp"
+#include "utility/memory_usage.hpp"
 #include "aging2_master.hpp"
 #include "configuration.hpp"
 
@@ -211,7 +212,13 @@ void Aging2Worker::main_thread(){
 
 void Aging2Worker::main_execute_updates(){
     // compute the amount of space used by the vectors in m_updates
-    for(uint64_t i = 0; i < m_updates.size(); i++){ m_updates_mem_usage += m_updates[i]->size() * sizeof(gfe::graph::WeightedEdge); } // either size() or capacity()
+    for(uint64_t i = 0; i < m_updates.size(); i++){
+        if(m_master.parameters().m_memfp_physical){ // physical space
+            m_updates_mem_usage += m_updates[i]->size() * sizeof(gfe::graph::WeightedEdge);
+        } else { // virtual space
+            m_updates_mem_usage += utility::MemoryUsage::get_allocated_space(m_updates[i]->data());
+        }
+    }
     COUT_DEBUG("Initial memory footprint: " << m_updates_mem_usage << " bytes");
 
     const int64_t num_total_ops = m_master.num_operations_total();
@@ -258,7 +265,12 @@ void Aging2Worker::main_execute_updates(){
 
         if(release_memory){
             COUT_DEBUG("Releasing a buffer of cardinality " << operations->size() << ", " << m_updates.size() -1 << " buffers left");
-            m_updates_mem_usage -= m_updates[0]->capacity() * sizeof(gfe::graph::WeightedEdge); // update the memory footprint of this worker
+            if(m_master.parameters().m_memfp_physical){
+                m_updates_mem_usage -= m_updates[0]->size() * sizeof(gfe::graph::WeightedEdge); // update the memory footprint of this worker
+            } else { // virtual memory
+                m_updates_mem_usage -= utility::MemoryUsage::get_allocated_space(m_updates[0]->data());
+            }
+
             COUT_DEBUG("Memory footprint: " << m_updates_mem_usage << " bytes");
             delete m_updates[0];
             m_updates.pop();

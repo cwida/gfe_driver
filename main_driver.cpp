@@ -27,11 +27,14 @@
 #include "graph/edge_stream.hpp"
 #include "library/interface.hpp"
 #include "third-party/cxxopts/cxxopts.hpp"
+#include "utility/memory_usage.hpp"
 
 #include "configuration.hpp"
 #if defined(HAVE_OPENMP)
 #include "omp.h"
 #endif
+
+extern "C" { void invoke_me(); }
 
 using namespace common;
 using namespace gfe;
@@ -39,8 +42,11 @@ using namespace gfe::experiment;
 using namespace std;
 
 static void run_standalone(int argc, char* argv[]){
-    LOG("[driver] Init configuration ... " );
-    configuration().initialiase(argc, argv);
+    configuration().initialise(argc, argv);
+    if(configuration().get_aging_memfp() && !configuration().get_aging_memfp_physical()){
+        utility::MemoryUsage::initialise(argc, argv); // init the memory profiler
+    }
+    LOG("[driver] Initialising ...");
 
     if(configuration().has_database()){
         LOG( "[driver] Save the current configuration properties in " << configuration().get_database_path() )
@@ -124,12 +130,14 @@ static void run_standalone(int argc, char* argv[]){
             experiment.set_parallelism_degree(configuration().num_threads(THREADS_WRITE));
             experiment.set_release_memory(configuration().get_aging_release_memory());
             experiment.set_report_progress(true);
-            experiment.set_report_memory_footprint(configuration().get_aging_report_memfp());
+            experiment.set_report_memory_footprint(configuration().get_aging_memfp_report());
             experiment.set_build_frequency(chrono::milliseconds{ configuration().get_build_frequency() });
             experiment.set_max_weight(configuration().max_weight());
             experiment.set_measure_latency(configuration().measure_latency());
             experiment.set_num_reports_per_ops(configuration().get_num_recordings_per_ops());
             experiment.set_timeout(chrono::seconds { configuration().get_timeout_aging2() });
+            experiment.set_measure_memfp( configuration().measure_memfp() );
+            experiment.set_memfp_physical( configuration().get_aging_memfp_physical() );
             experiment.set_memfp_threshold(configuration().get_aging_memfp_threshold());
             experiment.set_cooloff(chrono::seconds { configuration().get_aging_cooloff_seconds() });
 

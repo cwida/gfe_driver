@@ -90,16 +90,18 @@ Configuration::~Configuration(){
     delete m_database; m_database = nullptr;
 }
 
-void Configuration::initialiase(int argc, char* argv[]){
+void Configuration::initialise(int argc, char* argv[]){
     using namespace cxxopts;
 
     Options options(argv[0], "GFE Driver");
 
     options.add_options("Generic")
         ("aging_cooloff", "The amount of time to wait idle after the simulation completed in the Aging2 experiment. The purpose is to measure the memory footprint of the test library when no updates are being executed", value<DurationQuantity>())
+        ("aging_memfp", "Whether to measure the memory footprint", value<bool>()->default_value("false"))
+        ("aging_memfp_physical", "Whether to consider the virtual or the physical memory in the memory footprint", value<bool>()->default_value("false"))
+        ("aging_memfp_report", "Whether to log to stdout the memory footprint measurements observed", value<bool>()->default_value("false"))
         ("aging_memfp_threshold", "Forcedly stop the execution of the aging experiment if the memory footprint of the whole process is above this threshold", value<ComputerQuantity>())
-        ("aging_release_memory", "Whether to log to stdout the memory footprint measurements observed", value<bool>()->default_value("true"))
-        ("aging_report_memfp", "Whether to log to stdout the memory footprint measurements observed", value<bool>()->default_value("false"))
+        ("aging_release_memory", "Whether to release the memory from the driver as the experiment proceeds", value<bool>()->default_value("true"))
         ("aging_step_size", "The step of each recording for the measured progress in the Aging2 experiment. Valid values are 0.1, 0.25, 0.5 and 1.0", value<double>()->default_value("1"))
         ("aging_timeout", "Force terminating the aging experiment after the given amount of time (excl. cool-off time)", value<DurationQuantity>())
         ("blacklist", "Comma separated list of graph algorithms to blacklist and do not execute", value<string>())
@@ -255,12 +257,20 @@ void Configuration::initialiase(int argc, char* argv[]){
             set_aging_cooloff_seconds( result["aging_cooloff"].as<DurationQuantity>().as<chrono::seconds>().count() );
         }
 
+        if(result.count("aging_memfp") > 0){
+            m_aging_memfp = result["aging_memfp"].as<bool>();
+        }
+
+        if( result["aging_memfp_physical"].count() > 0 ){
+            m_aging_memfp_physical = result["aging_memfp_physical"].as<bool>();
+        }
+
         if( result["aging_memfp_threshold"].count() > 0 ){
             set_aging_memfp_threshold( result["aging_memfp_threshold"].as<ComputerQuantity>() );
         }
 
-        if(result["aging_report_memfp"].count() > 0){
-            m_aging_report_memfp = result["aging_report_memfp"].as<bool>();
+        if(result["aging_memfp_report"].count() > 0){
+            m_aging_memfp_report = result["aging_memfp_report"].as<bool>();
         }
 
         if(result["aging_release_memory"].count() > 0){
@@ -491,9 +501,11 @@ void Configuration::save_parameters() {
     params.push_back(P{"seed", to_string(seed())});
     params.push_back(P{"aging", to_string(m_coeff_aging)});
     params.push_back(P{"aging_cooloff", to_string(get_aging_cooloff_seconds())});
+    params.push_back(P{"aging_memfp", to_string(get_aging_memfp())});
+    params.push_back(P{"aging_memfp_physical", to_string(get_aging_memfp_physical())});
+    params.push_back(P{"aging_memfp_report", to_string(get_aging_memfp_report())});
     params.push_back(P{"aging_memfp_threshold", to_string(get_aging_memfp_threshold())});
     params.push_back(P{"aging_release_memory", to_string(get_aging_release_memory())});
-    params.push_back(P{"aging_report_memfp", to_string(get_aging_report_memfp())});
     params.push_back(P{"aging_step_size", to_string(get_aging_step_size())});
     params.push_back(P{"aging_timeout", to_string(get_timeout_aging2())});
     params.push_back(P{"build_frequency", to_string(get_build_frequency())}); // milliseconds

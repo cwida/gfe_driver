@@ -60,9 +60,11 @@ class Configuration {
 
     // properties
     uint64_t m_aging_cooloff_seconds { 0 }; // cool-off period in the aging experiment, in seconds.
+    bool m_aging_memfp = false; // whether to measure the memory footprint
+    bool m_aging_memfp_physical = false; // whether to compute the physical memory or the virtual memory
+    bool m_aging_memfp_report = false; // whether to print stdout the measurements observed for the memory footprint
     uint64_t m_aging_memfp_threshold { 0 }; // forcedly stop the execution of the aging2 experiment if the process is using more memory than this threshold, in bytes
     bool m_aging_release_memory = true; // whether to release the memory from the driver as the experiment proceeds
-    bool m_aging_report_memfp = false; // whether to print stdout the measurements observed for the memory footprint
     std::vector<std::string> m_blacklist; // list of graph algorithms that cannot be executed
     uint64_t m_build_frequency { 0 }; // in the aging experiment, the amount of time that must pass before each invocation to #build(), in milliseconds
     double m_coeff_aging { 0.0 }; // coefficient for the additional updates to perform
@@ -125,7 +127,7 @@ public:
     ~Configuration();
 
     // Initialise the configuration with the arguments provided by the user
-    void initialiase(int argc, char* argv[]);
+    void initialise(int argc, char* argv[]);
 
     // Retrieve the name of the library to evaluate
     const std::string& get_library_name() const { return m_library_name; }
@@ -192,11 +194,18 @@ public:
     // collector of the evaluated library in reducing the memory footprint when no updates are being executed.
     uint64_t get_aging_cooloff_seconds() const { return m_aging_cooloff_seconds; }
 
+    // Whether to measure the memory footprint in the aging2 experiment
+    bool get_aging_memfp() const { return m_aging_memfp; }
+    bool measure_memfp() const { return get_aging_memfp(); }
+
     // Forcedly stop the execution of the aging2 experiment if the process is using more memory than this threshold, in bytes
     uint64_t get_aging_memfp_threshold() const { return m_aging_memfp_threshold; }
 
     // Whether to print to stdout the measurements observed for the memory footprint
-    bool get_aging_report_memfp() const { return m_aging_report_memfp; }
+    bool get_aging_memfp_report() const { return m_aging_memfp_report; }
+
+    // Whether to consider the physical memory or the virtual memory in the memory footprint
+    bool get_aging_memfp_physical() const { return m_aging_memfp_physical; }
 
     // Whether to release the memory from the driver as the experiment proceeds
     bool get_aging_release_memory() const { return m_aging_release_memory; }
