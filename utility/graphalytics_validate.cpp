@@ -159,7 +159,6 @@ static unordered_map</* vertex id */ int64_t, /* value */ Tuple<T>> read_results
  *****************************************************************************/
 void GraphalyticsValidate::exact_match(const std::string& path_result, const std::string& path_expected, uint64_t max_num_errors, const vertex_map_t* vtx_map, bool vtx_relabel_values){
     ERROR_INIT
-    if(vtx_relabel_values && vtx_map == nullptr) FATAL("Vertex map not set to relabel the vertices");
 
     fstream handle_expected(path_expected, ios_base::in);
     if(!handle_expected.good()) FATAL("The reference file does not exist or is not accessible. Path: `" << path_expected << "'");

@@ -33,6 +33,7 @@ protected:
     void* m_pImpl; // pointer to the teseo library
     const bool m_is_directed; // whether the underlying graph is directed or undirected
     const bool m_read_only; // whether to used read only transactions for graphalytics
+    bool m_thread_affinity; // whether to enable the thread affinity in graphalytics
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
 
 public:
@@ -82,6 +83,21 @@ public:
      * Impose a timeout on each graph computation. A computation that does not terminate by the given seconds will raise a TimeoutError.
      */
     virtual void set_timeout(uint64_t seconds);
+
+    /**
+     * Whether to restrict the execution of the OpenMP threads in sockets
+     */
+    virtual void set_thread_affinity(bool value);
+
+    /**
+     * Whether thread affinity is set
+     */
+    virtual bool has_thread_affinity() const;
+
+    /**
+     * Whether Graphalytics transactions should be `read-only'
+     */
+    virtual bool has_read_only_transactions() const;
 
     /**
      * Add the given vertex to the graph
@@ -169,7 +185,7 @@ public:
     virtual void sssp(uint64_t source_vertex_id, const char* dump2file = nullptr);
 
     /**
-     * Retrieve the handle to the implementation, for debugging pruposes
+     * Retrieve the handle to the Teseo implementation
      */
     void* handle_impl();
 };

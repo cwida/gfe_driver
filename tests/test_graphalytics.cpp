@@ -45,7 +45,6 @@
 #endif
 #if defined(HAVE_TESEO)
 #include "library/teseo/teseo_driver.hpp"
-#include "library/teseo/teseo_lcc.hpp"
 #endif
 #include "library/interface.hpp"
 #include "reader/graphalytics_reader.hpp"

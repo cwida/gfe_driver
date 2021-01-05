@@ -204,8 +204,6 @@ std::unique_ptr<Interface> generate_teseo_real_vtx(bool directed_graph){
 std::unique_ptr<Interface> generate_teseo_real_vtx_lcc(bool directed_graph){
     return unique_ptr<Interface>{ new TeseoRealVerticesLCC(directed_graph) };
 }
-
-
 #endif
 
 vector<ImplementationManifest> implementations() {

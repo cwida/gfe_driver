@@ -29,6 +29,7 @@
 #include "third-party/gapbs/gapbs.hpp"
 #include "third-party/libcuckoo/cuckoohash_map.hh"
 #include "utility/timeout_service.hpp"
+#include "teseo_openmp.hpp"
 
 #include "teseo/context/global_context.hpp"
 #include "teseo/memstore/memstore.hpp"
@@ -36,9 +37,11 @@
 
 using namespace common;
 using namespace gapbs;
+using namespace gfe::library::teseo_driver_internal;
 using namespace libcuckoo;
 using namespace std;
 using namespace teseo;
+
 
 #define TESEO reinterpret_cast<Teseo*>(m_pImpl)
 
@@ -70,56 +73,6 @@ TeseoRealVertices::TeseoRealVertices(bool is_directed, bool read_only): TeseoDri
 
 /*****************************************************************************
  *                                                                           *
- *  OpenMP machinery                                                         *
- *                                                                           *
- *****************************************************************************/
-namespace {
-struct RegisterThread {
-    RegisterThread& operator=(const RegisterThread&) = delete;
-    Teseo* m_teseo;
-
-public:
-    RegisterThread(Teseo* teseo) : m_teseo(teseo){
-        assert(teseo != nullptr);
-        assert(omp_get_thread_num() == 0 && "Expected to be initialised in the master thread");
-    }
-
-    RegisterThread(const RegisterThread& rt) : m_teseo(rt.m_teseo){
-        if(omp_get_thread_num() > 0){ m_teseo->register_thread(); }
-    }
-
-    ~RegisterThread(){
-        if(omp_get_thread_num() > 0){ m_teseo->unregister_thread(); }
-    }
-};
-
-// Because of the unpredictable order in which the destructors are invoked by OpenMP for its
-// firstprivate clause, we'll wrap the fields in a special class, to enforce the C++ semantics.
-struct State2 {
-    RegisterThread m_register_thread;
-    Transaction m_transaction;
-
-    State2(const RegisterThread& rt, const Transaction& transaction) : m_register_thread(rt), m_transaction(transaction) { };
-    State2(Teseo* teseo, const Transaction& transaction) : State2(RegisterThread{ teseo }, transaction) { };
-};
-
-struct State3 {
-    RegisterThread m_register_thread;
-    Transaction m_transaction;
-    Iterator m_iterator;
-
-    State3(const RegisterThread& rt, const Transaction& transaction) :
-        m_register_thread(rt), m_transaction(transaction), m_iterator(m_transaction.iterator()) { };
-    State3(Teseo* teseo, const Transaction& transaction) : State3(RegisterThread{ teseo }, transaction) { }
-    State3(const RegisterThread& rt, const Transaction& transaction, const Iterator& iterator) :
-        m_register_thread(rt), m_transaction(transaction), m_iterator(iterator) {
-    };
-};
-
-} // namespace
-
-/*****************************************************************************
- *                                                                           *
  *  BFS                                                                      *
  *                                                                           *
  *****************************************************************************/
@@ -147,18 +100,17 @@ them in parent array as negative numbers. Thus the encoding of parent is:
 */
 
 static
-int64_t BUStep(Teseo* teseo, Transaction transaction, pvector<int64_t>& distances, int64_t distance, Bitmap &front, Bitmap &next) {
+int64_t BUStep(OpenMP& openmp, pvector<int64_t>& distances, int64_t distance, Bitmap &front, Bitmap &next) {
 
-    const int64_t N = transaction.num_vertices();
-    State3 s3 { teseo, transaction };
+    const int64_t N = openmp.transaction().num_vertices();
     int64_t awake_count = 0;
     next.reset();
-    #pragma omp parallel for reduction(+ : awake_count) schedule(dynamic, 1024) firstprivate(s3)
+    #pragma omp parallel for reduction(+ : awake_count) schedule(dynamic, 1024) firstprivate(openmp)
     for (int64_t u=0; u < N; u++) {
         if (distances[u] < 0){ // the node has not been visited yet
 
             bool done = false;
-            s3.m_iterator.edges(u, /* logical ? */ false, [u, &done, &awake_count, &distances, distance, &front, &next](uint64_t n){
+            openmp.iterator().edges(u, /* logical ? */ false, [u, &done, &awake_count, &distances, distance, &front, &next](uint64_t n){
 
                 if (front.get_bit(n)) {
                     distances[u] = distance; // on each BUStep, all nodes will have the same distance
@@ -175,11 +127,10 @@ int64_t BUStep(Teseo* teseo, Transaction transaction, pvector<int64_t>& distance
 }
 
 static
-int64_t TDStep(Teseo* teseo, Transaction transaction, pvector<int64_t>& distances, int64_t distance, SlidingQueue<int64_t>& queue) {
-    State3 s3 { teseo, transaction };
+int64_t TDStep(OpenMP& openmp, pvector<int64_t>& distances, int64_t distance, SlidingQueue<int64_t>& queue) {
     int64_t scout_count = 0;
 
-    #pragma omp parallel firstprivate(s3)
+    #pragma omp parallel firstprivate(openmp)
     {
 
         QueueBuffer<int64_t> lqueue(queue);
@@ -187,7 +138,7 @@ int64_t TDStep(Teseo* teseo, Transaction transaction, pvector<int64_t>& distance
         for (auto q_iter = queue.begin(); q_iter < queue.end(); q_iter++) {
             int64_t u = *q_iter;
 
-            s3.m_iterator.edges(u, /* logical ? */ false, [&distances, distance, &lqueue, &scout_count](uint64_t destination){
+            openmp.iterator().edges(u, /* logical ? */ false, [&distances, distance, &lqueue, &scout_count](uint64_t destination){
                 int64_t curr_val = distances[destination];
 
                 if (curr_val < 0 && compare_and_swap(distances[destination], curr_val, distance)) {
@@ -213,8 +164,8 @@ void QueueToBitmap(const SlidingQueue<int64_t> &queue, Bitmap &bm) {
 }
 
 static
-void BitmapToQueue(Transaction transaction, const Bitmap &bm, SlidingQueue<int64_t> &queue) {
-    const int64_t N = transaction.num_vertices();
+void BitmapToQueue(OpenMP& openmp, const Bitmap &bm, SlidingQueue<int64_t> &queue) {
+    const int64_t N = openmp.transaction().num_vertices();
 
     #pragma omp parallel
     {
@@ -229,13 +180,12 @@ void BitmapToQueue(Transaction transaction, const Bitmap &bm, SlidingQueue<int64
 }
 
 static
-pvector<int64_t> InitDistances(Teseo* teseo, Transaction transaction){
-    RegisterThread rt { teseo };
-    pvector<int64_t> distances(transaction.num_vertices());
-    const int64_t N = transaction.num_vertices();
-    #pragma omp parallel for firstprivate(rt)
+pvector<int64_t> InitDistances(OpenMP& openmp){
+    const int64_t N = openmp.transaction().num_vertices();
+    pvector<int64_t> distances(N);
+    #pragma omp parallel for firstprivate(openmp)
     for (int64_t n = 0; n < N; n++){
-        int64_t out_degree = transaction.degree(n, /* logical ? */ false);
+        int64_t out_degree = openmp.transaction().degree(n, /* logical ? */ false);
         distances[n] = out_degree != 0 ? - out_degree : -1;
     }
     return distances;
@@ -244,22 +194,25 @@ pvector<int64_t> InitDistances(Teseo* teseo, Transaction transaction){
 } // anon namespace
 
 static
-pvector<int64_t> teseo_bfs(Teseo* teseo, Transaction& transaction, int64_t source, utility::TimeoutService& timer, int alpha = 15, int beta = 18) {
+pvector<int64_t> teseo_bfs(OpenMP& openmp, int64_t source, utility::TimeoutService& timer, int alpha = 15, int beta = 18) {
     // The implementation from GAP BS reports the parent (which indeed it should make more sense), while the one required by
     // Graphalytics only returns the distance
+    const uint64_t num_vertices = openmp.transaction().num_vertices();
+    const uint64_t num_edges = openmp.transaction().num_edges();
 
-    pvector<int64_t> distances = InitDistances(teseo, transaction);
+
+    pvector<int64_t> distances = InitDistances(openmp);
     distances[source] = 0;
 
-    SlidingQueue<int64_t> queue(transaction.num_vertices());
+    SlidingQueue<int64_t> queue(num_vertices);
     queue.push_back(source);
     queue.slide_window();
-    Bitmap curr(transaction.num_vertices());
+    Bitmap curr(num_vertices);
     curr.reset();
-    Bitmap front(transaction.num_vertices());
+    Bitmap front(num_vertices);
     front.reset();
-    int64_t edges_to_check = transaction.num_edges();
-    int64_t scout_count = transaction.degree(source, /* logical ? */ false);
+    int64_t edges_to_check = num_edges;
+    int64_t scout_count = openmp.transaction().degree(source, /* logical ? */ false);
     int64_t distance = 1; // current distance
     while (!timer.is_timeout() && !queue.empty()) {
 
@@ -270,15 +223,15 @@ pvector<int64_t> teseo_bfs(Teseo* teseo, Transaction& transaction, int64_t sourc
             queue.slide_window();
             do {
                 old_awake_count = awake_count;
-                awake_count = BUStep(teseo, transaction, distances, distance, front, curr);
+                awake_count = BUStep(openmp, distances, distance, front, curr);
                 front.swap(curr);
                 distance++;
-            } while ((awake_count >= old_awake_count) || (awake_count > static_cast<int64_t>(transaction.num_vertices()) / beta));
-            BitmapToQueue(transaction, front, queue);
+            } while ((awake_count >= old_awake_count) || (awake_count > static_cast<int64_t>(num_vertices) / beta));
+            BitmapToQueue(openmp, front, queue);
             scout_count = 1;
         } else {
             edges_to_check -= scout_count;
-            scout_count = TDStep(teseo, transaction, distances, distance, queue);
+            scout_count = TDStep(openmp, distances, distance, queue);
             queue.slide_window();
             distance++;
         }
@@ -313,21 +266,19 @@ static void save_bfs(cuckoohash_map<uint64_t, int64_t>& result, const char* dump
 }
 
 void TeseoRealVertices::bfs(uint64_t source_vertex_id, const char* dump2file){
-    TESEO->register_thread(); // in case it doesn't already exist
-    RegisterThread rt { TESEO };
-
+    // init
     utility::TimeoutService tcheck { m_timeout };
     common::Timer timer; timer.start();
 
+    OpenMP openmp { this }; // OpenMP machinery, start the transaction
+
     // execute the BFS algorithm
-    auto transaction = TESEO->start_transaction(m_read_only);
-    auto result = teseo_bfs(TESEO, transaction, source_vertex_id, tcheck);
+    auto result = teseo_bfs(openmp, source_vertex_id, tcheck);
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    // translate from llama vertex ids to external vertex ids
-    const uint64_t N = transaction.num_vertices();
+    const uint64_t N = openmp.transaction().num_vertices();
     cuckoohash_map</* external id */ uint64_t, /* distance */ int64_t> external_ids;
-    #pragma omp parallel for firstprivate(rt, transaction)
+    #pragma omp parallel for firstprivate(openmp)
     for(uint64_t i = 0; i < N; i++){ // emulate the cost of the translation
         // second, what's it's real node ID, in the external domain (e.g. user id)
         uint64_t external_node_id = i; //transaction.vertex_id(i);
@@ -401,11 +352,9 @@ updates in the pull direction to remove the need for atomics.
 */
 
 static
-unique_ptr<double[]> teseo_pagerank(Teseo* teseo, Transaction transaction, uint64_t num_iterations, double damping_factor, utility::TimeoutService& timer) {
+unique_ptr<double[]> teseo_pagerank(OpenMP& openmp, uint64_t num_iterations, double damping_factor, utility::TimeoutService& timer) {
     // init
-    RegisterThread rt { teseo };
-    State3 s3 { rt, transaction };
-    const uint64_t num_vertices = transaction.num_vertices();
+    const uint64_t num_vertices = openmp.transaction().num_vertices();
     COUT_DEBUG("num vertices: " << num_vertices);
 
     const double init_score = 1.0 / num_vertices;
@@ -425,9 +374,9 @@ unique_ptr<double[]> teseo_pagerank(Teseo* teseo, Transaction transaction, uint6
 
         // for each node, precompute its contribution to all of its outgoing neighbours and, if it's a sink,
         // add its rank to the `dangling sum' (to be added to all nodes).
-        #pragma omp parallel for reduction(+:dangling_sum) firstprivate(rt)
+        #pragma omp parallel for reduction(+:dangling_sum) firstprivate(openmp)
         for(uint64_t v = 0; v < num_vertices; v++){
-            uint64_t out_degree = transaction.degree(v, /* logical */ false);
+            uint64_t out_degree = openmp.transaction().degree(v, /* logical */ false);
             if(out_degree == 0){ // this is a sink
                 dangling_sum += scores[v];
             } else {
@@ -438,11 +387,11 @@ unique_ptr<double[]> teseo_pagerank(Teseo* teseo, Transaction transaction, uint6
         dangling_sum /= num_vertices;
 
         // compute the new score for each node in the graph
-        #pragma omp parallel for schedule(dynamic, 64) firstprivate(s3)
+        #pragma omp parallel for schedule(dynamic, 64) firstprivate(openmp)
         for(uint64_t v = 0; v < num_vertices; v++){
 
             double incoming_total = 0;
-            s3.m_iterator.edges(v, /* logical ? */ false, [&incoming_total, &outgoing_contrib](uint64_t destination){
+            openmp.iterator().edges(v, /* logical ? */ false, [&incoming_total, &outgoing_contrib](uint64_t destination){
                incoming_total += outgoing_contrib[destination];
             });
 
@@ -455,23 +404,21 @@ unique_ptr<double[]> teseo_pagerank(Teseo* teseo, Transaction transaction, uint6
 }
 
 void TeseoRealVertices::pagerank(uint64_t num_iterations, double damping_factor, const char* dump2file) {
-    TESEO->register_thread(); // in case it doesn't already exist
-    RegisterThread register_thread { TESEO };
-
     // Init
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
 
+    OpenMP openmp { this }; // OpenMP machinery, start the transaction
+
     // Run the PageRank algorithm
-    auto transaction = TESEO->start_transaction(m_read_only);
-    unique_ptr<double[]> ptr_rank = teseo_pagerank(TESEO, transaction, num_iterations, damping_factor, timeout);
+    unique_ptr<double[]> ptr_rank = teseo_pagerank(openmp, num_iterations, damping_factor, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // retrieve the external node ids
     cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
     double* __restrict rank = ptr_rank.get();
-    const uint64_t N = transaction.num_vertices();
-    #pragma omp parallel for firstprivate(register_thread, transaction)
+    const uint64_t N = openmp.transaction().num_vertices();
+    #pragma omp parallel for firstprivate(openmp)
     for(uint64_t i = 0; i < N; i++){ // emulate the cost of the translation
         external_ids.insert(i, rank[i]);
     }
@@ -564,10 +511,9 @@ more consistent performance for undirected graphs.
 // direction, so we use a min-max swap such that lower component IDs propagate
 // independent of the edge's direction.
 static // do_wcc
-unique_ptr<uint64_t[]> teseo_wcc(Teseo* teseo, const Transaction& transaction, utility::TimeoutService& timer) {
+unique_ptr<uint64_t[]> teseo_wcc(OpenMP& openmp, utility::TimeoutService& timer) {
     // init
-    State3 s3 { teseo, transaction };
-    const uint64_t N = transaction.num_vertices();
+    const uint64_t N = openmp.transaction().num_vertices();
     unique_ptr<uint64_t[]> ptr_components { new uint64_t[N] };
     uint64_t* comp = ptr_components.get();
 
@@ -580,10 +526,10 @@ unique_ptr<uint64_t[]> teseo_wcc(Teseo* teseo, const Transaction& transaction, u
     while (change && !timer.is_timeout()) {
         change = false;
 
-        #pragma omp parallel for firstprivate(s3) schedule(dynamic, 64)
+        #pragma omp parallel for firstprivate(openmp) schedule(dynamic, 64)
         for (uint64_t u = 0; u < N; u++){
 
-            s3.m_iterator.edges(u, /* logical ? */ false, [comp, u, &change](uint64_t v){
+            openmp.iterator().edges(u, /* logical ? */ false, [comp, u, &change](uint64_t v){
                 uint64_t comp_u = comp[u];
                 uint64_t comp_v = comp[v];
                 if (comp_u == comp_v) return true;
@@ -613,20 +559,20 @@ unique_ptr<uint64_t[]> teseo_wcc(Teseo* teseo, const Transaction& transaction, u
 }
 
 void TeseoRealVertices::wcc(const char* dump2file) {
+    // Init
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
-    TESEO->register_thread(); // jic
-    RegisterThread rt { TESEO };
+
+    OpenMP openmp { this }; // OpenMP machinery, start the transaction
 
     // run wcc
-    auto transaction = TESEO->start_transaction(m_read_only);
-    unique_ptr<uint64_t[]> ptr_components = teseo_wcc(TESEO, transaction, timeout);
+    unique_ptr<uint64_t[]> ptr_components = teseo_wcc(openmp, timeout);
 
     // translate the vertex IDs
     cuckoohash_map</* external id */ uint64_t, /* component */ uint64_t> external_ids;
     uint64_t* __restrict components = ptr_components.get();
-    const uint64_t N = transaction.num_vertices();
-    #pragma omp parallel for firstprivate(rt, transaction)
+    const uint64_t N = openmp.transaction().num_vertices();
+    #pragma omp parallel for firstprivate(openmp)
     for(uint64_t i = 0; i < N; i++){ // emulate the cost of the vertex translation
         external_ids.insert(i, components[i]);
     }
@@ -654,17 +600,15 @@ void TeseoRealVertices::wcc(const char* dump2file) {
  *                                                                           *
  *****************************************************************************/
 // same impl~ as the one done for llama
-static unique_ptr<uint64_t[]> teseo_cdlp(Teseo* teseo, Transaction transaction, uint64_t max_iterations, utility::TimeoutService& timer){
-    RegisterThread rt { teseo };
-    State3 s3 { rt, transaction };
-    const uint64_t num_vertices = transaction.num_vertices();
+static unique_ptr<uint64_t[]> teseo_cdlp(OpenMP& openmp, uint64_t max_iterations, utility::TimeoutService& timer){
+    const uint64_t num_vertices = openmp.transaction().num_vertices();
     unique_ptr<uint64_t[]> ptr_labels0 { new uint64_t[num_vertices] };
     unique_ptr<uint64_t[]> ptr_labels1 { new uint64_t[num_vertices] };
     uint64_t* labels0 = ptr_labels0.get(); // current labels
     uint64_t* labels1 = ptr_labels1.get(); // labels for the next iteration
 
     // init
-    #pragma omp parallel for firstprivate(rt, transaction)
+    #pragma omp parallel for
     for(uint64_t v = 0; v < num_vertices; v++){
         labels0[v] = v;
     }
@@ -675,13 +619,13 @@ static unique_ptr<uint64_t[]> teseo_cdlp(Teseo* teseo, Transaction transaction, 
     while(current_iteration < max_iterations && change && !timer.is_timeout()){
         change = false; // reset the flag
 
-        #pragma omp parallel for shared(change) firstprivate(s3) schedule(dynamic, 64)
+        #pragma omp parallel for shared(change) firstprivate(openmp) schedule(dynamic, 64)
         for(uint64_t v = 0; v < num_vertices; v++){
             unordered_map<uint64_t, uint64_t> histogram;
 
             // compute the histogram from both the outgoing & incoming edges. The aim is to find the number of each label
             // shared among the neighbours of node_id
-            s3.m_iterator.edges(v, /* logical ? */ false, [&histogram, labels0](uint64_t u){
+            openmp.iterator().edges(v, /* logical ? */ false, [&histogram, labels0](uint64_t u){
                 histogram[labels0[u]]++;
             });
 
@@ -711,20 +655,20 @@ static unique_ptr<uint64_t[]> teseo_cdlp(Teseo* teseo, Transaction transaction, 
 }
 
 void TeseoRealVertices::cdlp(uint64_t max_iterations, const char* dump2file) {
+    // Init
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
-    TESEO->register_thread(); // jic
-    RegisterThread rt { TESEO };
+
+    OpenMP openmp { this }; // OpenMP machinery, start the transaction
 
     // Run the CDLP algorithm
-    auto transaction = TESEO->start_transaction(m_read_only);
-    unique_ptr<uint64_t[]> labels = teseo_cdlp(TESEO, transaction, max_iterations, timeout);
+    unique_ptr<uint64_t[]> labels = teseo_cdlp(openmp, max_iterations, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs
     cuckoohash_map</* external id */ uint64_t, /* label */ uint64_t> external_ids;
-    const uint64_t N = transaction.num_vertices();
-    #pragma omp parallel for firstprivate(rt, transaction)
+    const uint64_t N = openmp.transaction().num_vertices();
+    #pragma omp parallel for firstprivate(openmp)
     for(uint64_t i = 0; i < N; i++){ // emulate the cost of the vertex translation
         external_ids.insert(i, labels[i]);
     }
@@ -759,14 +703,13 @@ void TeseoRealVertices::cdlp(uint64_t max_iterations, const char* dump2file) {
 #endif
 
 // loosely based on the impl~ made for Stinger
-static unique_ptr<double[]> teseo_lcc(Teseo* teseo, Transaction transaction, utility::TimeoutService& timer){
-    State3 s3 { teseo, transaction };
-    const uint64_t num_vertices = transaction.num_vertices();
+static unique_ptr<double[]> teseo_lcc(OpenMP& openmp, utility::TimeoutService& timer){
+    const uint64_t num_vertices = openmp.transaction().num_vertices();
 
     unique_ptr<double[]> ptr_lcc { new double[num_vertices] };
     double* lcc = ptr_lcc.get();
 
-    #pragma omp parallel for firstprivate(s3) schedule(dynamic,64)
+    #pragma omp parallel for firstprivate(openmp) schedule(dynamic,64)
     for(uint64_t v = 0; v < num_vertices; v++){
         COUT_DEBUG_LCC("> Node " << v);
         if(timer.is_timeout()) continue; // exhausted the budget of available time
@@ -775,21 +718,21 @@ static unique_ptr<double[]> teseo_lcc(Teseo* teseo, Transaction transaction, uti
         uint64_t num_triangles = 0; // number of triangles found so far for the node v
 
         // Cfr. Spec v.0.9.0 pp. 15: "If the number of neighbors of a vertex is less than two, its coefficient is defined as zero"
-        uint64_t degree = s3.m_transaction.degree(v, /* logical ? */ false);
+        uint64_t degree = openmp.transaction().degree(v, /* logical ? */ false);
         if(degree < 2) continue;
 
         // Build the list of neighbours of v
         unordered_set<uint64_t> neighbours;
 
-        s3.m_iterator.edges(v, false, [&neighbours](uint64_t destination){
+        openmp.iterator().edges(v, false, [&neighbours](uint64_t destination){
             neighbours.insert(destination);
         });
 
         // again, visit all neighbours of v
-        s3.m_iterator.edges(v, false, [&neighbours, &num_triangles, &s3](uint64_t u){
+        openmp.iterator().edges(v, false, [&neighbours, &num_triangles, &openmp](uint64_t u){
             assert(neighbours.count(u) == 1 && "The set `neighbours' should contain all neighbours of v");
 
-            s3.m_iterator.edges(u, false, [&neighbours, &num_triangles](uint64_t w){
+            openmp.iterator().edges(u, false, [&neighbours, &num_triangles](uint64_t w){
                 // check whether it's also a neighbour of v
                 if(neighbours.count(w) == 1){
                     //COUT_DEBUG_LCC("Triangle found " << v << " - " << u << " - " << w);
@@ -811,20 +754,20 @@ static unique_ptr<double[]> teseo_lcc(Teseo* teseo, Transaction transaction, uti
 }
 
 void TeseoRealVertices::lcc(const char* dump2file) {
+    // Init
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
-    TESEO->register_thread(); // jic
-    RegisterThread rt { TESEO };
+
+    OpenMP openmp { this }; // OpenMP machinery, start the transaction.
 
     // Run the LCC algorithm
-    auto transaction = TESEO->start_transaction(m_read_only);
-    unique_ptr<double[]> scores = teseo_lcc(TESEO, transaction, timeout);
+    unique_ptr<double[]> scores = teseo_lcc(openmp, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs
     cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
-    const uint64_t N = transaction.num_vertices();
-    #pragma omp parallel for firstprivate(rt, transaction)
+    const uint64_t N = openmp.transaction().num_vertices();
+    #pragma omp parallel for firstprivate(openmp)
     for(uint64_t i = 0; i < N; i++){ // emulate the cost of the vertex translation
         external_ids.insert(i, scores[i]);
     }
@@ -884,10 +827,9 @@ using NodeID = uint64_t;
 using WeightT = double;
 static const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 
-static gapbs::pvector<WeightT> teseo_sssp(Teseo* teseo, const Transaction& transaction, uint64_t source, double delta, utility::TimeoutService& timer){
-    State3 s3 { teseo, transaction };
-    const uint64_t num_vertices = transaction.num_vertices();
-    const uint64_t num_edges = transaction.num_edges();
+static gapbs::pvector<WeightT> teseo_sssp(OpenMP& openmp, uint64_t source, double delta, utility::TimeoutService& timer){
+    const uint64_t num_vertices = openmp.transaction().num_vertices();
+    const uint64_t num_edges = openmp.transaction().num_edges();
 
     // Init
     gapbs::pvector<WeightT> dist(num_vertices, numeric_limits<WeightT>::infinity());
@@ -898,7 +840,7 @@ static gapbs::pvector<WeightT> teseo_sssp(Teseo* teseo, const Transaction& trans
     size_t frontier_tails[2] = {1, 0};
     frontier[0] = source;
 
-    #pragma omp parallel firstprivate(s3)
+    #pragma omp parallel firstprivate(openmp)
     {
         vector<vector<NodeID> > local_bins(0);
         size_t iter = 0;
@@ -913,7 +855,7 @@ static gapbs::pvector<WeightT> teseo_sssp(Teseo* teseo, const Transaction& trans
             for (size_t i=0; i < curr_frontier_tail; i++) {
                 NodeID u = frontier[i];
                 if (dist[u] >= delta * static_cast<WeightT>(curr_bin_index)) {
-                    s3.m_iterator.edges(u, /* logical ? */ false, [u, delta, &dist, &local_bins](uint64_t v, double w){
+                    openmp.iterator().edges(u, /* logical ? */ false, [u, delta, &dist, &local_bins](uint64_t v, double w){
                         WeightT old_dist = dist[v];
                         WeightT new_dist = dist[u] + w;
 
@@ -977,19 +919,18 @@ static gapbs::pvector<WeightT> teseo_sssp(Teseo* teseo, const Transaction& trans
 void TeseoRealVertices::sssp(uint64_t source_vertex_id, const char* dump2file) {
     utility::TimeoutService timeout { m_timeout };
     Timer timer; timer.start();
-    TESEO->register_thread(); // jic
-    RegisterThread rt { TESEO };
+
+    OpenMP openmp { this }; // OpenMP machinery, start the transaction
 
     // Run the SSSP algorithm
-    auto transaction = TESEO->start_transaction(m_read_only);
     double delta = 2.0; // same value used in the GAPBS, at least for most graphs
-    auto distances = teseo_sssp(TESEO, transaction, source_vertex_id, delta, timeout);
+    auto distances = teseo_sssp(openmp, source_vertex_id, delta, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs
     cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
-    const uint64_t N = transaction.num_vertices();
-    #pragma omp parallel for firstprivate(rt, transaction)
+    const uint64_t N = openmp.transaction().num_vertices();
+    #pragma omp parallel for firstprivate(openmp)
     for(uint64_t i = 0; i < N; i++){ // emulate the cost of the vertex translation
         external_ids.insert(i, distances[i]);
     }

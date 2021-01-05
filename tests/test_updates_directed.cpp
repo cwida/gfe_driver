@@ -226,7 +226,7 @@ static void parallel(shared_ptr<UpdateInterface> interface, uint64_t num_vertice
         threads.clear();
         start = 0;
         for(int thread_id = 0; thread_id < num_threads; thread_id ++){
-            uint64_t length = vertices_per_thread + (thread_id < odd_threads);
+            uint64_t length = vertices_per_thread + ((uint64_t) thread_id < odd_threads);
             threads.emplace_back(routine_remove_vertices, thread_id, start, length);
             start += length;
         }
