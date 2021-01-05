@@ -64,7 +64,7 @@ namespace gfe::library {
  *  Init                                                                     *
  *                                                                           *
  *****************************************************************************/
-TeseoDriver::TeseoDriver(bool is_directed, bool read_only) : m_pImpl(new Teseo()), m_is_directed(is_directed), m_read_only(read_only), m_thread_affinity(true) {
+TeseoDriver::TeseoDriver(bool is_directed, bool read_only) : m_pImpl(new Teseo()), m_is_directed(is_directed), m_read_only(read_only), m_thread_affinity(false) {
     if(is_directed == true){ throw std::invalid_argument("Only undirected graphs are currently supported by the front-end"); }
 }
 
