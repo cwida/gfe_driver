@@ -204,26 +204,6 @@ std::unique_ptr<Interface> generate_teseo_real_vtx(bool directed_graph){
 std::unique_ptr<Interface> generate_teseo_real_vtx_lcc(bool directed_graph){
     return unique_ptr<Interface>{ new TeseoRealVerticesLCC(directed_graph) };
 }
-std::unique_ptr<Interface> generate_teseo_ta(bool directed_graph){
-    unique_ptr<TeseoDriver> driver { new TeseoDriver(directed_graph) };
-    driver->set_thread_affinity(true);
-    return driver;
-}
-std::unique_ptr<Interface> generate_teseo_ta_lcc(bool directed_graph){
-    unique_ptr<TeseoDriver> driver { new TeseoDriverLCC(directed_graph) };
-    driver->set_thread_affinity(true);
-    return driver;
-}
-std::unique_ptr<Interface> generate_teseo_ta_real_vtx(bool directed_graph){
-    unique_ptr<TeseoDriver> driver { new TeseoRealVertices(directed_graph) };
-    driver->set_thread_affinity(true);
-    return driver;
-}
-std::unique_ptr<Interface> generate_teseo_ta_real_vtx_lcc(bool directed_graph){
-    unique_ptr<TeseoDriver> driver { new TeseoRealVerticesLCC(directed_graph) };
-    driver->set_thread_affinity(true);
-    return driver;
-}
 #endif
 
 vector<ImplementationManifest> implementations() {
@@ -291,15 +271,12 @@ vector<ImplementationManifest> implementations() {
     // v7 08/11/2020: vertical partitioning
     // v8 23/11/2020: variable length leaves
     // v9 07/01/2021: bug fixes
-    result.emplace_back("teseo.9", "Teseo", &generate_teseo);
-    result.emplace_back("teseo-rw.9", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
-    result.emplace_back("teseo-lcc.9", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
-    result.emplace_back("teseo-dv.9", "Teseo, dense vertices", &generate_teseo_real_vtx);
-    result.emplace_back("teseo-lcc-dv.9", "Teseo, dense vertices and sort-merge implementation of the LCC kernel", &generate_teseo_real_vtx_lcc);
-    result.emplace_back("teseo-ta.9", "Teseo. Set the thread affinity in Graphalytics", &generate_teseo_ta);
-    result.emplace_back("teseo-ta-lcc.9", "Teseo, thread affinity + tuned LCC", &generate_teseo_ta_lcc);
-    result.emplace_back("teseo-ta-dv.9", "Teseo, thread affinity + dense vertices", &generate_teseo_ta_real_vtx);
-    result.emplace_back("teseo-ta-lcc-dv.9", "Teseo, thread affinity + tuned LCC + dense vertices", &generate_teseo_ta_real_vtx_lcc);
+    // v10 08/01/2021: set the thread affinity by default
+    result.emplace_back("teseo.10", "Teseo", &generate_teseo);
+    result.emplace_back("teseo-rw.10", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
+    result.emplace_back("teseo-lcc.10", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
+    result.emplace_back("teseo-dv.10", "Teseo, dense vertices", &generate_teseo_real_vtx);
+    result.emplace_back("teseo-lcc-dv.10", "Teseo, dense vertices and sort-merge implementation of the LCC kernel", &generate_teseo_real_vtx_lcc);
 #endif
 
     return result;
