@@ -16,7 +16,7 @@ The GFE (Graph Framework Evaluation) Driver is the program used to run the exper
 
 #### Configure
 
-From the source, use `autoreconf -iv` to create the `configure` script.
+From the source, use `git submodule update --init` and `autoreconf -iv` to create the `configure` script.
 The driver needs to be linked with the system to evaluate, which needs to be built ahead. We do not recommend linking the driver with multiple systems at once, due to the usage of global variables in some systems and other naming clashes. Instead, it is safer to reconfigure and rebuild the driver each time for a single specific system.
 
 
@@ -36,7 +36,8 @@ Differently from the other systems, we used GCC, rather than Clang, to compile S
 Configure the GFE driver with:
 
 ```
-/path/to/source/gfe_driver/configure --enable-optimize --disable-debug --with-stinger=/path/to/stinger/build
+mkdir build && cd build
+../configure --enable-optimize --disable-debug --with-stinger=/path/to/stinger/build
 ```
 
 ##### LLAMA
@@ -52,7 +53,8 @@ LLAMA is a header-only library. It does not need to be compiled in advance.
 Configure the GFE driver with:
 
 ```
-/path/to/source/gfe_driver/configure --enable-optimize --disable-debug --with-llama=/path/to/llama
+mkdir build && cd build
+../configure --enable-optimize --disable-debug --with-llama=/path/to/llama
 ```
 
 
@@ -70,7 +72,8 @@ make -j
 If the build has been successful, it should at least create the executable `graphone64`. Then, configure the driver with:
 
 ```
-/path/to/source/gfe_driver/configure --enable-optimize --disable-debug --with-graphone=/path/to/graphone/build
+mkdir build && cd build
+../configure --enable-optimize --disable-debug --with-graphone=/path/to/graphone/build
 ```
 
 ##### Teseo
@@ -89,7 +92,8 @@ make -j
 If the build has been successful, it should at least create the archive `libteseo.a`. Then configure the driver with:
 
 ```
-/path/to/source/gfe_driver/configure --enable-optimize --disable-debug --with-teseo=/path/to/teseo/build
+mkdir build && cd build
+../configure --enable-optimize --disable-debug CXX=clang++ --with-teseo=/path/to/teseo/build   
 ```
 
 #### Compile
