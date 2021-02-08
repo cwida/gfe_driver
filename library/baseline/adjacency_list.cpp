@@ -68,7 +68,7 @@ namespace gfe { extern mutex _log_mutex; }
 namespace gfe::library {
 
 
-AdjacencyList::AdjacencyList(bool is_directed) : m_is_directed(is_directed) {
+AdjacencyList::AdjacencyList(bool is_directed, bool is_thread_safe) : m_is_directed(is_directed), m_is_thread_safe(is_thread_safe) {
 
 }
 
@@ -83,6 +83,10 @@ AdjacencyList::~AdjacencyList(){ }
 bool AdjacencyList::is_directed() const {
     // m_is_directed is const, no need for a critical section here
     return m_is_directed;
+}
+
+bool AdjacencyList::is_thread_safe() const {
+    return m_is_thread_safe;
 }
 
 uint64_t AdjacencyList::num_vertices() const {
@@ -187,8 +191,12 @@ bool AdjacencyList::check_directed_edge_exists(uint64_t vertex1, uint64_t vertex
  *****************************************************************************/
 
 bool AdjacencyList::add_vertex(uint64_t vertex_id){
-    scoped_lock<mutex_t> lock(m_mutex);
-    return add_vertex0(vertex_id);
+    if(is_thread_safe()){
+        scoped_lock<mutex_t> lock(m_mutex);
+        return add_vertex0(vertex_id);
+    } else {
+        return add_vertex0(vertex_id);
+    }
 }
 
 bool AdjacencyList::add_vertex0(uint64_t vertex_id){
@@ -198,8 +206,12 @@ bool AdjacencyList::add_vertex0(uint64_t vertex_id){
 }
 
 bool AdjacencyList::remove_vertex(uint64_t vertex_id){
-    scoped_lock<mutex_t> lock(m_mutex);
-    return delete_vertex0(vertex_id);
+    if(is_thread_safe()){
+        scoped_lock<mutex_t> lock(m_mutex);
+        return delete_vertex0(vertex_id);
+    } else {
+        return delete_vertex0(vertex_id);
+    }
 }
 
 bool AdjacencyList::delete_vertex0(uint64_t vertex_id){
@@ -243,8 +255,15 @@ bool AdjacencyList::add_edge(graph::WeightedEdge e){
     COUT_DEBUG("edge: " << e);
     if(e.source() == e.destination()) INVALID_ARGUMENT("Cannot insert an edge with the same source and destination: " << e);
 
-    scoped_lock<mutex_t> lock(m_mutex);
+    if(is_thread_safe()){
+        scoped_lock<mutex_t> lock(m_mutex);
+        return add_edge_impl(e);
+    } else {
+        return add_edge_impl(e);
+    }
+}
 
+bool AdjacencyList::add_edge_impl(graph::WeightedEdge e){
     auto v_src = m_adjacency_list.find(e.source());
     if(v_src == m_adjacency_list.end()){
         COUT_DEBUG("The source vertex " << e.source() << " does not exist");
@@ -263,8 +282,15 @@ bool AdjacencyList::add_edge_v2(gfe::graph::WeightedEdge e) {
     COUT_DEBUG("edge: " << e);
     if(e.source() == e.destination()) INVALID_ARGUMENT("Cannot insert an edge with the same source and destination: " << e);
 
-    scoped_lock<mutex_t> lock(m_mutex);
+    if(is_thread_safe()){
+        scoped_lock<mutex_t> lock(m_mutex);
+        return add_edge_v2_impl(e);
+    } else {
+        return add_edge_v2_impl(e);
+    }
+}
 
+bool AdjacencyList::add_edge_v2_impl(gfe::graph::WeightedEdge e){
     auto v_src = m_adjacency_list.emplace(e.source(), EdgePair{}).first;
     auto v_dst = m_adjacency_list.emplace(e.destination(), EdgePair{}).first;
 
@@ -295,7 +321,6 @@ bool AdjacencyList::add_edge0(graph::WeightedEdge e, NodeList::iterator& v_src, 
 
     return true;
 }
-
 
 bool AdjacencyList::remove_edge(graph::Edge e){
     scoped_lock<mutex_t> lock(m_mutex);

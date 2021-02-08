@@ -42,6 +42,7 @@ class AdjacencyList : public virtual UpdateInterface, public virtual LoaderInter
     NodeList m_adjacency_list;
     uint64_t m_num_edges = 0; // number of directed edges
     const bool m_is_directed; // whether the graph is directed or not
+    const bool m_is_thread_safe; // whether to protect writes with a latch
 
     using mutex_t = std::shared_mutex;
     mutable mutex_t m_mutex; // read-write mutex
@@ -64,8 +65,10 @@ class AdjacencyList : public virtual UpdateInterface, public virtual LoaderInter
     bool check_directed_edge_exists(uint64_t vertex1, uint64_t vertex2);
 
     // Assume the lock has already been acquired
+    bool add_edge_v2_impl(gfe::graph::WeightedEdge e); // no thread safe impl
     bool add_vertex0(uint64_t vertex_id);
     bool delete_vertex0(uint64_t vertex_id);
+    bool add_edge_impl(graph::WeightedEdge e);
     bool add_edge0(graph::WeightedEdge e, NodeList::iterator& v_src, NodeList::iterator& v_dst);
     bool delete_edge0(graph::Edge e);
 
@@ -80,7 +83,7 @@ public:
     /**
      * Initialise the graph instance
      */
-    AdjacencyList(bool is_directed);
+    AdjacencyList(bool is_directed, bool is_thread_safe = true);
 
     /**
      * Destructor
@@ -101,6 +104,11 @@ public:
      * Is the graph directed?
      */
     virtual bool is_directed() const;
+
+    /**
+     * Is this implementation thread safe?
+     */
+    bool is_thread_safe() const;
 
     /**
      * Returns true if the given vertex is present, false otherwise

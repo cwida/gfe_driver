@@ -903,7 +903,6 @@ static void run_livegraph(bool read_only){
 }
 #endif
 
-
 #if defined(HAVE_STINGER)
 static uint64_t stinger_point_lookup(struct stinger* stinger, uint64_t vertex_id){
     STINGER_FORALL_OUT_EDGES_OF_VTX_BEGIN(stinger, vertex_id) {
@@ -1049,7 +1048,6 @@ static void compute_medians(){
                 median = list[list.size() /2];
             }
 
-
             string key = kv.first;
             key += "@";
             key += num_threads;
@@ -1151,12 +1149,10 @@ static void load(){
         edges->permute();
 
         uint64_t num_threads = thread::hardware_concurrency();
-        if(g_library == "stinger"){ // best number of threads in stones2 according to the scalability results
-            num_threads = 20;
-        } else if(g_library == "llama"){
+        if(g_library == "llama"){ // best number of threads in stones2 according to the scalability results
             num_threads = 16;
         } else if(g_library == "graphone"){
-            num_threads = 3;
+            num_threads = 12;
         } else if(g_library == "livegraph-ro" || g_library == "livegraph-rw"){
             num_threads = 20;
         }

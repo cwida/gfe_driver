@@ -84,6 +84,10 @@ std::unique_ptr<Interface> generate_baseline_adjlist(bool directed_graph){ // di
     return unique_ptr<Interface>{ new AdjacencyList(directed_graph) };
 }
 
+std::unique_ptr<Interface> generate_baseline_adjlist_no_ts(bool directed_graph){
+    return unique_ptr<Interface>{ new AdjacencyList(directed_graph, /* thread safe ? */ false) };
+}
+
 std::unique_ptr<Interface> generate_csr(bool directed_graph){
     return unique_ptr<Interface>{ new CSR(directed_graph, /* numa interleaved ? */ false) };
 }
@@ -211,6 +215,7 @@ vector<ImplementationManifest> implementations() {
 
     // v2 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     result.emplace_back("baseline_v2", "Sequential baseline, based on adjacency list", &generate_baseline_adjlist);
+    result.emplace_back("baseline_seq", "Sequential baseline, non thread safe", &generate_baseline_adjlist_no_ts);
 
     result.emplace_back("csr", "CSR baseline", &generate_csr);
     result.emplace_back("csr-lcc", "CSR baseline, sort-merge impl for the LCC kernel", &generate_csr_lcc);
