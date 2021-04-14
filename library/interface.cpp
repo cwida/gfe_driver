@@ -214,16 +214,19 @@ vector<ImplementationManifest> implementations() {
     vector<ImplementationManifest> result;
 
     // v2 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
-    result.emplace_back("baseline_v2", "Sequential baseline, based on adjacency list", &generate_baseline_adjlist);
-    result.emplace_back("baseline_seq", "Sequential baseline, non thread safe", &generate_baseline_adjlist_no_ts);
+    // v3 14/04/2021: Fix the predicate in the TimeoutService
+    result.emplace_back("baseline_v3", "Sequential baseline, based on adjacency list", &generate_baseline_adjlist);
+    result.emplace_back("baseline_v3_seq", "Sequential baseline, non thread safe", &generate_baseline_adjlist_no_ts);
 
-    result.emplace_back("csr", "CSR baseline", &generate_csr);
-    result.emplace_back("csr-lcc", "CSR baseline, sort-merge impl for the LCC kernel", &generate_csr_lcc);
-    result.emplace_back("csr-numa", "CSR baseline, allocate the internal arrays using all NUMA nodes", &generate_csr_numa);
-    result.emplace_back("csr-lcc-numa", "CSR baseline, allocate the internal arrays using all NUMA nodes, sort-merge impl for the LCC kernel", &generate_csr_lcc_numa);
+    // v2 14/04/2021: Fix the predicate in the TimeoutService
+    result.emplace_back("csr2", "CSR baseline", &generate_csr);
+    result.emplace_back("csr2-lcc", "CSR baseline, sort-merge impl for the LCC kernel", &generate_csr_lcc);
+    result.emplace_back("csr2-numa", "CSR baseline, allocate the internal arrays using all NUMA nodes", &generate_csr_numa);
+    result.emplace_back("csr2-lcc-numa", "CSR baseline, allocate the internal arrays using all NUMA nodes, sort-merge impl for the LCC kernel", &generate_csr_lcc_numa);
 
     // v2 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
-    result.emplace_back("dummy_v2", "Dummy implementation of the interface, all operations are nop", &generate_dummy);
+    // v3 14/04/2021: Fix the predicate in the TimeoutService
+    result.emplace_back("dummy_v3", "Dummy implementation of the interface, all operations are nop", &generate_dummy);
 
 #if defined(HAVE_LLAMA)
     // v2 25/11/2019: better scalability for the llama dictionary
@@ -231,10 +234,11 @@ vector<ImplementationManifest> implementations() {
     // v4 13/05/2020: fair mutex for compactation, it's a major bug fix as new delta levels were not issued every 10s due to starvation. All experiments should be repeated
     // v5 12/06/2020: OMP dynamic scheduling in the Graphalytics kernels
     // v6 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
-    result.emplace_back("llama6", "LLAMA library", &generate_llama);
-    result.emplace_back("llama6-dv", "LLAMA with dense vertices", &generate_llama_dv);
-    result.emplace_back("llama6-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
-    result.emplace_back("llama6-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
+    // v7 14/04/2021: Fix the predicate in the TimeoutService
+    result.emplace_back("llama7", "LLAMA library", &generate_llama);
+    result.emplace_back("llama7-dv", "LLAMA with dense vertices", &generate_llama_dv);
+    result.emplace_back("llama7-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
+    result.emplace_back("llama7-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
 #endif
 
 #if defined(HAVE_STINGER)
@@ -242,28 +246,31 @@ vector<ImplementationManifest> implementations() {
     // v3 29/06/2020: add_edge_v2
     // v4 24/09/2020: do not use OpenMP in updates
     // v5 26/09/2020: completely disable vertex deletions
-    result.emplace_back("stinger5", "Stinger library", &generate_stinger);
-    result.emplace_back("stinger5-dv", "Stinger with dense vertices", &generate_stinger_dv);
-    result.emplace_back("stinger5-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
+    // v6 14/04/2021: Fix the predicate in the TimeoutService
+    result.emplace_back("stinger6", "Stinger library", &generate_stinger);
+    result.emplace_back("stinger6-dv", "Stinger with dense vertices", &generate_stinger_dv);
+    result.emplace_back("stinger6-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
 #endif
 
 #if defined(HAVE_GRAPHONE)
     // v2 11/06/2020: Bug fix for the properties on the static views + OMP dynamic scheduling. Repeat all experiments for Graphalytics.
     // v3 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     // v4 27/06/2020: Fix the number of vertices. It only affects the variations with dense vertices.
-    result.emplace_back("g1_v4-cons-sp", "GraphOne, consistency for updates, sparse vertices (vertex dictionary)", &generate_graphone_cons_sp);
-    result.emplace_back("g1_v4-cons-dv", "GraphOne, consistency for updates, dense vertices", &generate_graphone_cons_dv);
-    result.emplace_back("g1_v4-bw-sp", "GraphOne, blind writes, sparse vertices (vertex dictionary)", &generate_graphone_bw_sp);
-    result.emplace_back("g1_v4-bw-dv", "GraphOne, blind writes, dense vertices", &generate_graphone_bw_dv);
-    result.emplace_back("g1_v4-bw-sp-ignore-build", "GraphOne, blind writes, sparse vertices (vertex dictionary), new deltas/levels cannot be explicitly created", &generate_graphone_bw_sp_ignore_build);
-    result.emplace_back("g1_v4-bw-dv-ignore-build", "GraphOne, blind writes, dense vertices, new deltas/levels cannot be explicitly created", &generate_graphone_bw_dv_ignore_build);
-    result.emplace_back("g1_v4-ref", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref);
-    result.emplace_back("g1_v4-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
+    // v5 14/04/2021: Fix the predicate in the TimeoutService
+    result.emplace_back("g1_v5-cons-sp", "GraphOne, consistency for updates, sparse vertices (vertex dictionary)", &generate_graphone_cons_sp);
+    result.emplace_back("g1_v5-cons-dv", "GraphOne, consistency for updates, dense vertices", &generate_graphone_cons_dv);
+    result.emplace_back("g1_v5-bw-sp", "GraphOne, blind writes, sparse vertices (vertex dictionary)", &generate_graphone_bw_sp);
+    result.emplace_back("g1_v5-bw-dv", "GraphOne, blind writes, dense vertices", &generate_graphone_bw_dv);
+    result.emplace_back("g1_v5-bw-sp-ignore-build", "GraphOne, blind writes, sparse vertices (vertex dictionary), new deltas/levels cannot be explicitly created", &generate_graphone_bw_sp_ignore_build);
+    result.emplace_back("g1_v5-bw-dv-ignore-build", "GraphOne, blind writes, dense vertices, new deltas/levels cannot be explicitly created", &generate_graphone_bw_dv_ignore_build);
+    result.emplace_back("g1_v5-ref", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref);
+    result.emplace_back("g1_v5-ref-ignore-build", "GraphOne, reference GAP BS for the Graphalytics algorithms", &generate_graphone_ref_ignore_build);
 #endif
 
 #if defined(HAVE_LIVEGRAPH)
-    result.emplace_back("livegraph_ro", "LiveGraph, use read-only transactions for the Graphalytics kernels", &generate_livegraph_ro);
-    result.emplace_back("livegraph_rw", "LiveGraph, use read-write transactions for the Graphalytics kernels", &generate_livegraph_rw);
+    // v2 14/04/2021: Fix the predicate in the TimeoutService
+    result.emplace_back("livegraph2_ro", "LiveGraph, use read-only transactions for the Graphalytics kernels", &generate_livegraph_ro);
+    result.emplace_back("livegraph2_rw", "LiveGraph, use read-write transactions for the Graphalytics kernels", &generate_livegraph_rw);
 #endif
 
 #if defined(HAVE_TESEO)
@@ -277,11 +284,12 @@ vector<ImplementationManifest> implementations() {
     // v8 23/11/2020: variable length leaves
     // v9 07/01/2021: bug fixes
     // v10 08/01/2021: set the thread affinity by default
-    result.emplace_back("teseo.10", "Teseo", &generate_teseo);
-    result.emplace_back("teseo-rw.10", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
-    result.emplace_back("teseo-lcc.10", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
-    result.emplace_back("teseo-dv.10", "Teseo, dense vertices", &generate_teseo_real_vtx);
-    result.emplace_back("teseo-lcc-dv.10", "Teseo, dense vertices and sort-merge implementation of the LCC kernel", &generate_teseo_real_vtx_lcc);
+    // v11 14/04/2021: Fix the predicate in the TimeoutService
+    result.emplace_back("teseo.11", "Teseo", &generate_teseo);
+    result.emplace_back("teseo-rw.11", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
+    result.emplace_back("teseo-lcc.11", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
+    result.emplace_back("teseo-dv.11", "Teseo, dense vertices", &generate_teseo_real_vtx);
+    result.emplace_back("teseo-lcc-dv.11", "Teseo, dense vertices and sort-merge implementation of the LCC kernel", &generate_teseo_real_vtx_lcc);
 #endif
 
     return result;
