@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <mutex>
@@ -44,6 +45,19 @@ using namespace common;
 using namespace libcuckoo;
 using namespace std;
 
+/*****************************************************************************
+ *                                                                           *
+ *  Debug                                                                    *
+ *                                                                           *
+ *****************************************************************************/
+//#define DEBUG
+namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
+#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::gfe::_log_mutex}; std::cout << "[CSR::" << __FUNCTION__ << "] [Thread #" << common::concurrency::get_thread_id() << "] " << msg << std::endl; }
+#if defined(DEBUG)
+    #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
+#else
+    #define COUT_DEBUG(msg)
+#endif
 
 /*****************************************************************************
  *                                                                           *
@@ -420,6 +434,44 @@ void CSR::dump_ostream(std::ostream& out) const {
 
 /*****************************************************************************
  *                                                                           *
+ *  Utility                                                                  *
+ *                                                                           *
+ *****************************************************************************/
+template <typename T>
+vector<pair<uint64_t, T>> CSR::translate(T* values, int N) {
+    vector<pair<uint64_t , T>> logical_result(N);
+
+#pragma omp parallel for
+    for (int v = 0; v <  N; v++) {
+        logical_result[v] = make_pair(m_log2ext[v], values[v]);
+    }
+    return logical_result;
+}
+
+template <typename T, bool negative_scores>
+void CSR::save_results(vector<pair<uint64_t, T>> &result, const char *dump2file) {
+    assert(dump2file != nullptr);
+    COUT_DEBUG("save the results to: " << dump2file);
+
+    fstream handle(dump2file, ios_base::out);
+    if (!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
+
+    for (const auto &p : result) {
+        handle << p.first << " ";
+
+        if(!negative_scores && p.second < 0){
+            handle << numeric_limits<T>::max();
+        } else {
+            handle << p.second;
+        }
+
+        handle << "\n";
+    }
+    handle.close();
+}
+
+/*****************************************************************************
+ *                                                                           *
  *  BFS                                                                      *
  *                                                                           *
  *****************************************************************************/
@@ -631,38 +683,14 @@ void CSR::bfs(uint64_t external_source_id, const char* dump2file) {
     // Run the BFS algorithm
     unique_ptr<int64_t[]> ptr_result = do_bfs(root, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
-    timer.stop();
-    cout << "BFS took " << timer << endl;
 
-    timer.start();
-    auto translation = translate<int64_t>(ptr_result.get(), m_num_vertices);
-    timer.stop();
-    cout << "Translation took " << timer << endl;
-    timer.start();
+    // Translate the logical IDs into the external IDs
+    auto translation = translate(ptr_result.get(), m_num_vertices);
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
-    // store the results in the given file
-    if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        for(const auto& keyvaluepair : translation){
-            handle << keyvaluepair.first << " ";
-            auto distance = keyvaluepair.second;
-
-            if(distance < 0){
-                handle << numeric_limits<int64_t>::max();
-            } else {
-                handle << distance;
-            }
-
-            handle << "\n";
-        }
-
-        handle.close();
-    }
-    timer.stop();
-    cout << "Writing out results took" << timer << endl;
+    // Store the results in the given file
+    if(dump2file != nullptr)
+        save_results<int64_t, false>(translation, dump2file);
 }
 
 /*****************************************************************************
@@ -778,12 +806,12 @@ void CSR::pagerank(uint64_t num_iterations, double damping_factor, const char* d
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // retrieve the external node ids
-    auto translation = translate<double>(ptr_result.get(), m_num_vertices);
+    auto translation = translate(ptr_result.get(), m_num_vertices);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    //   store the results in the given file
+    // store the results in the given file
     if(dump2file != nullptr){
-      save_result(translation, dump2file);
+        save_results(translation, dump2file);
     }
 }
 
@@ -908,12 +936,13 @@ void CSR::wcc(const char* dump2file) {
     // run wcc
     unique_ptr<uint64_t[]> ptr_components = do_wcc(timeout);
 
-    auto translation = translate<uint64_t>(ptr_components.get(), m_num_vertices);
+    // retrieve the external node ids
+    auto translation = translate(ptr_components.get(), m_num_vertices);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    //   store the results in the given file
+    // store the results in the given file
     if(dump2file != nullptr){
-      save_result(translation, dump2file);
+        save_results(translation, dump2file);
     }
 }
 
@@ -999,12 +1028,12 @@ void CSR::cdlp(uint64_t max_iterations, const char* dump2file) {
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs
-    auto translation = translate<uint64_t>(labels.get(), m_num_vertices);
+    auto translation = translate(labels.get(), m_num_vertices);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    //   store the results in the given file
+    // Store the results in the given file
     if(dump2file != nullptr){
-      save_result(translation, dump2file);
+        save_results(translation, dump2file);
     }
 }
 
@@ -1176,12 +1205,12 @@ void CSR::lcc(const char* dump2file) {
     unique_ptr<double[]> scores = do_lcc(timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
-    auto translation = translate<double>(scores.get(), m_num_vertices);
+    auto translation = translate(scores.get(), m_num_vertices);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-  //   store the results in the given file
+    // Store the results in the given file
     if(dump2file != nullptr){
-      save_result(translation, dump2file);
+        save_results(translation, dump2file);
     }
 }
 
@@ -1320,17 +1349,13 @@ void CSR::sssp(uint64_t source_vertex_id, const char* dump2file) {
     auto distances = do_sssp(m_ext2log.at(source_vertex_id), delta, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
-    vector<pair<uint64_t , double>> logical_result(m_num_vertices);
+    // Translate the logical IDs into the external IDs
+    auto translation = translate(distances.data(), m_num_vertices);
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    #pragma omp parallel for
-      for (uint v = 0; v <  m_num_vertices; v++) {
-        logical_result[v] = make_pair(m_log2ext[v], distances[v]);
-      }
-
-  // store the results in the given file
-    if(dump2file != nullptr){
-      save_result(logical_result, dump2file);
-    }
+    // store the results in the given file
+    if(dump2file != nullptr)
+        save_results(translation, dump2file);
 }
 
 
@@ -1346,7 +1371,6 @@ static const uint64_t LCC_NUM_WORKERS = thread::hardware_concurrency(); // numbe
 //static const uint64_t LCC_NUM_WORKERS = 1; // number of workers / logical threads to use
 static constexpr uint64_t LCC_TASK_SIZE = 1ull << 10; // number of vertices processed in each task
 
-
 #undef COUT_CLASS_NAME
 #define COUT_CLASS_NAME "CSR_LCC"
 
@@ -1355,40 +1379,25 @@ CSR_LCC::CSR_LCC(bool is_directed, bool numa_interleaved) : CSR(is_directed, num
 }
 
 void CSR_LCC::lcc(const char* dump2file){
-    double* scores = nullptr;
+    // Init
+    unique_ptr<double[]> scores;
     utility::TimeoutService timeout { m_timeout };
     common::Timer timer; timer.start();
 
     { // restrict the scope to allow the dtor to clean up
         Master algorithm ( this, &timeout );
-        scores = algorithm.execute();
+        scores.reset( algorithm.execute() );
     }
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs
-    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
-    #pragma omp parallel for
-    for(uint64_t i = 0; i < m_num_vertices; i++){
-        external_ids.insert(m_log2ext[i], scores[i]);
-    }
+    auto translation = translate(scores.get(), m_num_vertices);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // store the results in the given file
     if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
+        save_results(translation, dump2file);
     }
-
-    delete[] scores;
 }
 
 #undef COUT_CLASS_NAME

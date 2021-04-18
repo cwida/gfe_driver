@@ -24,9 +24,6 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
-#include <fstream>
-#include <cassert>
-#include <mutex>
 
 #include "common/error.hpp"
 #include "library/interface.hpp"
@@ -39,26 +36,7 @@ namespace gfe::graph { class WeightedEdgeStream; }
 namespace gfe::utility { class TimeoutService; }
 void _bm_run_csr(); // bm experiment
 
-/*****************************************************************************
- *                                                                           *
- *  Debug                                                                    *
- *                                                                           *
- *****************************************************************************/
-//#define DEBUG
-namespace gfe {
-    using namespace std;
-    extern mutex _log_mutex [[maybe_unused]];
-}
-#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::gfe::_log_mutex}; std::cout << "[CSR::" << __FUNCTION__ << "] [Thread #" << common::concurrency::get_thread_id() << "] " << msg << std::endl; }
-#if defined(DEBUG)
-#define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
-#else
-#define COUT_DEBUG(msg)
-#endif
-
-
 namespace gfe::library {
-using namespace std;
 
 class CSR : public virtual LoaderInterface, public virtual RandomVertexInterface, public virtual GraphalyticsInterface  {
     friend void ::_bm_run_csr();
@@ -129,33 +107,14 @@ private:
     // SSSP implementation
     gapbs::pvector<double> do_sssp(uint64_t source, double delta, utility::TimeoutService& timer) const;
 
+protected:
+    // Helper, translate the logical into real vertices IDs. Materialization step at the end of a graphalytics algorithm
     template <typename T>
-    vector<pair<uint64_t, T>> translate(T* values, int N) {
-      vector<pair<uint64_t , T>> logical_result(N);
+    std::vector<std::pair<uint64_t, T>> translate(T* values, int N);
 
-#pragma omp parallel for
-      for (int v = 0; v <  N; v++) {
-        logical_result[v] = make_pair(m_log2ext[v], values[v]);
-      }
-      return logical_result;
-    }
-
-    template <typename T>
-    void save_result(vector<pair<uint64_t, T>> &result, const char *dump2file) {
-      assert(dump2file != nullptr);
-      COUT_DEBUG("save the results to: " << dump2file);
-
-      fstream handle(dump2file, ios_base::out);
-      if (!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-      for (const auto &p : result) {
-        handle << p.first << " ";
-        handle << p.second;
-        handle << "\n";
-      }
-      handle.close();
-    }
-
+    // Helper, save the content of the vector to the given output file
+    template <typename T, bool negative_scores = true>
+    void save_results(std::vector<std::pair<uint64_t, T>>& result, const char* dump2file);
 
 public:
     /**
