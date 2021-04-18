@@ -172,8 +172,7 @@ void Stinger::compute_shortest_paths(uint64_t source_external_id, bool weighted,
     auto result = a_star(STINGER, stinger_max_active_vertex(STINGER) +1, source_internal_id, /* all vertices */ -1, /* ignore weights */ !weighted, chrono::seconds( m_timeout ));
 
     // covert the internal vertex IDs back to external IDs
-    vector<pair<uint64_t, double>> external_ids;
-    to_external_ids(result,  &external_ids);
+    auto external_ids = to_external_ids(result);
     save(external_ids, weighted, dump2file);
 }
 

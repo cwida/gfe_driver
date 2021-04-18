@@ -131,8 +131,7 @@ void Stinger::pagerank(uint64_t num_iterations, double damping_factor, const cha
 
 
     // store the final results (if required)
-    vector<pair<uint64_t, double>> result;
-    to_external_ids(rank0t, num_registered_vertices, &result); // convert the internal logical IDs into the external IDs
+    auto result = to_external_ids(rank0t, num_registered_vertices); // convert the internal logical IDs into the external IDs
     save(result, dump2file);
 };
 

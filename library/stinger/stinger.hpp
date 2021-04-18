@@ -35,8 +35,9 @@ protected:
     std::atomic<uint64_t> m_num_vertices = 0; // number of vertices
     uint64_t m_timeout = 0; // available time, in seconds, to complete the computation
 #if !defined(STINGER_USE_INTERNAL_MAPPING)
-    cuckoohash_map<uint64_t, int64_t> m_vertex_mappings_e2i; // name mappings (external to internal)
-    cuckoohash_map<uint64_t, int64_t> m_vertex_mappings_i2e; // name mappings (internal to external)
+    mutable common::SpinLock m_spin_lock; // mutual exclusion while manipulating the internal hash tables
+    libcuckoo::cuckoohash_map<uint64_t, int64_t> m_vertex_mappings_e2i; // name mappings (external to internal)
+    libcuckoo::cuckoohash_map<uint64_t, int64_t> m_vertex_mappings_i2e; // name mappings (internal to external)
     std::vector<int64_t> m_reuse_vertices; // deleted vertices IDs that can be reused
     int64_t m_next_vertex_id = 0;
 #endif
@@ -64,14 +65,13 @@ protected:
     uint64_t get_max_num_mappings() const;
 
     /**
-     * Convert the array internal_ids[value] into
+     * Convert the array internal_ids into a vector composed of pairs <external_id, value>
      * @param internal_ids [input] an array, where each entry is logical_id -> value
-     * @param out_external_ids [output] a hash table, where each entry is external_id -> value
      */
     template<typename T>
-    void to_external_ids(const std::vector<T>& internal_ids, std::vector<std::pair<uint64_t, T>>* out_external_ids);
+    std::vector<std::pair<uint64_t, T>> to_external_ids(const std::vector<T>& internal_ids);
     template<typename T>
-    void to_external_ids(const T* __restrict internal_ids, size_t internal_ids_sz, std::vector<std::pair<uint64_t, T>>* out_external_ids);
+    std::vector<std::pair<uint64_t, T>> to_external_ids(const T* __restrict internal_ids, size_t internal_ids_sz);
 
     /**
      * Compute the shortest paths from source to any vertex

@@ -120,10 +120,8 @@ uint64_t Stinger::get_max_num_mappings() const {
 }
 
 template<typename T>
-void Stinger::to_external_ids(const T* __restrict internal_ids, size_t internal_ids_sz, vector<pair<uint64_t, T>>* external_ids){
-    ASSERT(external_ids != nullptr);
-
-    external_ids->resize(internal_ids_sz);
+vector<pair<uint64_t, T>> Stinger::to_external_ids(const T* __restrict internal_ids, size_t internal_ids_sz){
+    vector<pair<uint64_t, T>> external_ids ( internal_ids_sz );
 
     #pragma omp parallel for
     for(uint64_t internal_id = 0; internal_id < internal_ids_sz; internal_id++){
@@ -133,11 +131,13 @@ void Stinger::to_external_ids(const T* __restrict internal_ids, size_t internal_
             if( rc == 0 ){ // mapping found
                 uint64_t external_id = stoull(vertex_id_name);
                 COUT_DEBUG("external_id: " << external_id << ", internal_id: " << internal_id);
-              (*external_ids)[internal_id] = make_pair(external_id, internal_ids[internal_id]);
+                external_ids[internal_id] = make_pair(external_id, internal_ids[internal_id]);
             }
             free(vertex_id_name); vertex_id_name = nullptr;
         }
     }
+
+    return external_ids;
 }
 
 int64_t Stinger::get_or_create_vertex_id(uint64_t external_vertex_id) {
@@ -186,29 +186,33 @@ uint64_t Stinger::get_max_num_mappings() const {
 }
 
 template<typename T>
-void Stinger::to_external_ids(const T* __restrict internal_ids, size_t internal_ids_sz, cuckoohash_map<uint64_t, T>* external_ids){
-    ASSERT(external_ids != nullptr);
+vector<pair<uint64_t, T>> Stinger::to_external_ids(const T* __restrict internal_ids, size_t internal_ids_sz){
+    vector<pair<uint64_t, T>> external_ids ( internal_ids_sz );
 
     #pragma omp parallel for
     for(uint64_t internal_id = 0; internal_id < internal_ids_sz; internal_id++){
         uint64_t external_id = get_external_id(internal_id);
 //        COUT_DEBUG("internal_id: " << internal_id << " -> " << external_id);
         if(external_id != numeric_limits<uint64_t>::max()){
-            external_ids->insert(external_id, internal_ids[internal_id]);
+            external_ids[internal_id] = make_pair(external_id, internal_ids[internal_id]);
         }
     }
+
+    return external_ids;
 }
 #endif
 
 template<typename T>
-void Stinger::to_external_ids(const vector<T>& internal_ids, vector<pair<uint64_t, T>>* external_ids){
-    to_external_ids(internal_ids.data(), internal_ids.size(), external_ids);
+vector<pair<uint64_t, T>> Stinger::to_external_ids(const vector<T>& internal_ids){
+    return to_external_ids(internal_ids.data(), internal_ids.size());
 }
 
-template void Stinger::to_external_ids<double>(const vector<double>& internal_ids, vector<pair<uint64_t, double>>* external_ids);
-template void Stinger::to_external_ids<double>(const double* __restrict internal_ids, size_t internal_ids_sz, vector<pair<uint64_t, double>>* external_ids);
-template void Stinger::to_external_ids<int64_t>(const vector<int64_t>& internal_ids, vector<pair<uint64_t, int64_t>>* external_ids);
-template void Stinger::to_external_ids<int64_t>(const int64_t* __restrict internal_ids, size_t internal_ids_sz, vector<pair<uint64_t, int64_t>>* external_ids);
+template vector<pair<uint64_t, double>> Stinger::to_external_ids<double>(const vector<double>& internal_ids);
+template vector<pair<uint64_t, double>> Stinger::to_external_ids<double>(const double* __restrict internal_ids, size_t internal_ids_sz);
+template vector<pair<uint64_t, int64_t>> Stinger::to_external_ids<int64_t>(const vector<int64_t>& internal_ids);
+template vector<pair<uint64_t, int64_t>> Stinger::to_external_ids<int64_t>(const int64_t* __restrict internal_ids, size_t internal_ids_sz);
+template vector<pair<uint64_t, uint64_t>> Stinger::to_external_ids<uint64_t>(const vector<uint64_t>& internal_ids);
+template vector<pair<uint64_t, uint64_t>> Stinger::to_external_ids<uint64_t>(const uint64_t* __restrict internal_ids, size_t internal_ids_sz);
 
 /******************************************************************************
  *                                                                            *

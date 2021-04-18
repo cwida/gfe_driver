@@ -92,8 +92,7 @@ void Stinger::wcc(const char* dump2file) {
     parallel_shiloach_vishkin_components_of_type(STINGER, component_map, /* type, ignore */ 0); // already implemented in Stinger
 
     // store the final results (if required)
-    vector<pair<uint64_t, int64_t>> result;
-    to_external_ids(component_map, get_max_num_mappings(), &result); // convert the internal logical IDs into the external IDs
+    auto result = to_external_ids(component_map, get_max_num_mappings()); // convert the internal logical IDs into the external IDs
     save(result, dump2file);
 }
 
