@@ -69,9 +69,9 @@ protected:
      * @param out_external_ids [output] a hash table, where each entry is external_id -> value
      */
     template<typename T>
-    void to_external_ids(const std::vector<T>& internal_ids, libcuckoo::cuckoohash_map<uint64_t, T>* out_external_ids);
+    void to_external_ids(const std::vector<T>& internal_ids, std::vector<std::pair<uint64_t, T>>* out_external_ids);
     template<typename T>
-    void to_external_ids(const T* __restrict internal_ids, size_t internal_ids_sz, libcuckoo::cuckoohash_map<uint64_t, T>* out_external_ids);
+    void to_external_ids(const T* __restrict internal_ids, size_t internal_ids_sz, std::vector<std::pair<uint64_t, T>>* out_external_ids);
 
     /**
      * Compute the shortest paths from source to any vertex

@@ -19,7 +19,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <fstream>
 #include <iostream>
 #include <limits>
 #include <mutex>
@@ -44,20 +43,6 @@
 using namespace common;
 using namespace libcuckoo;
 using namespace std;
-
-/*****************************************************************************
- *                                                                           *
- *  Debug                                                                    *
- *                                                                           *
- *****************************************************************************/
-//#define DEBUG
-namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
-#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::gfe::_log_mutex}; std::cout << "[CSR::" << __FUNCTION__ << "] [Thread #" << common::concurrency::get_thread_id() << "] " << msg << std::endl; }
-#if defined(DEBUG)
-    #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
-#else
-    #define COUT_DEBUG(msg)
-#endif
 
 
 /*****************************************************************************
@@ -646,21 +631,14 @@ void CSR::bfs(uint64_t external_source_id, const char* dump2file) {
     // Run the BFS algorithm
     unique_ptr<int64_t[]> ptr_result = do_bfs(root, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
+    timer.stop();
+    cout << "BFS took " << timer << endl;
 
-    // translate the logical vertex IDs into the external vertex IDs
-    int64_t* result = ptr_result.get();
-    cuckoohash_map</* external id */ uint64_t, /* distance */ int64_t> external_ids;
-
-    #pragma omp parallel for
-    for(uint64_t logical_id = 0; logical_id < m_num_vertices; logical_id++){
-        uint64_t external_id = m_log2ext[logical_id];
-        int64_t distance = result[logical_id];
-        external_ids.insert(external_id, distance);
-    }
-
-    if(timeout.is_timeout()){
-        RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-    }
+    timer.start();
+    auto translation = translate<int64_t>(ptr_result.get(), m_num_vertices);
+    timer.stop();
+    cout << "Translation took " << timer << endl;
+    timer.start();
 
     // store the results in the given file
     if(dump2file != nullptr){
@@ -668,9 +646,7 @@ void CSR::bfs(uint64_t external_source_id, const char* dump2file) {
         fstream handle(dump2file, ios_base::out);
         if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
 
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
+        for(const auto& keyvaluepair : translation){
             handle << keyvaluepair.first << " ";
             auto distance = keyvaluepair.second;
 
@@ -685,6 +661,8 @@ void CSR::bfs(uint64_t external_source_id, const char* dump2file) {
 
         handle.close();
     }
+    timer.stop();
+    cout << "Writing out results took" << timer << endl;
 }
 
 /*****************************************************************************
@@ -800,27 +778,12 @@ void CSR::pagerank(uint64_t num_iterations, double damping_factor, const char* d
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // retrieve the external node ids
-    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
-    double* __restrict result = ptr_result.get();
-    #pragma omp parallel for
-    for(uint64_t i = 0; i < m_num_vertices; i++){
-        external_ids.insert(m_log2ext[i], result[i]);
-    }
+    auto translation = translate<double>(ptr_result.get(), m_num_vertices);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    // store the results in the given file
+    //   store the results in the given file
     if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto list_entries = external_ids.lock_table();
-        for(const auto& p : list_entries){
-            handle << p.first << " " << p.second << "\n";
-        }
-
-        handle.close();
+      save_result(translation, dump2file);
     }
 }
 
@@ -945,28 +908,12 @@ void CSR::wcc(const char* dump2file) {
     // run wcc
     unique_ptr<uint64_t[]> ptr_components = do_wcc(timeout);
 
-    // translate the vertex IDs
-    cuckoohash_map</* external id */ uint64_t, /* component */ uint64_t> external_ids;
-    uint64_t* __restrict components = ptr_components.get();
-    #pragma omp parallel for
-    for(uint64_t i = 0; i < m_num_vertices; i++){
-        external_ids.insert(m_log2ext[i], components[i]);
-    }
+    auto translation = translate<uint64_t>(ptr_components.get(), m_num_vertices);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    // store the results in the given file
+    //   store the results in the given file
     if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
+      save_result(translation, dump2file);
     }
 }
 
@@ -1052,26 +999,12 @@ void CSR::cdlp(uint64_t max_iterations, const char* dump2file) {
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs
-    cuckoohash_map</* external id */ uint64_t, /* label */ uint64_t> external_ids;
-    #pragma omp parallel for
-    for(uint64_t i = 0; i < m_num_vertices; i++){
-        external_ids.insert(m_log2ext[i], labels[i]);
-    }
+    auto translation = translate<uint64_t>(labels.get(), m_num_vertices);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    // store the results in the given file
+    //   store the results in the given file
     if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
+      save_result(translation, dump2file);
     }
 }
 
@@ -1243,27 +1176,12 @@ void CSR::lcc(const char* dump2file) {
     unique_ptr<double[]> scores = do_lcc(timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
-    // Translate the vertex IDs
-    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
-    #pragma omp parallel for
-    for(uint64_t i = 0; i < m_num_vertices; i++){
-        external_ids.insert(m_log2ext[i], scores[i]);
-    }
+    auto translation = translate<double>(scores.get(), m_num_vertices);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    // store the results in the given file
+  //   store the results in the given file
     if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
+      save_result(translation, dump2file);
     }
 }
 
@@ -1402,27 +1320,16 @@ void CSR::sssp(uint64_t source_vertex_id, const char* dump2file) {
     auto distances = do_sssp(m_ext2log.at(source_vertex_id), delta, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
-    // Translate the vertex IDs
-    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
+    vector<pair<uint64_t , double>> logical_result(m_num_vertices);
+
     #pragma omp parallel for
-    for(uint64_t i = 0; i < m_num_vertices; i++){
-        external_ids.insert(m_log2ext[i], distances[i]);
-    }
-    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
+      for (uint v = 0; v <  m_num_vertices; v++) {
+        logical_result[v] = make_pair(m_log2ext[v], distances[v]);
+      }
 
-    // store the results in the given file
+  // store the results in the given file
     if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
+      save_result(logical_result, dump2file);
     }
 }
 

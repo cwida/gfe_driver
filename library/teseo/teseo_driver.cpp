@@ -20,7 +20,6 @@
 #include <fstream>
 #include <iomanip>
 #include <mutex>
-#include <omp.h>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -28,7 +27,6 @@
 #include "third-party/gapbs/gapbs.hpp"
 #include "third-party/libcuckoo/cuckoohash_map.hh"
 #include "utility/timeout_service.hpp"
-#include "teseo_openmp.hpp"
 
 #include "teseo/context/global_context.hpp"
 #include "teseo/memstore/memstore.hpp"
@@ -42,20 +40,6 @@ using namespace teseo;
 using namespace gfe::library::teseo_driver_internal;
 
 #define TESEO reinterpret_cast<Teseo*>(m_pImpl)
-
-/*****************************************************************************
- *                                                                           *
- *  Debug                                                                    *
- *                                                                           *
- *****************************************************************************/
-//#define DEBUG
-namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
-#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::gfe::_log_mutex}; std::cout << "[TeseoDriver::" << __FUNCTION__ << "] " << msg << std::endl; }
-#if defined(DEBUG)
-    #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
-#else
-    #define COUT_DEBUG(msg)
-#endif
 
 namespace gfe::library {
 
@@ -372,16 +356,14 @@ pvector<int64_t> teseo_bfs(OpenMP& openmp, int64_t source, utility::TimeoutServi
     return distances;
 }
 
-static void save_bfs(cuckoohash_map<uint64_t, int64_t>& result, const char* dump2file){
+static void save_bfs(vector<pair<uint64_t, int64_t>>& result, const char* dump2file){
     assert(dump2file != nullptr);
     COUT_DEBUG("save the results to: " << dump2file)
 
     fstream handle(dump2file, ios_base::out);
     if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
 
-    auto list_entries = result.lock_table();
-
-    for(const auto& p : list_entries){
+    for(auto p : result){
         handle << p.first << " ";
 
         // if  the vertex was not reached, the algorithm sets its distance to < 0
@@ -392,8 +374,6 @@ static void save_bfs(cuckoohash_map<uint64_t, int64_t>& result, const char* dump
         }
         handle << "\n";
     }
-
-    list_entries.unlock();
     handle.close();
 }
 
@@ -407,22 +387,13 @@ void TeseoDriver::bfs(uint64_t source_vertex_id, const char* dump2file){
     auto result = teseo_bfs(openmp, openmp.transaction().logical_id(source_vertex_id), tcheck);
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    // translate from llama vertex ids to external vertex ids
-    const uint64_t N = openmp.transaction().num_vertices();
-    cuckoohash_map</* external id */ uint64_t, /* distance */ int64_t> external_ids;
-    #pragma omp parallel for firstprivate(openmp)
-    for(uint64_t i = 0; i < N; i++){
-        // second, what's it's real node ID, in the external domain (e.g. user id)
-        uint64_t external_node_id = openmp.transaction().vertex_id(i);
+    const int64_t N = openmp.transaction().num_vertices();
+    vector<pair<uint64_t , int64_t>> external_ids(N);
 
-        // third, its distance
-        auto distance = result[i];
-
-        // finally, register the association
-        external_ids.insert(external_node_id, distance);
+    #pragma omp parallel for
+    for (uint v = 0; v <  N; v++) {
+      external_ids[v] = make_pair(openmp.transaction().vertex_id(v), result[v]);
     }
-
-    if(tcheck.is_timeout()) RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
 
     // store the results in the given file
     if(dump2file != nullptr)
@@ -546,30 +517,14 @@ void TeseoDriver::pagerank(uint64_t num_iterations, double damping_factor, const
     unique_ptr<double[]> ptr_rank = teseo_pagerank(openmp, num_iterations, damping_factor, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
-    // retrieve the external node ids
-    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
-    double* __restrict rank = ptr_rank.get();
+    // translate the vertex IDs
     const uint64_t N = openmp.transaction().num_vertices();
-    #pragma omp parallel for firstprivate(openmp)
-    for(uint64_t i = 0; i < N; i++){
-        external_ids.insert(openmp.transaction().vertex_id(i), rank[i]);
-    }
+    auto external_ids = translate<double>(openmp, ptr_rank.get(), N);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // store the results in the given file
     if(dump2file != nullptr){
-
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto list_entries = external_ids.lock_table();
-        for(const auto& p : list_entries){
-            handle << p.first << " " << p.second << "\n";
-        }
-
-        handle.close();
+      save_result(external_ids, dump2file);
     }
 }
 
@@ -700,28 +655,13 @@ void TeseoDriver::wcc(const char* dump2file) {
     unique_ptr<uint64_t[]> ptr_components = teseo_wcc(openmp, timeout);
 
     // translate the vertex IDs
-    cuckoohash_map</* external id */ uint64_t, /* component */ uint64_t> external_ids;
-    uint64_t* __restrict components = ptr_components.get();
     const uint64_t N = openmp.transaction().num_vertices();
-    #pragma omp parallel for firstprivate(openmp)
-    for(uint64_t i = 0; i < N; i++){
-        external_ids.insert(openmp.transaction().vertex_id(i), components[i]);
-    }
+    auto external_ids = translate<uint64_t>(openmp, ptr_components.get(), N);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // store the results in the given file
     if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
+      save_result<uint64_t>(external_ids, dump2file);
     }
 }
 
@@ -795,28 +735,14 @@ void TeseoDriver::cdlp(uint64_t max_iterations, const char* dump2file) {
     unique_ptr<uint64_t[]> labels = teseo_cdlp(openmp, max_iterations, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
-    // Translate the vertex IDs
-    cuckoohash_map</* external id */ uint64_t, /* label */ uint64_t> external_ids;
+    // translate the vertex IDs
     const uint64_t N = openmp.transaction().num_vertices();
-    #pragma omp parallel for firstprivate(openmp)
-    for(uint64_t i = 0; i < N; i++){
-        external_ids.insert(openmp.transaction().vertex_id(i), labels[i]);
-    }
+    auto external_ids = translate<uint64_t>(openmp, labels.get(), N);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // store the results in the given file
     if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
+      save_result<uint64_t>(external_ids, dump2file);
     }
 }
 
@@ -891,28 +817,14 @@ void TeseoDriver::lcc(const char* dump2file) {
     unique_ptr<double[]> scores = teseo_lcc(openmp, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
-    // Translate the vertex IDs
-    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
+    // translate the vertex IDs
     const uint64_t N = openmp.transaction().num_vertices();
-    #pragma omp parallel for firstprivate(openmp)
-    for(uint64_t i = 0; i < N; i++){
-        external_ids.insert(openmp.transaction().vertex_id(i), scores[i]);
-    }
+    auto external_ids = translate<double>(openmp, scores.get(), N);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // store the results in the given file
     if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
+      save_result<double>(external_ids, dump2file);
     }
 }
 
@@ -1056,28 +968,19 @@ void TeseoDriver::sssp(uint64_t source_vertex_id, const char* dump2file) {
     auto distances = teseo_sssp(openmp, openmp.transaction().logical_id(source_vertex_id), delta, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
-    // Translate the vertex IDs
-    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
+    // translate the vertex IDs
     const uint64_t N = openmp.transaction().num_vertices();
-    #pragma omp parallel for firstprivate(openmp)
-    for(uint64_t i = 0; i < N; i++){
-        external_ids.insert(openmp.transaction().vertex_id(i), distances[i]);
+    vector<pair<uint64_t , double>> logical_result(N);
+
+  #pragma omp parallel for
+    for (uint v = 0; v <  N; v++) {
+      logical_result[v] = make_pair(openmp.transaction().vertex_id(v), distances[v]);
     }
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // store the results in the given file
     if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
+      save_result<double>(logical_result, dump2file);
     }
 }
 
@@ -1372,28 +1275,18 @@ void TeseoDriverLCC::lcc(const char* dump2file){
     }
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
-    // Translate the vertex IDs
-    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
-    const uint64_t num_vertices = transaction.num_vertices();
-    #pragma omp parallel for firstprivate(rt, transaction)
-    for(uint64_t i = 0; i < num_vertices; i++){
-        external_ids.insert(transaction.vertex_id(i), scores[i]);
+    // translate the vertex IDs
+    uint64_t N = transaction.num_vertices();
+    vector<pair<uint64_t , uint64_t>> logical_result(N);
+
+    // TODO use openmp here but for this we need a instance of teseo_openmp.
+    for (uint v = 0; v <  N; v++) {
+      logical_result[v] = make_pair(transaction.vertex_id(v), scores[v]);
     }
-    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // store the results in the given file
-    if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
+    if(dump2file != nullptr) {
+      save_result(logical_result, dump2file);
     }
 
     delete[] scores;

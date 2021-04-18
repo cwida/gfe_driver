@@ -135,7 +135,7 @@ static std::vector<double> a_star(stinger_t * S, int64_t NV, int64_t source_vert
 
 
 // dump the content to the given file
-static void save(cuckoohash_map<uint64_t, double>& result, bool weighted, const char* dump2file){
+static void save(vector<pair<uint64_t, double>>& result, bool weighted, const char* dump2file){
     if(dump2file == nullptr) return; // nop
     COUT_DEBUG("save the results to: " << dump2file)
     string label_infinity = weighted ? string("infinity") : to_string(numeric_limits<uint64_t>::max());
@@ -144,9 +144,7 @@ static void save(cuckoohash_map<uint64_t, double>& result, bool weighted, const 
     fstream handle(dump2file, ios_base::out);
     if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
 
-    auto list_entries = result.lock_table();
-
-    for(const auto& p : list_entries){
+    for(auto p : result){
         handle << p.first << " ";
         if(p.second == numeric_limits<double>::max()){
             handle << label_infinity;
@@ -156,7 +154,6 @@ static void save(cuckoohash_map<uint64_t, double>& result, bool weighted, const 
         handle << "\n";
     }
 
-    list_entries.unlock();
     handle.close();
 }
 
@@ -175,8 +172,8 @@ void Stinger::compute_shortest_paths(uint64_t source_external_id, bool weighted,
     auto result = a_star(STINGER, stinger_max_active_vertex(STINGER) +1, source_internal_id, /* all vertices */ -1, /* ignore weights */ !weighted, chrono::seconds( m_timeout ));
 
     // covert the internal vertex IDs back to external IDs
-    cuckoohash_map<uint64_t, double> external_ids;
-    to_external_ids(result, &external_ids);
+    vector<pair<uint64_t, double>> external_ids;
+    to_external_ids(result,  &external_ids);
     save(external_ids, weighted, dump2file);
 }
 

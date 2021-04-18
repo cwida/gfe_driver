@@ -62,20 +62,17 @@ extern mutex _log_mutex [[maybe_unused]];
  *                                                                            *
  ******************************************************************************/
 // dump the content to the given file
-static void save(cuckoohash_map<uint64_t, double>& result, const char* dump2file){
+static void save(vector<pair<uint64_t, double>>& result, const char* dump2file){
     if(dump2file == nullptr) return; // nop
     COUT_DEBUG("save the results to: " << dump2file)
 
     fstream handle(dump2file, ios_base::out);
     if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
 
-    auto list_entries = result.lock_table();
-
-    for(const auto& p : list_entries){
+    for(auto p : result){
         handle << p.first << " " << p.second << "\n";
     }
 
-    list_entries.unlock();
     handle.close();
 }
 
@@ -96,9 +93,10 @@ namespace gfe::library {
 void Stinger::lcc(const char* dump2file){
     auto tcheck = make_unique<utility::TimeoutService>( chrono::seconds{ m_timeout } );
     common::Timer timer; timer.start();
-    cuckoohash_map<uint64_t, double> result;
 //    uint64_t nv = stinger_max_active_vertex(STINGER); // it doesn't register the coefficient if the last vertices are isolated
     uint64_t nv = get_max_num_mappings(); // number of mappings
+
+    vector<pair<uint64_t, double>> result (nv);
 
     #pragma omp parallel for schedule(dynamic, 64)
     for(uint64_t v = 0; v < nv; v++){
@@ -114,7 +112,7 @@ void Stinger::lcc(const char* dump2file){
             coeff = static_cast<double>(num_triangles) / max_num_edges;
         }
 
-        result.insert(get_external_id(v), coeff);
+        result[v] = make_pair(get_external_id(v), coeff);
     }
 
     timer.stop();

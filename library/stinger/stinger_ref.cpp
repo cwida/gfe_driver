@@ -73,22 +73,41 @@ StingerRef::~StingerRef() { }
  *  Helpers                                                                   *
  *                                                                            *
  *****************************************************************************/
+template <typename T>
+static vector<pair<uint64_t, T>> translate(stinger_t* g, pvector<T>& values) {
+  auto N = values.size();
+  vector<pair<uint64_t , T>> logical_result(N);
+
+#pragma omp parallel for
+  for(uint64_t internal_id = 0; internal_id < N; internal_id++){
+    if(stinger_vtype_get(g, internal_id) == 0){ // if = 1, the node is marked for deletion
+      char* vertex_id_name = nullptr; uint64_t vertex_id_name_length = 0;
+      int rc = stinger_mapping_physid_get(g, internal_id, &vertex_id_name, &vertex_id_name_length);
+      if( rc == 0 ){ // mapping found
+        uint64_t external_id = stoull(vertex_id_name);
+        COUT_DEBUG("external_id: " << external_id << ", internal_id: " << internal_id);
+
+        logical_result[internal_id] = make_pair(external_id, values[internal_id]);
+      }
+      free(vertex_id_name); vertex_id_name = nullptr;
+    }
+  }
+
+  return logical_result;
+}
 
 template<typename T>
-static void save0(cuckoohash_map<uint64_t, T>& result, const char* dump2file){
+static void save0(vector<pair<uint64_t, T>>& result, const char* dump2file){
     assert(dump2file != nullptr);
     COUT_DEBUG("save the results to: " << dump2file)
 
     fstream handle(dump2file, ios_base::out);
     if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
 
-    auto list_entries = result.lock_table();
-
-    for(const auto& p : list_entries){
+    for(auto p : result){
         handle << p.first << " " << p.second << "\n";
     }
 
-    list_entries.unlock();
     handle.close();
 }
 
@@ -245,16 +264,14 @@ pvector<int64_t> do_bfs(stinger_t* g, int64_t NV, uint64_t num_out_edges, int64_
 
 } // anon namespace
 
-static void save_bfs(cuckoohash_map<uint64_t, int64_t>& result, const char* dump2file){
+static void save_bfs(vector<pair<uint64_t, int64_t>>& result, const char* dump2file){
     assert(dump2file != nullptr);
     COUT_DEBUG("save the results to: " << dump2file)
 
     fstream handle(dump2file, ios_base::out);
     if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
 
-    auto list_entries = result.lock_table();
-
-    for(const auto& p : list_entries){
+    for(auto p : result){
         handle << p.first << " ";
 
         // if  the vertex was not reached, the algorithm sets its distance to < 0
@@ -266,7 +283,6 @@ static void save_bfs(cuckoohash_map<uint64_t, int64_t>& result, const char* dump
         handle << "\n";
     }
 
-    list_entries.unlock();
     handle.close();
 }
 
@@ -282,21 +298,7 @@ void StingerRef::bfs(uint64_t source_external_id, const char* dump2file){
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // translate the vertex ids and set the distance of the non reached vertices to max()
-    cuckoohash_map<uint64_t, int64_t> external_ids;
-    #pragma omp parallel for
-    for(uint64_t internal_id = 0; internal_id < nv; internal_id++){
-        if(stinger_vtype_get(STINGER, internal_id) == 0){ // if = 1, the node is marked for deletion
-            char* vertex_id_name = nullptr; uint64_t vertex_id_name_length = 0;
-            int rc = stinger_mapping_physid_get(STINGER, internal_id, &vertex_id_name, &vertex_id_name_length);
-            if( rc == 0 ){ // mapping found
-                uint64_t external_id = stoull(vertex_id_name);
-                COUT_DEBUG("external_id: " << external_id << ", internal_id: " << internal_id);
-
-                external_ids.insert(external_id, result[internal_id]);
-            }
-            free(vertex_id_name); vertex_id_name = nullptr;
-        }
-    }
+    auto external_ids = translate(STINGER, result);
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     if(dump2file != nullptr)
@@ -384,21 +386,7 @@ void StingerRef::pagerank(uint64_t num_iterations, double damping_factor, const 
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // translate the vertex ids and set the distance of the non reached vertices to max()
-    cuckoohash_map<uint64_t, double> external_ids;
-    #pragma omp parallel for
-    for(uint64_t internal_id = 0; internal_id < num_registered_vertices; internal_id++){
-        if(stinger_vtype_get(STINGER, internal_id) == 0){ // if = 1, the node is marked for deletion
-            char* vertex_id_name = nullptr; uint64_t vertex_id_name_length = 0;
-            int rc = stinger_mapping_physid_get(STINGER, internal_id, &vertex_id_name, &vertex_id_name_length);
-            if( rc == 0 ){ // mapping found
-                uint64_t external_id = stoull(vertex_id_name);
-                COUT_DEBUG("external_id: " << external_id << ", internal_id: " << internal_id);
-
-                external_ids.insert(external_id, result[internal_id]);
-            }
-            free(vertex_id_name); vertex_id_name = nullptr;
-        }
-    }
+    auto external_ids = translate(STINGER, result);
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     if(dump2file != nullptr)
@@ -492,21 +480,7 @@ void StingerRef::wcc(const char* dump2file) {
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // translate the vertex ids and set the distance of the non reached vertices to max()
-    cuckoohash_map<uint64_t, uint64_t> external_ids;
-    #pragma omp parallel for
-    for(uint64_t internal_id = 0; internal_id < nv; internal_id++){
-        if(stinger_vtype_get(STINGER, internal_id) == 0){ // if = 1, the node is marked for deletion
-            char* vertex_id_name = nullptr; uint64_t vertex_id_name_length = 0;
-            int rc = stinger_mapping_physid_get(STINGER, internal_id, &vertex_id_name, &vertex_id_name_length);
-            if( rc == 0 ){ // mapping found
-                uint64_t external_id = stoull(vertex_id_name);
-                COUT_DEBUG("external_id: " << external_id << ", internal_id: " << internal_id);
-
-                external_ids.insert(external_id, result[internal_id]);
-            }
-            free(vertex_id_name); vertex_id_name = nullptr;
-        }
-    }
+    auto external_ids = translate(STINGER, result);
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     if(dump2file != nullptr)
@@ -626,21 +600,7 @@ void StingerRef::sssp(uint64_t source_external_id, const char* dump2file){
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // translate the vertex ids and set the distance of the non reached vertices to max()
-    cuckoohash_map<uint64_t, double> external_ids;
-    #pragma omp parallel for
-    for(uint64_t internal_id = 0; internal_id < nv; internal_id++){
-        if(stinger_vtype_get(STINGER, internal_id) == 0){ // if = 1, the node is marked for deletion
-            char* vertex_id_name = nullptr; uint64_t vertex_id_name_length = 0;
-            int rc = stinger_mapping_physid_get(STINGER, internal_id, &vertex_id_name, &vertex_id_name_length);
-            if( rc == 0 ){ // mapping found
-                uint64_t external_id = stoull(vertex_id_name);
-                COUT_DEBUG("external_id: " << external_id << ", internal_id: " << internal_id);
-
-                external_ids.insert(external_id, result[internal_id]);
-            }
-            free(vertex_id_name); vertex_id_name = nullptr;
-        }
-    }
+    auto external_ids = translate(STINGER, result);
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     if(dump2file != nullptr)

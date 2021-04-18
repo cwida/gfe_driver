@@ -62,20 +62,17 @@ extern mutex _log_mutex [[maybe_unused]];
  *                                                                            *
  ******************************************************************************/
 // dump the content to the given file
-static void save(cuckoohash_map<uint64_t, int64_t>& result, const char* dump2file){
+static void save(vector<pair<uint64_t, int64_t>>& result, const char* dump2file){
     if(dump2file == nullptr) return; // nop
     COUT_DEBUG("save the results to: " << dump2file)
 
     fstream handle(dump2file, ios_base::out);
     if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
 
-    auto list_entries = result.lock_table();
-
-    for(const auto& p : list_entries){
+    for(auto p : result) {
         handle << p.first << " " << p.second << "\n";
     }
 
-    list_entries.unlock();
     handle.close();
 }
 
@@ -95,7 +92,7 @@ void Stinger::wcc(const char* dump2file) {
     parallel_shiloach_vishkin_components_of_type(STINGER, component_map, /* type, ignore */ 0); // already implemented in Stinger
 
     // store the final results (if required)
-    cuckoohash_map<uint64_t, int64_t> result;
+    vector<pair<uint64_t, int64_t>> result;
     to_external_ids(component_map, get_max_num_mappings(), &result); // convert the internal logical IDs into the external IDs
     save(result, dump2file);
 }
