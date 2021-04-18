@@ -219,10 +219,11 @@ vector<ImplementationManifest> implementations() {
     result.emplace_back("baseline_v3_seq", "Sequential baseline, non thread safe", &generate_baseline_adjlist_no_ts);
 
     // v2 14/04/2021: Fix the predicate in the TimeoutService
-    result.emplace_back("csr2", "CSR baseline", &generate_csr);
-    result.emplace_back("csr2-lcc", "CSR baseline, sort-merge impl for the LCC kernel", &generate_csr_lcc);
-    result.emplace_back("csr2-numa", "CSR baseline, allocate the internal arrays using all NUMA nodes", &generate_csr_numa);
-    result.emplace_back("csr2-lcc-numa", "CSR baseline, allocate the internal arrays using all NUMA nodes, sort-merge impl for the LCC kernel", &generate_csr_lcc_numa);
+    // v3 19/04/2021: Materialization with a vector
+    result.emplace_back("csr3", "CSR baseline", &generate_csr);
+    result.emplace_back("csr3-lcc", "CSR baseline, sort-merge impl for the LCC kernel", &generate_csr_lcc);
+    result.emplace_back("csr3-numa", "CSR baseline, allocate the internal arrays using all NUMA nodes", &generate_csr_numa);
+    result.emplace_back("csr3-lcc-numa", "CSR baseline, allocate the internal arrays using all NUMA nodes, sort-merge impl for the LCC kernel", &generate_csr_lcc_numa);
 
     // v2 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     // v3 14/04/2021: Fix the predicate in the TimeoutService
@@ -247,9 +248,10 @@ vector<ImplementationManifest> implementations() {
     // v4 24/09/2020: do not use OpenMP in updates
     // v5 26/09/2020: completely disable vertex deletions
     // v6 14/04/2021: Fix the predicate in the TimeoutService
-    result.emplace_back("stinger6", "Stinger library", &generate_stinger);
-    result.emplace_back("stinger6-dv", "Stinger with dense vertices", &generate_stinger_dv);
-    result.emplace_back("stinger6-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
+    // v7 19/04/2021: Materialization with a vector
+    result.emplace_back("stinger7", "Stinger library", &generate_stinger);
+    result.emplace_back("stinger7-dv", "Stinger with dense vertices", &generate_stinger_dv);
+    result.emplace_back("stinger7-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
 #endif
 
 #if defined(HAVE_GRAPHONE)
@@ -285,11 +287,12 @@ vector<ImplementationManifest> implementations() {
     // v9 07/01/2021: bug fixes
     // v10 08/01/2021: set the thread affinity by default
     // v11 14/04/2021: Fix the predicate in the TimeoutService
-    result.emplace_back("teseo.11", "Teseo", &generate_teseo);
-    result.emplace_back("teseo-rw.11", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
-    result.emplace_back("teseo-lcc.11", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
-    result.emplace_back("teseo-dv.11", "Teseo, dense vertices", &generate_teseo_real_vtx);
-    result.emplace_back("teseo-lcc-dv.11", "Teseo, dense vertices and sort-merge implementation of the LCC kernel", &generate_teseo_real_vtx_lcc);
+    // v12 19/04/2021: Materialization with a vector
+    result.emplace_back("teseo.12", "Teseo", &generate_teseo);
+    result.emplace_back("teseo-rw.12", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
+    result.emplace_back("teseo-lcc.12", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
+    result.emplace_back("teseo-dv.12", "Teseo, dense vertices", &generate_teseo_real_vtx);
+    result.emplace_back("teseo-lcc-dv.12", "Teseo, dense vertices and sort-merge implementation of the LCC kernel", &generate_teseo_real_vtx_lcc);
 #endif
 
     return result;
