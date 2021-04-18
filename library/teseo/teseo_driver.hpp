@@ -18,6 +18,8 @@
 #pragma once
 
 #include <chrono>
+#include <utility>
+#include <vector>
 #include "library/interface.hpp"
 
 namespace gfe::library {
@@ -36,6 +38,9 @@ protected:
     bool m_thread_affinity; // whether to enable the thread affinity in graphalytics
     std::chrono::seconds m_timeout { 0 }; // the budget to complete each of the algorithms in the Graphalytics suite
 
+    // Helper, save the content of the vector to the given output file
+    template <typename T, bool negative_scores = true>
+    void save_results(std::vector<std::pair<uint64_t, T>>& result, const char* dump2file);
 public:
     /**
      * Create an instance of Teseo

@@ -20,6 +20,7 @@
 #include <fstream>
 #include <iomanip>
 #include <mutex>
+#include <omp.h>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -27,7 +28,7 @@
 #include "third-party/gapbs/gapbs.hpp"
 #include "third-party/libcuckoo/cuckoohash_map.hh"
 #include "utility/timeout_service.hpp"
-
+#include "teseo_openmp.hpp"
 #include "teseo/context/global_context.hpp"
 #include "teseo/memstore/memstore.hpp"
 #include "teseo.hpp"
@@ -40,6 +41,20 @@ using namespace teseo;
 using namespace gfe::library::teseo_driver_internal;
 
 #define TESEO reinterpret_cast<Teseo*>(m_pImpl)
+
+/*****************************************************************************
+ *                                                                           *
+ *  Debug                                                                    *
+ *                                                                           *
+ *****************************************************************************/
+//#define DEBUG
+namespace gfe { extern mutex _log_mutex [[maybe_unused]]; }
+#define COUT_DEBUG_FORCE(msg) { std::scoped_lock<std::mutex> lock{::gfe::_log_mutex}; std::cout << "[TeseoDriver::" << __FUNCTION__ << "] " << msg << std::endl; }
+#if defined(DEBUG)
+    #define COUT_DEBUG(msg) COUT_DEBUG_FORCE(msg)
+#else
+    #define COUT_DEBUG(msg)
+#endif
 
 namespace gfe::library {
 
@@ -190,6 +205,48 @@ bool TeseoDriver::remove_edge(gfe::graph::Edge e) {
 void TeseoDriver::dump_ostream(std::ostream& out) const {
     auto memstore = teseo::context::global_context()->memstore();
     memstore->dump();
+}
+
+
+/*****************************************************************************
+ *                                                                           *
+ *  Helpers                                                                  *
+ *                                                                           *
+ *****************************************************************************/
+// Translate the logical into real vertices IDs. Materialization step at the end of a Graphalytics algorithm
+template <typename T>
+static std::vector<std::pair<uint64_t, T>> translate(OpenMP& openmp, T* values, int N){
+    vector<pair<uint64_t , T>> external_ids(N);
+
+    #pragma omp parallel for firstprivate(openmp)
+    for (int64_t v = 0; v < N; v++) {
+        external_ids[v] = make_pair(openmp.transaction().vertex_id(v), values[v]);
+    }
+
+    return external_ids;
+}
+
+template <typename T, bool negative_scores = true>
+void TeseoDriver::save_results(std::vector<std::pair<uint64_t, T>>& result, const char* dump2file) {
+    if(dump2file == nullptr) return; // nop
+
+    COUT_DEBUG("save the results to: " << dump2file);
+
+    fstream handle(dump2file, ios_base::out);
+    if (!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
+
+    for (const auto &p : result) {
+        handle << p.first << " ";
+
+        if(!negative_scores && p.second < 0){
+            handle << numeric_limits<T>::max();
+        } else {
+            handle << p.second;
+        }
+
+        handle << "\n";
+    }
+    handle.close();
 }
 
 /*****************************************************************************
@@ -356,27 +413,6 @@ pvector<int64_t> teseo_bfs(OpenMP& openmp, int64_t source, utility::TimeoutServi
     return distances;
 }
 
-static void save_bfs(vector<pair<uint64_t, int64_t>>& result, const char* dump2file){
-    assert(dump2file != nullptr);
-    COUT_DEBUG("save the results to: " << dump2file)
-
-    fstream handle(dump2file, ios_base::out);
-    if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-    for(auto p : result){
-        handle << p.first << " ";
-
-        // if  the vertex was not reached, the algorithm sets its distance to < 0
-        if(p.second < 0){
-            handle << numeric_limits<int64_t>::max();
-        } else {
-            handle << p.second;
-        }
-        handle << "\n";
-    }
-    handle.close();
-}
-
 void TeseoDriver::bfs(uint64_t source_vertex_id, const char* dump2file){
     OpenMP openmp ( this );
 
@@ -387,17 +423,17 @@ void TeseoDriver::bfs(uint64_t source_vertex_id, const char* dump2file){
     auto result = teseo_bfs(openmp, openmp.transaction().logical_id(source_vertex_id), tcheck);
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
+    // translate the logical IDs into the external IDs
     const int64_t N = openmp.transaction().num_vertices();
     vector<pair<uint64_t , int64_t>> external_ids(N);
-
-    #pragma omp parallel for
-    for (uint v = 0; v <  N; v++) {
-      external_ids[v] = make_pair(openmp.transaction().vertex_id(v), result[v]);
+    #pragma omp parallel for firstprivate(openmp)
+    for (int64_t v = 0; v < N; v++) {
+        external_ids[v] = make_pair(openmp.transaction().vertex_id(v), result[v]);
     }
 
     // store the results in the given file
     if(dump2file != nullptr)
-        save_bfs(external_ids, dump2file);
+        save_results<int64_t, false>(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -519,13 +555,12 @@ void TeseoDriver::pagerank(uint64_t num_iterations, double damping_factor, const
 
     // translate the vertex IDs
     const uint64_t N = openmp.transaction().num_vertices();
-    auto external_ids = translate<double>(openmp, ptr_rank.get(), N);
+    auto external_ids = translate(openmp, ptr_rank.get(), N);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // store the results in the given file
-    if(dump2file != nullptr){
-      save_result(external_ids, dump2file);
-    }
+    if(dump2file != nullptr)
+        save_results(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -660,9 +695,8 @@ void TeseoDriver::wcc(const char* dump2file) {
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // store the results in the given file
-    if(dump2file != nullptr){
-      save_result<uint64_t>(external_ids, dump2file);
-    }
+    if(dump2file != nullptr)
+        save_results(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -741,9 +775,8 @@ void TeseoDriver::cdlp(uint64_t max_iterations, const char* dump2file) {
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // store the results in the given file
-    if(dump2file != nullptr){
-      save_result<uint64_t>(external_ids, dump2file);
-    }
+    if(dump2file != nullptr)
+        save_results(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -823,9 +856,8 @@ void TeseoDriver::lcc(const char* dump2file) {
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // store the results in the given file
-    if(dump2file != nullptr){
-      save_result<double>(external_ids, dump2file);
-    }
+    if(dump2file != nullptr)
+        save_results(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -970,18 +1002,16 @@ void TeseoDriver::sssp(uint64_t source_vertex_id, const char* dump2file) {
 
     // translate the vertex IDs
     const uint64_t N = openmp.transaction().num_vertices();
-    vector<pair<uint64_t , double>> logical_result(N);
-
-  #pragma omp parallel for
-    for (uint v = 0; v <  N; v++) {
-      logical_result[v] = make_pair(openmp.transaction().vertex_id(v), distances[v]);
+    vector<pair<uint64_t, double>> external_ids(N);
+    #pragma omp parallel for firstprivate(openmp)
+    for (uint64_t v = 0; v < N; v++) {
+        external_ids[v] = make_pair(openmp.transaction().vertex_id(v), distances[v]);
     }
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // store the results in the given file
-    if(dump2file != nullptr){
-      save_result<double>(logical_result, dump2file);
-    }
+    if(dump2file != nullptr)
+        save_results(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -1262,7 +1292,7 @@ TeseoDriverLCC::TeseoDriverLCC(bool is_directed, bool read_only) : TeseoDriver(i
 }
 
 void TeseoDriverLCC::lcc(const char* dump2file){
-    double* scores = nullptr;
+    unique_ptr<double[]> scores;
     utility::TimeoutService timeout { m_timeout };
     common::Timer timer; timer.start();
     TESEO->register_thread();
@@ -1271,25 +1301,20 @@ void TeseoDriverLCC::lcc(const char* dump2file){
 
     { // restrict the scope to allow the dtor to clean up
         LCC_Master algorithm ( TESEO, transaction, &timeout );
-        scores = algorithm.execute();
+        scores.reset( algorithm.execute() );
     }
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // translate the vertex IDs
     uint64_t N = transaction.num_vertices();
-    vector<pair<uint64_t , uint64_t>> logical_result(N);
-
-    // TODO use openmp here but for this we need a instance of teseo_openmp.
-    for (uint v = 0; v <  N; v++) {
-      logical_result[v] = make_pair(transaction.vertex_id(v), scores[v]);
+    vector<pair<uint64_t, double>> external_ids(N);
+    for (uint64_t v = 0; v < N; v++) {
+        external_ids[v] = make_pair(transaction.vertex_id(v), scores[v]);
     }
 
     // store the results in the given file
-    if(dump2file != nullptr) {
-      save_result(logical_result, dump2file);
-    }
-
-    delete[] scores;
+    if(dump2file != nullptr)
+        save_results(external_ids, dump2file);
 }
 
 } // namespace
