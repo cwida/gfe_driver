@@ -27,11 +27,6 @@ namespace gfe::library {
  * of the TeseoDriver, except that the iterator scans the real vertices, rather than the logical IDs.
  */
 class TeseoRealVertices : public TeseoDriver {
-protected:
-    // Helper, save the content of the vector to the given output file
-    template <typename T>
-    void save_results(const T* __restrict result, uint64_t result_sz, const char* dump2file);
-
 public:
     /**
      * Create an instance of Teseo

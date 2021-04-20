@@ -438,11 +438,11 @@ void CSR::dump_ostream(std::ostream& out) const {
  *                                                                           *
  *****************************************************************************/
 template <typename T>
-vector<pair<uint64_t, T>> CSR::translate(T* values, int N) {
+vector<pair<uint64_t, T>> CSR::translate(T* values, uint64_t N) {
     vector<pair<uint64_t , T>> logical_result(N);
 
-#pragma omp parallel for
-    for (int v = 0; v <  N; v++) {
+    #pragma omp parallel for
+    for (uint64_t v = 0; v < N; v++) {
         logical_result[v] = make_pair(m_log2ext[v], values[v]);
     }
     return logical_result;

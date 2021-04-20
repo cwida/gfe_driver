@@ -77,21 +77,21 @@ TeseoRealVertices::TeseoRealVertices(bool is_directed, bool read_only): TeseoDri
  *  Helpers                                                                  *
  *                                                                           *
  *****************************************************************************/
+// In TeseoRealVertices, the vertex identifiers are already the external IDs, so they do not need
+// to be materialized. For fairness with the other systems, we still simulate the cost of copying the
+// input result set from a vector to the output vector
 template <typename T>
-void TeseoRealVertices::save_results(const T* __restrict result, uint64_t result_sz, const char* dump2file) {
-    if(dump2file == nullptr) return; // nop
+static vector<pair<uint64_t, T>> materialize(T* __restrict values, uint64_t N){
+    vector<pair<uint64_t , T>> external_ids(N);
 
-    COUT_DEBUG("save the results to: " << dump2file);
-
-    fstream handle(dump2file, ios_base::out);
-    if (!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-    for(uint64_t i = 0; i < result_sz; i++){
-        handle << i << " " << result[i] << "\n";
+    #pragma omp parallel for
+    for (uint64_t v = 0; v < N; v++) {
+        external_ids[v] = make_pair(/* already external ID */ v, values[v]);
     }
 
-    handle.close();
+    return external_ids;
 }
+
 
 /*****************************************************************************
  *                                                                           *
@@ -262,29 +262,6 @@ pvector<int64_t> teseo_bfs(OpenMP& openmp, int64_t source, utility::TimeoutServi
     return distances;
 }
 
-static void save_bfs(int64_t* __restrict result, uint64_t result_sz, const char* dump2file){
-    assert(dump2file != nullptr);
-    COUT_DEBUG("save the results to: " << dump2file)
-
-    fstream handle(dump2file, ios_base::out);
-    if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-    for(uint64_t i = 0; i < result_sz; i++){
-        handle << i << " ";
-        auto distance = result[i];
-
-        // if  the vertex was not reached, the algorithm sets its distance to < 0
-        if(distance < 0){
-            handle << numeric_limits<int64_t>::max();
-        } else {
-            handle << distance;
-        }
-        handle << "\n";
-    }
-
-    handle.close();
-}
-
 void TeseoRealVertices::bfs(uint64_t source_vertex_id, const char* dump2file){
     // init
     utility::TimeoutService tcheck { m_timeout };
@@ -296,11 +273,13 @@ void TeseoRealVertices::bfs(uint64_t source_vertex_id, const char* dump2file){
     auto result = teseo_bfs(openmp, source_vertex_id, tcheck);
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    // there is nothing to translate ...
+    // simulate the materialization step ...
+    auto external_ids = materialize(result.data(), result.size());
+    if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // store the results in the given file
     if(dump2file != nullptr)
-        save_bfs(result.data(), result.size(), dump2file);
+        save_results<int64_t, false>(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -419,9 +398,13 @@ void TeseoRealVertices::pagerank(uint64_t num_iterations, double damping_factor,
     unique_ptr<double[]> ptr_rank = teseo_pagerank(openmp, num_iterations, damping_factor, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
-    // Store the results in the given file
+    // simulate the materialization step ...
+    auto external_ids = materialize(ptr_rank.get(), openmp.transaction().num_vertices());
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
+
+    // store the results in the given file
     if(dump2file != nullptr)
-        save_results(ptr_rank.get(), openmp.transaction().num_vertices(), dump2file);
+        save_results(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -549,10 +532,15 @@ void TeseoRealVertices::wcc(const char* dump2file) {
 
     // Run wcc
     unique_ptr<uint64_t[]> ptr_components = teseo_wcc(openmp, timeout);
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
+
+    // Simulate the materialization step ...
+    auto external_ids = materialize(ptr_components.get(), openmp.transaction().num_vertices());
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Store the results in the given file
     if(dump2file != nullptr)
-        save_results(ptr_components.get(), openmp.transaction().num_vertices(), dump2file);
+        save_results(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -626,9 +614,13 @@ void TeseoRealVertices::cdlp(uint64_t max_iterations, const char* dump2file) {
     unique_ptr<uint64_t[]> labels = teseo_cdlp(openmp, max_iterations, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
+    // Simulate the materialization step ...
+    auto external_ids = materialize(labels.get(), openmp.transaction().num_vertices());
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
+
     // Store the results in the given file
     if(dump2file != nullptr)
-        save_results(labels.get(), openmp.transaction().num_vertices(), dump2file);
+        save_results(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -705,9 +697,13 @@ void TeseoRealVertices::lcc(const char* dump2file) {
     unique_ptr<double[]> scores = teseo_lcc(openmp, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
+    // Simulate the materialization step ...
+    auto external_ids = materialize(scores.get(), openmp.transaction().num_vertices());
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
+
     // Store the results in the given file
     if(dump2file != nullptr)
-        save_results(scores.get(), openmp.transaction().num_vertices(), dump2file);
+        save_results(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -848,9 +844,13 @@ void TeseoRealVertices::sssp(uint64_t source_vertex_id, const char* dump2file) {
     auto distances = teseo_sssp(openmp, source_vertex_id, delta, timeout);
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
+    // Simulate the materialization step ...
+    auto external_ids = materialize(distances.data(), openmp.transaction().num_vertices());
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
+
     // Store the results in the given file
     if(dump2file != nullptr)
-        save_results(distances.data(), distances.size(), dump2file);
+        save_results(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -1144,9 +1144,13 @@ void TeseoRealVerticesLCC::lcc(const char* dump2file){
     }
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
+    // Simulate the materialization step ...
+    auto external_ids = materialize(scores.get(), transaction.num_vertices());
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
+
     // Store the results in the given file
     if(dump2file != nullptr)
-        save_results(scores.get(), transaction.num_vertices(), dump2file);
+        save_results(external_ids, dump2file);
 }
 
 } // namespace

@@ -215,11 +215,11 @@ void TeseoDriver::dump_ostream(std::ostream& out) const {
  *****************************************************************************/
 // Translate the logical into real vertices IDs. Materialization step at the end of a Graphalytics algorithm
 template <typename T>
-static std::vector<std::pair<uint64_t, T>> translate(OpenMP& openmp, T* values, int N){
+static vector<pair<uint64_t, T>> translate(OpenMP& openmp, T* values, uint64_t N){
     vector<pair<uint64_t , T>> external_ids(N);
 
     #pragma omp parallel for firstprivate(openmp)
-    for (int64_t v = 0; v < N; v++) {
+    for (uint64_t v = 0; v < N; v++) {
         external_ids[v] = make_pair(openmp.transaction().vertex_id(v), values[v]);
     }
 
