@@ -235,6 +235,8 @@ bool ThreadAffinity::is_enabled() const noexcept {
 #define COUT_DEBUG_CLASSNAME "RegisterThread"
 
 RegisterThread::RegisterThread(::teseo::Teseo* teseo) : m_encoded_addr(reinterpret_cast<uint64_t>(teseo)){
+    COUT_DEBUG("master ctor, omp thread: " << omp_get_thread_num() << ", thread_id: " << pthread_self());
+
     assert(teseo != nullptr);
     assert(teseo == this->teseo() && "Cannot decode the address of teseo");
     assert(omp_get_thread_num() == 0 && "Expected to be invoked in the master thread");
@@ -246,6 +248,8 @@ RegisterThread::RegisterThread(::teseo::Teseo* teseo) : m_encoded_addr(reinterpr
 }
 
 RegisterThread::RegisterThread(const RegisterThread& rt) : m_encoded_addr(reinterpret_cast<uint64_t>(rt.teseo())){
+    COUT_DEBUG("copy ctor, omp thread: " << omp_get_thread_num() << ", thread_id: " << pthread_self() << ", enabled: " << is_enabled());
+
     if(omp_get_thread_num() > 0 ){
         teseo()->register_thread();
         m_encoded_addr |= 0x1ull;
@@ -265,7 +269,6 @@ RegisterThread::~RegisterThread(){
 bool RegisterThread::is_enabled() const {
     return m_encoded_addr & 0x1ull;
 }
-
 
 /*****************************************************************************
  *                                                                           *

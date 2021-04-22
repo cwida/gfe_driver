@@ -82,6 +82,11 @@ public:
      * Destructor, unregister the thread
      */
     ~RegisterThread();
+
+    /**
+     * Force OpenMP to perform RAII and do not remove the call to the copy ctor.
+     */
+    void nop() const { }
 };
 
 

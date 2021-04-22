@@ -100,12 +100,14 @@ static vector<pair<uint64_t, T>> materialize(OpenMP& openmp, T* __restrict value
 }
 
 template <typename T>
-static vector<pair<uint64_t, T>> materialize(Transaction& transaction, T* __restrict values){
+static vector<pair<uint64_t, T>> materialize(RegisterThread& rt, Transaction& transaction, T* __restrict values){
     const uint64_t N = transaction.num_vertices();
     vector<pair<uint64_t , T>> external_ids(N);
 
-    #pragma omp parallel for
+    #pragma omp parallel for firstprivate(rt)
     for (uint64_t v = 0; v < N; v++) {
+        rt.nop(); // openmp, the greatest invention on Earth... :[
+
         // okay the following translation is bogus. The purpose is to emulate the translation of the vertices
         // in CSR & co. and avoid an unfair advantage of Teseo
         // With that being said v == transaction().vertex_id(v) == openmp.transaction().logical_id(v)
@@ -1160,7 +1162,6 @@ void TeseoRealVerticesLCC::lcc(const char* dump2file){
     unique_ptr<double[]> scores;
     utility::TimeoutService timeout { m_timeout };
     common::Timer timer; timer.start();
-    TESEO->register_thread();
     RegisterThread rt { TESEO } ;
     auto transaction = TESEO->start_transaction(/* read only ? */ m_read_only);
 
@@ -1171,7 +1172,7 @@ void TeseoRealVerticesLCC::lcc(const char* dump2file){
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Simulate the materialization step ...
-    auto external_ids = materialize(transaction, scores.get());
+    auto external_ids = materialize(rt, transaction, scores.get());
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Store the results in the given file
