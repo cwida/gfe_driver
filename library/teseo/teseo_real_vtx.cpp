@@ -78,15 +78,41 @@ TeseoRealVertices::TeseoRealVertices(bool is_directed, bool read_only): TeseoDri
  *                                                                           *
  *****************************************************************************/
 // In TeseoRealVertices, the vertex identifiers are already the external IDs, so they do not need
-// to be materialized. For fairness with the other systems, we still simulate the cost of copying the
-// input result set from a vector to the output vector
+// to be materialized. For fairness with the other systems, we still simulate the cost of "translating"
+// the vertex IDs and copying into the
 template <typename T>
-static vector<pair<uint64_t, T>> materialize(T* __restrict values, uint64_t N){
+static vector<pair<uint64_t, T>> materialize(OpenMP& openmp, T* __restrict values){
+    const uint64_t N = openmp.transaction().num_vertices();
+    vector<pair<uint64_t , T>> external_ids(N);
+
+    #pragma omp parallel for firstprivate(openmp)
+    for (uint64_t v = 0; v < N; v++) {
+        // okay the following translation is bogus. The purpose is to emulate the translation of the vertices
+        // in CSR & co. and avoid an unfair advantage of Teseo
+        // With that being said v == transaction().vertex_id(v) == openmp.transaction().logical_id(v)
+        assert(v == openmp.transaction().vertex_id(v)); // to remark that this translation is bogus
+        assert(v == openmp.transaction().logical_id(v)); // as above...
+
+        external_ids[v] = make_pair(/* bogus translation ID */ openmp.transaction().vertex_id(v), values[v]);
+    }
+
+    return external_ids;
+}
+
+template <typename T>
+static vector<pair<uint64_t, T>> materialize(Transaction& transaction, T* __restrict values){
+    const uint64_t N = transaction.num_vertices();
     vector<pair<uint64_t , T>> external_ids(N);
 
     #pragma omp parallel for
     for (uint64_t v = 0; v < N; v++) {
-        external_ids[v] = make_pair(/* already external ID */ v, values[v]);
+        // okay the following translation is bogus. The purpose is to emulate the translation of the vertices
+        // in CSR & co. and avoid an unfair advantage of Teseo
+        // With that being said v == transaction().vertex_id(v) == openmp.transaction().logical_id(v)
+        assert(v == transaction.vertex_id(v)); // to remark that this translation is bogus
+        assert(v == transaction.logical_id(v)); // as above...
+
+        external_ids[v] = make_pair(/* bogus translation ID */ transaction.vertex_id(v), values[v]);
     }
 
     return external_ids;
@@ -274,7 +300,7 @@ void TeseoRealVertices::bfs(uint64_t source_vertex_id, const char* dump2file){
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // simulate the materialization step ...
-    auto external_ids = materialize(result.data(), result.size());
+    auto external_ids = materialize(openmp, result.data());
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // store the results in the given file
@@ -399,7 +425,7 @@ void TeseoRealVertices::pagerank(uint64_t num_iterations, double damping_factor,
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // simulate the materialization step ...
-    auto external_ids = materialize(ptr_rank.get(), openmp.transaction().num_vertices());
+    auto external_ids = materialize(openmp, ptr_rank.get());
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // store the results in the given file
@@ -535,7 +561,7 @@ void TeseoRealVertices::wcc(const char* dump2file) {
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Simulate the materialization step ...
-    auto external_ids = materialize(ptr_components.get(), openmp.transaction().num_vertices());
+    auto external_ids = materialize(openmp, ptr_components.get());
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Store the results in the given file
@@ -615,7 +641,7 @@ void TeseoRealVertices::cdlp(uint64_t max_iterations, const char* dump2file) {
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Simulate the materialization step ...
-    auto external_ids = materialize(labels.get(), openmp.transaction().num_vertices());
+    auto external_ids = materialize(openmp, labels.get());
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Store the results in the given file
@@ -698,7 +724,7 @@ void TeseoRealVertices::lcc(const char* dump2file) {
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Simulate the materialization step ...
-    auto external_ids = materialize(scores.get(), openmp.transaction().num_vertices());
+    auto external_ids = materialize(openmp, scores.get());
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Store the results in the given file
@@ -845,7 +871,7 @@ void TeseoRealVertices::sssp(uint64_t source_vertex_id, const char* dump2file) {
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Simulate the materialization step ...
-    auto external_ids = materialize(distances.data(), openmp.transaction().num_vertices());
+    auto external_ids = materialize(openmp, distances.data());
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Store the results in the given file
@@ -1145,7 +1171,7 @@ void TeseoRealVerticesLCC::lcc(const char* dump2file){
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Simulate the materialization step ...
-    auto external_ids = materialize(scores.get(), transaction.num_vertices());
+    auto external_ids = materialize(transaction, scores.get());
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Store the results in the given file

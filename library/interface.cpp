@@ -248,7 +248,7 @@ vector<ImplementationManifest> implementations() {
     // v4 24/09/2020: do not use OpenMP in updates
     // v5 26/09/2020: completely disable vertex deletions
     // v6 14/04/2021: Fix the predicate in the TimeoutService
-    // v7 19/04/2021: Materialization with a vector
+    // v7 19/04/2021: Materialization step with a vector
     result.emplace_back("stinger7", "Stinger library", &generate_stinger);
     result.emplace_back("stinger7-dv", "Stinger with dense vertices", &generate_stinger_dv);
     result.emplace_back("stinger7-ref", "Stinger with the GAPBS ref impl.", &generate_stinger_ref);
@@ -287,12 +287,12 @@ vector<ImplementationManifest> implementations() {
     // v9 07/01/2021: bug fixes
     // v10 08/01/2021: set the thread affinity by default
     // v11 14/04/2021: Fix the predicate in the TimeoutService
-    // v12 19/04/2021: Materialization with a vector
+    // v12 19/04/2021: Materialization with a vector (12b, bogus translation IDs in TeseoRealVertices)
     result.emplace_back("teseo.12", "Teseo", &generate_teseo);
     result.emplace_back("teseo-rw.12", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
     result.emplace_back("teseo-lcc.12", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
-    result.emplace_back("teseo-dv.12", "Teseo, dense vertices", &generate_teseo_real_vtx);
-    result.emplace_back("teseo-lcc-dv.12", "Teseo, dense vertices and sort-merge implementation of the LCC kernel", &generate_teseo_real_vtx_lcc);
+    result.emplace_back("teseo-dv.12b", "Teseo, dense vertices", &generate_teseo_real_vtx);
+    result.emplace_back("teseo-lcc-dv.12b", "Teseo, dense vertices and sort-merge implementation of the LCC kernel", &generate_teseo_real_vtx_lcc);
 #endif
 
     return result;
