@@ -81,6 +81,15 @@ class GraphOne : public virtual UpdateInterface, public virtual GraphalyticsInte
     void bfs_native(uint64_t source_vertex_id, const char* dump2file = nullptr); // native
     void bfs_gapbs(uint64_t source_vertex_id, const char* dump2file = nullptr); // GAP BS impl
 
+    // Helper, translate the logical into real vertices IDs. This is the materialization step at the end of a Graphalytics algorithm
+    template <typename T>
+    std::vector<std::pair<uint64_t, T>> translate(const T* __restrict values);
+
+    // Helpers, save the content of the vector to the given output file
+    template <typename T, bool negative_scores = true>
+    void save_results(const std::vector<std::pair<uint64_t, T>>& results, const char* dump2file);
+    template <typename T, bool negative_scores = true> // same, but for an array of size `results_sz'
+    void save_results(const T* __restrict results, uint64_t results_sz, const char* dump2file);
 public:
     /**
      * Create an instance of the wrapper for GraphOne

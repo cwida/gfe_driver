@@ -605,6 +605,83 @@ void GraphOne::dump_ostream(std::ostream& out) const {
 
 /*****************************************************************************
  *                                                                           *
+ *  Helpers for Graphalytics                                                 *
+ *                                                                           *
+ *****************************************************************************/
+template <typename T>
+vector<pair<uint64_t, T>> GraphOne::translate(const T* __restrict logical_identifiers) {
+    const sid_t N = num_vertices();
+    vector<pair<uint64_t , T>> external_identifiers (N);
+
+    #pragma omp parallel for
+    for (sid_t internal_id = 0; internal_id < N; internal_id++) {
+        // 1.what is the real node ID, in the external domain (e.g. user id)
+        string vertex_name = g->get_typekv()->get_vertex_name(internal_id);
+        if(vertex_name.empty()) continue; // this means that a mapping does not exist. It should never occur as atm we don't support vertex deletions
+
+        // 2. all external vertex identifiers are expected to be natural unsigned integers
+        uint64_t vertex_id = 0;
+        try {
+            vertex_id = stoull(vertex_name);
+        } catch(invalid_argument& e){
+            COUT_DEBUG_FORCE("ERROR: cannot convert the value " << vertex_name << " into an external vertex ID (not a number)");
+            continue; // move on
+        }
+
+        // 3. make the association vertex id - score
+        external_identifiers[internal_id] = make_pair(vertex_id, logical_identifiers[internal_id]);
+    }
+
+    return external_identifiers;
+}
+
+template <typename T, bool negative_scores> // for sparse vertices (external vertex IDs)
+void GraphOne::save_results(const vector<pair<uint64_t, T>>& result, const char* dump2file) {
+    assert(dump2file != nullptr && "File not specified");
+    COUT_DEBUG("save the results to: " << dump2file);
+
+    fstream handle(dump2file, ios_base::out);
+    if (!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
+
+    for (const auto &p : result) {
+        handle << p.first << " ";
+
+        if(!negative_scores && p.second < 0){ // for the bfs
+            handle << numeric_limits<T>::max();
+        } else {
+            handle << p.second;
+        }
+
+        handle << "\n";
+    }
+    handle.close();
+}
+
+template <typename T, bool negative_scores> // for dense vertices (logical vertex IDs)
+void GraphOne::save_results(const T* __restrict results, uint64_t results_sz, const char* dump2file) {
+    assert(dump2file != nullptr && "File not specified");
+    COUT_DEBUG("save the results to: " << dump2file);
+
+    fstream handle(dump2file, ios_base::out);
+    if (!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
+
+    for(uint64_t i = 0; i < results_sz; i++){
+        handle << i << " ";
+
+        if(!negative_scores && results[i] < 0){ // for the bfs
+            handle << numeric_limits<T>::max();
+        } else {
+            handle << results[i];
+        }
+
+        handle << "\n";
+    }
+
+    handle.close();
+}
+
+/*****************************************************************************
+ *                                                                           *
  *  BFS                                                                      *
  *                                                                           *
  *****************************************************************************/
@@ -847,79 +924,23 @@ void GraphOne::bfs_gapbs(uint64_t source_vertex_id, const char* dump2file) {
     // Translate the vertex IDs and dump to file if required
     int64_t* distances = ptr_distances.get();
     if(m_translate_vertex_ids) { // translate from GraphOne vertex ids to external vertex ids
-        cuckoohash_map</* external id */ string, /* distance */ int64_t> external_ids;
-        #pragma omp parallel for
-        for(sid_t internal_id = 0; internal_id < N; internal_id++){
-            // 1.what is the real node ID, in the external domain (e.g. user id)
-            string vertex_name = g->get_typekv()->get_vertex_name(internal_id);
-            if(vertex_name.empty()) continue; // this means that a mapping does not exist. It should never occur as atm we don't support vertex deletions
-
-            // 2. retrieve the distance / weight
-            int64_t distance = distances[internal_id];
-
-            // 3. make the association vertex name - distance
-            external_ids.insert(vertex_name, distance);
-        }
-
-        if(timeout.is_timeout()){
-            RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-        }
+        auto external_ids = translate(distances);
+        if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
 #if defined(GRAPHONE_COUNTERS)
         graphone_print_counters();
 #endif
 
-        // store the results in the given file
-        if(dump2file != nullptr){
-            COUT_DEBUG("save the results to: " << dump2file);
-            fstream handle(dump2file, ios_base::out);
-            if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-            auto hashtable = external_ids.lock_table();
-
-            for(const auto& keyvaluepair : hashtable){
-                handle << keyvaluepair.first << " ";
-                auto distance = keyvaluepair.second;
-
-                if(distance < 0){
-                    handle << numeric_limits<int64_t>::max();
-                } else {
-                    handle << distance;
-                }
-
-                handle << "\n";
-            }
-
-            handle.close();
-        }
+        if(dump2file != nullptr) // store the results in the given file
+            save_results<int64_t, false>(external_ids, dump2file);
 
     } else { // without the vertex dictionary
-
 #if defined(GRAPHONE_COUNTERS)
         graphone_print_counters();
 #endif
 
-        // store the results in the given file
-        if(dump2file != nullptr){
-            COUT_DEBUG("save the results to: " << dump2file);
-            fstream handle(dump2file, ios_base::out);
-            if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-            for(sid_t internal_id = 0; internal_id < N; internal_id++){
-                handle << internal_id << " ";
-                auto distance = distances[internal_id];
-
-                if(distance < 0){
-                    handle << numeric_limits<int64_t>::max();
-                } else {
-                    handle << distance;
-                }
-
-                handle << "\n";
-            }
-
-            handle.close();
-        }
+        if(dump2file != nullptr) // store the results in the given file
+            save_results(distances, N, dump2file);
     }
 }
 
@@ -1036,35 +1057,18 @@ void GraphOne::bfs_native(uint64_t source_vertex_id, const char* dump2file) {
     // Translate the vertex IDs and dump to file if required
     uint32_t* distances = ptr_distances.get();
     if(m_translate_vertex_ids) { // translate from GraphOne vertex ids to external vertex ids
-        cuckoohash_map</* external id */ string, /* distance */ uint32_t> external_ids;
-        #pragma omp parallel for
-        for(sid_t internal_id = 0; internal_id < N; internal_id++){
-            // 1.what is the real node ID, in the external domain (e.g. user id)
-            string vertex_name = g->get_typekv()->get_vertex_name(internal_id);
-            if(vertex_name.empty()) continue; // this means that a mapping does not exist. It should never occur as atm we don't support vertex deletions
+        auto external_ids = translate(distances);
+        if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
-            // 2. retrieve the distance / weight
-            uint32_t distance = distances[internal_id];
-
-            // 3. make the association vertex name - distance
-            external_ids.insert(vertex_name, distance);
-        }
-
-        if(timeout.is_timeout()){
-            RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-        }
-
-        // store the results in the given file
+        // Store the results in the given file
         if(dump2file != nullptr){
             COUT_DEBUG("save the results to: " << dump2file);
             fstream handle(dump2file, ios_base::out);
             if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
 
-            auto hashtable = external_ids.lock_table();
-
-            for(const auto& keyvaluepair : hashtable){
-                handle << keyvaluepair.first << " ";
-                auto distance = keyvaluepair.second;
+            for(const auto p : external_ids){
+                handle << p.first << " ";
+                auto distance = p.second;
 
                 // distance = 0 => node never visited
                 // distance = 1 => root
@@ -1081,15 +1085,13 @@ void GraphOne::bfs_native(uint64_t source_vertex_id, const char* dump2file) {
 
             handle.close();
         }
-
     } else { // without the vertex dictionary
 
-        // store the results in the given file
+        // Store the results in the given file
         if(dump2file != nullptr){
             COUT_DEBUG("save the results to: " << dump2file);
             fstream handle(dump2file, ios_base::out);
             if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
 
             for(sid_t internal_id = 0; internal_id < N; internal_id++){
                 handle << internal_id << " ";
@@ -1345,61 +1347,23 @@ void GraphOne::pagerank(uint64_t num_iterations, double damping_factor, const ch
     // Translate the vertex IDs and dump to file if required
     double* rank = ptr_rank.get();
     if(m_translate_vertex_ids) { // translate from GraphOne vertex ids to external vertex ids
-        cuckoohash_map</* external id */ string, /* rank */ double> external_ids;
-        #pragma omp parallel for
-        for(sid_t internal_id = 0; internal_id < N; internal_id++){
-            // 1.what is the real node ID, in the external domain (e.g. user id)
-            string vertex_name = g->get_typekv()->get_vertex_name(internal_id);
-            if(vertex_name.empty()) continue; // this means that a mapping does not exist. It should never occur as atm we don't support vertex deletions
-
-            // 2. retrieve the distance / weight
-            double score = rank[internal_id];
-
-            // 3. make the association vertex name - score
-            external_ids.insert(vertex_name, score);
-        }
-
-        if(timeout.is_timeout()){
-            RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-        }
+        auto external_ids = translate(rank);
+        if(timeout.is_timeout()) { RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
 #if defined(GRAPHONE_COUNTERS)
         graphone_print_counters();
 #endif
 
-        // store the results in the given file
-        if(dump2file != nullptr){
-            COUT_DEBUG("save the results to: " << dump2file);
-            fstream handle(dump2file, ios_base::out);
-            if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-            auto hashtable = external_ids.lock_table();
-
-            for(const auto& keyvaluepair : hashtable){
-                handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-            }
-
-            handle.close();
-        }
+        if(dump2file != nullptr) // store the results in the given file
+            save_results(external_ids, dump2file);
 
     } else { // without the vertex dictionary
-
 #if defined(GRAPHONE_COUNTERS)
         graphone_print_counters();
 #endif
 
-        // store the results in the given file
-        if(dump2file != nullptr){
-            COUT_DEBUG("save the results to: " << dump2file);
-            fstream handle(dump2file, ios_base::out);
-            if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-            for(sid_t internal_id = 0; internal_id < N; internal_id++){
-                handle << internal_id << " " << rank[internal_id] << "\n";
-            }
-
-            handle.close();
-        }
+        if(dump2file != nullptr) // store the results in the given file
+            save_results(rank, N, dump2file);
     }
 }
 
@@ -1640,42 +1604,15 @@ void GraphOne::wcc(const char* dump2file) {
     // Translate the vertex IDs and dump to file if required
     uint64_t* components = ptr_components.get();
     if(m_translate_vertex_ids) { // translate from GraphOne vertex ids to external vertex ids
-        cuckoohash_map</* external id */ string, /* component */ uint64_t> external_ids;
-        #pragma omp parallel for
-        for(sid_t internal_id = 0; internal_id < N; internal_id++){
-            // 1.what is the real node ID, in the external domain (e.g. user id)
-            string vertex_name = g->get_typekv()->get_vertex_name(internal_id);
-            if(vertex_name.empty()) continue; // this means that a mapping does not exist. It should never occur as atm we don't support vertex deletions
-
-            // 2. retrieve the distance / weight
-            uint64_t component = components[internal_id];
-
-            // 3. make the association vertex name - score
-            external_ids.insert(vertex_name, component);
-        }
-
-        if(timeout.is_timeout()){
-            RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-        }
+        auto external_ids = translate(components);
+        if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
 #if defined(GRAPHONE_COUNTERS)
         graphone_print_counters();
 #endif
 
-        // store the results in the given file
-        if(dump2file != nullptr){
-            COUT_DEBUG("save the results to: " << dump2file);
-            fstream handle(dump2file, ios_base::out);
-            if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-            auto hashtable = external_ids.lock_table();
-
-            for(const auto& keyvaluepair : hashtable){
-                handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-            }
-
-            handle.close();
-        }
+        if(dump2file != nullptr) // store the results in the given file
+            save_results(external_ids, dump2file);
 
     } else { // without the vertex dictionary
 
@@ -1683,18 +1620,8 @@ void GraphOne::wcc(const char* dump2file) {
         graphone_print_counters();
 #endif
 
-        // store the results in the given file
-        if(dump2file != nullptr){
-            COUT_DEBUG("save the results to: " << dump2file);
-            fstream handle(dump2file, ios_base::out);
-            if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-            for(sid_t internal_id = 0; internal_id < N; internal_id++){
-                handle << internal_id << " " << components[internal_id] << "\n";
-            }
-
-            handle.close();
-        }
+        if(dump2file != nullptr) // store the results in the given file
+            save_results(components, N, dump2file);
     }
 }
 
@@ -1824,42 +1751,15 @@ void GraphOne::cdlp(uint64_t max_iterations, const char* dump2file) {
 
     // Translate the vertex IDs and dump to file if required
     if(m_translate_vertex_ids) { // translate from GraphOne vertex ids to external vertex ids
-        cuckoohash_map</* external id */ string, /* component */ uint64_t> external_ids;
-        #pragma omp parallel for
-        for(sid_t internal_id = 0; internal_id < N; internal_id++){
-            // 1.what is the real node ID, in the external domain (e.g. user id)
-            string vertex_name = g->get_typekv()->get_vertex_name(internal_id);
-            if(vertex_name.empty()) continue; // this means that a mapping does not exist. It should never occur as atm we don't support vertex deletions
-
-            // 2. retrieve the distance / weight
-            uint64_t component = labels[internal_id];
-
-            // 3. make the association vertex name - score
-            external_ids.insert(vertex_name, component);
-        }
-
-        if(timeout.is_timeout()){
-            RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-        }
+        auto external_ids = translate(labels.get());
+        if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
 #if defined(GRAPHONE_COUNTERS)
         graphone_print_counters();
 #endif
 
-        // store the results in the given file
-        if(dump2file != nullptr){
-            COUT_DEBUG("save the results to: " << dump2file);
-            fstream handle(dump2file, ios_base::out);
-            if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-            auto hashtable = external_ids.lock_table();
-
-            for(const auto& keyvaluepair : hashtable){
-                handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-            }
-
-            handle.close();
-        }
+        if(dump2file != nullptr) // store the results in the given file
+            save_results(external_ids, dump2file);
 
     } else { // without the vertex dictionary
 
@@ -1867,18 +1767,8 @@ void GraphOne::cdlp(uint64_t max_iterations, const char* dump2file) {
         graphone_print_counters();
 #endif
 
-        // store the results in the given file
-        if(dump2file != nullptr){
-            COUT_DEBUG("save the results to: " << dump2file);
-            fstream handle(dump2file, ios_base::out);
-            if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-            for(sid_t internal_id = 0; internal_id < N; internal_id++){
-                handle << internal_id << " " << labels[internal_id] << "\n";
-            }
-
-            handle.close();
-        }
+        if(dump2file != nullptr) // store the results in the given file
+            save_results(labels.get(), N, dump2file);
     }
 }
 
@@ -2021,42 +1911,15 @@ void GraphOne::lcc(const char* dump2file) {
 
     // Translate the vertex IDs and dump to file if required
     if(m_translate_vertex_ids) { // translate from GraphOne vertex ids to external vertex ids
-        cuckoohash_map</* external id */ string, /* score */ double> external_ids;
-        #pragma omp parallel for
-        for(sid_t internal_id = 0; internal_id < N; internal_id++){
-            // 1.what is the real node ID, in the external domain (e.g. user id)
-            string vertex_name = g->get_typekv()->get_vertex_name(internal_id);
-            if(vertex_name.empty()) continue; // this means that a mapping does not exist. It should never occur as atm we don't support vertex deletions
-
-            // 2. retrieve the distance / weight
-            double score = scores[internal_id];
-
-            // 3. make the association vertex name - score
-            external_ids.insert(vertex_name, score);
-        }
-
-        if(timeout.is_timeout()){
-            RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-        }
+        auto external_ids = translate(scores.get());
+        if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
 #if defined(GRAPHONE_COUNTERS)
         graphone_print_counters();
 #endif
 
-        // store the results in the given file
-        if(dump2file != nullptr){
-            COUT_DEBUG("save the results to: " << dump2file);
-            fstream handle(dump2file, ios_base::out);
-            if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-            auto hashtable = external_ids.lock_table();
-
-            for(const auto& keyvaluepair : hashtable){
-                handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-            }
-
-            handle.close();
-        }
+        if(dump2file != nullptr) // store the results in the given file
+            save_results(external_ids, dump2file);
 
     } else { // without the vertex dictionary
 
@@ -2064,18 +1927,8 @@ void GraphOne::lcc(const char* dump2file) {
         graphone_print_counters();
 #endif
 
-        // store the results in the given file
-        if(dump2file != nullptr){
-            COUT_DEBUG("save the results to: " << dump2file);
-            fstream handle(dump2file, ios_base::out);
-            if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-            for(sid_t internal_id = 0; internal_id < N; internal_id++){
-                handle << internal_id << " " << scores[internal_id] << "\n";
-            }
-
-            handle.close();
-        }
+        if(dump2file != nullptr) // store the results in the given file
+            save_results(scores.get(), N, dump2file);
     }
 }
 
@@ -2243,42 +2096,15 @@ void GraphOne::sssp(uint64_t source_vertex_id, const char* dump2file) { // GAPBS
 
     // Translate the vertex IDs and dump to file if required
     if(m_translate_vertex_ids) { // translate from GraphOne vertex ids to external vertex ids
-        cuckoohash_map</* external id */ string, /* distance */ double> external_ids;
-        #pragma omp parallel for
-        for(sid_t internal_id = 0; internal_id < N; internal_id++){
-            // 1.what is the real node ID, in the external domain (e.g. user id)
-            string vertex_name = g->get_typekv()->get_vertex_name(internal_id);
-            if(vertex_name.empty()) continue; // this means that a mapping does not exist. It should never occur as atm we don't support vertex deletions
-
-            // 2. retrieve the distance / weight
-            double distance = distances[internal_id];
-
-            // 3. make the association vertex name - distance
-            external_ids.insert(vertex_name, distance);
-        }
-
-        if(timeout.is_timeout()){
-            RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-        }
+        auto external_ids = translate(distances.data());
+        if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
 #if defined(GRAPHONE_COUNTERS)
         graphone_print_counters();
 #endif
 
-        // store the results in the given file
-        if(dump2file != nullptr){
-            COUT_DEBUG("save the results to: " << dump2file);
-            fstream handle(dump2file, ios_base::out);
-            if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-            auto hashtable = external_ids.lock_table();
-
-            for(const auto& keyvaluepair : hashtable){
-                handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-            }
-
-            handle.close();
-        }
+        if(dump2file != nullptr) // store the results in the given file
+            save_results(external_ids, dump2file);
 
     } else { // without the vertex dictionary
 
@@ -2286,19 +2112,8 @@ void GraphOne::sssp(uint64_t source_vertex_id, const char* dump2file) { // GAPBS
         graphone_print_counters();
 #endif
 
-        // store the results in the given file
-        if(dump2file != nullptr){
-            COUT_DEBUG("save the results to: " << dump2file);
-            fstream handle(dump2file, ios_base::out);
-            if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-
-            for(sid_t internal_id = 0; internal_id < N; internal_id++){
-                handle << internal_id << " " << distances[internal_id] << "\n";
-            }
-
-            handle.close();
-        }
+        if(dump2file != nullptr) // store the results in the given file
+            save_results(distances.data(), N, dump2file);
     }
 }
 

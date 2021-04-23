@@ -87,8 +87,8 @@ static vector<pair<uint64_t, T>> materialize(OpenMP& openmp, T* __restrict value
 
     #pragma omp parallel for firstprivate(openmp)
     for (uint64_t v = 0; v < N; v++) {
-        // okay the following translation is bogus. The purpose is to emulate the translation of the vertices
-        // in CSR & co. and avoid an unfair advantage of Teseo
+        // okay, the following translation is bogus. The purpose is to emulate the translation of the vertices
+        // in CSR & co. and avoid an unfair advantage of Teseo.
         // With that being said v == transaction().vertex_id(v) == openmp.transaction().logical_id(v)
         assert(v == openmp.transaction().vertex_id(v)); // to remark that this translation is bogus
         assert(v == openmp.transaction().logical_id(v)); // as above...
@@ -108,8 +108,8 @@ static vector<pair<uint64_t, T>> materialize(RegisterThread& rt, Transaction& tr
     for (uint64_t v = 0; v < N; v++) {
         rt.nop(); // openmp, the greatest invention on Earth... :[
 
-        // okay the following translation is bogus. The purpose is to emulate the translation of the vertices
-        // in CSR & co. and avoid an unfair advantage of Teseo
+        // okay, the following translation is bogus. The purpose is to emulate the translation of the vertices
+        // in CSR & co. and avoid an unfair advantage of Teseo.
         // With that being said v == transaction().vertex_id(v) == openmp.transaction().logical_id(v)
         assert(v == transaction.vertex_id(v)); // to remark that this translation is bogus
         assert(v == transaction.logical_id(v)); // as above...
