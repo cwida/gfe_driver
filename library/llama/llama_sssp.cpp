@@ -204,49 +204,14 @@ void LLAMAClass::sssp(uint64_t external_source_vertex_id, const char* dump2file)
     unique_ptr<double[]> ptr_distances { new double[graph.max_nodes()] };
     double* distances = ptr_distances.get();
     llama_execute_sssp(timeout_srv, graph, llama_source_vertex_id, g_llama_property_weights, is_undirected(), /* output */ distances);
-
-    if(timeout_srv.is_timeout()){
-        RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-    }
+    if(timeout_srv.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // translate from llama ids to external vertex ids
-    auto names = graph.get_node_property_64(g_llama_property_names);
-    assert(names != nullptr && "Wrong string ID to refer the property attached to the vertices");
-    cuckoohash_map</* external id */ uint64_t, /* distance */ double> external_ids;
-    #pragma omp parallel for
-    for(node_t llama_node_id = 0; llama_node_id < graph.max_nodes(); llama_node_id++){
-        // first, does this node exist (or it's a gap?)
-        // this is a bit of a stretch: the impl~ from llama assumes that a node does not exist only if it does not have any incoming or outgoing edges.
-        if(!graph.node_exists(llama_node_id)) continue;
+    auto external_ids = translate(graph, distances);
+    if(timeout_srv.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-        // second, what's it's real node ID, in the external domain (e.g. user id)
-        uint64_t external_node_id = names->get(llama_node_id);
-
-        // third, its distance
-        double distance = distances[llama_node_id];
-
-        // finally, register the association
-        external_ids.insert(external_node_id, distance);
-    }
-
-    if(timeout_srv.is_timeout()){
-        RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-    }
-
-    // store the results in the given file
-    if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file)
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
-    }
+    if(dump2file != nullptr) // store the results in the given file
+        save_results(external_ids, dump2file);
 }
 
 } // namespace

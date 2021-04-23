@@ -133,6 +133,13 @@ protected:
     // Internal implementation of the CDLP algorithm
     std::unique_ptr<uint64_t[]> cdlp_impl(utility::TimeoutService& timer, ll_mlcsr_ro_graph& graph, uint64_t max_iterations);
 
+    // Helper for Graphalytics: translate the logical IDs into external IDs
+    template <typename T>
+    std::vector<std::pair<uint64_t, T>> translate(ll_mlcsr_ro_graph& graph, const T* __restrict data);
+
+    // Helper, save the content of the vector to the given output file
+    template <typename T, bool negative_scores = true>
+    void save_results(const std::vector<std::pair<uint64_t, T>>& result, const char* dump2file);
 public:
     /**
      * Constructor

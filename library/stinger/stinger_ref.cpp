@@ -73,29 +73,6 @@ StingerRef::~StingerRef() { }
  *  Helpers                                                                   *
  *                                                                            *
  *****************************************************************************/
-//template <typename T>
-//static vector<pair<uint64_t, T>> translate(stinger_t* g, pvector<T>& values) {
-//  auto N = values.size();
-//  vector<pair<uint64_t , T>> logical_result(N);
-//
-//#pragma omp parallel for
-//  for(uint64_t internal_id = 0; internal_id < N; internal_id++){
-//    if(stinger_vtype_get(g, internal_id) == 0){ // if = 1, the node is marked for deletion
-//      char* vertex_id_name = nullptr; uint64_t vertex_id_name_length = 0;
-//      int rc = stinger_mapping_physid_get(g, internal_id, &vertex_id_name, &vertex_id_name_length);
-//      if( rc == 0 ){ // mapping found
-//        uint64_t external_id = stoull(vertex_id_name);
-//        COUT_DEBUG("external_id: " << external_id << ", internal_id: " << internal_id);
-//
-//        logical_result[internal_id] = make_pair(external_id, values[internal_id]);
-//      }
-//      free(vertex_id_name); vertex_id_name = nullptr;
-//    }
-//  }
-//
-//  return logical_result;
-//}
-
 template<typename T>
 static void save0(vector<pair<uint64_t, T>>& result, const char* dump2file){
     assert(dump2file != nullptr);

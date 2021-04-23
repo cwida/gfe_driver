@@ -985,15 +985,12 @@ void LLAMAClass::bfs(uint64_t external_source_vertex_id, const char* dump2file) 
     bfs_bfs<ll_mlcsr_ro_graph> instance{ graph, llama_source_vertex_id, is_undirected() };
     instance.prepare(llama_source_vertex_id);
     instance.do_bfs_forward(timeout);
-
-    if(timeout.is_timeout()){
-        RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-    }
+    if(timeout.is_timeout()){  RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // translate from llama vertex ids to external vertex ids
     auto names = graph.get_node_property_64(g_llama_property_names);
     assert(names != nullptr && "Wrong string ID to refer the property attached to the vertices");
-    cuckoohash_map</* external id */ uint64_t, /* distance */ int> external_ids;
+    vector<pair<uint64_t, int64_t>> external_ids (graph.max_nodes());
     #pragma omp parallel for
     for(node_t llama_node_id = 0; llama_node_id < graph.max_nodes(); llama_node_id++){
         // first, does this node exist (or it's a gap?)
@@ -1004,15 +1001,12 @@ void LLAMAClass::bfs(uint64_t external_source_vertex_id, const char* dump2file) 
         uint64_t external_node_id = names->get(llama_node_id);
 
         // third, its distance
-        int distance = instance.get_level(llama_node_id);
+        int64_t distance = instance.get_level(llama_node_id);
 
         // finally, register the association
-        external_ids.insert(external_node_id, distance);
+        external_ids[llama_node_id] = make_pair(external_node_id, distance);
     }
-
-    if(timeout.is_timeout()){
-        RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-    }
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // store the results in the given file
     if(dump2file != nullptr){
@@ -1020,11 +1014,9 @@ void LLAMAClass::bfs(uint64_t external_source_vertex_id, const char* dump2file) 
         fstream handle(dump2file, ios_base::out);
         if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
 
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " ";
-            auto distance = keyvaluepair.second;
+        for(const auto& p : external_ids){
+            handle << p.first << " ";
+            auto distance = p.second;
             if(distance != decltype(instance)::__INVALID_LEVEL){
                 handle << distance;
             } else {

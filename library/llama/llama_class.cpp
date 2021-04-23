@@ -19,6 +19,7 @@
 #include "llama_internal.hpp"
 
 #include <cmath>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <shared_mutex> // shared_lock
@@ -631,6 +632,69 @@ void LLAMAClass::updates_stop(){
     g_llama_total_time.stop();
 }
 #endif
+
+/*****************************************************************************
+ *                                                                           *
+ *  Graphalytics Helpers                                                     *
+ *                                                                           *
+ *****************************************************************************/
+
+template <typename T>
+vector<pair<uint64_t, T>> LLAMAClass::translate(ll_mlcsr_ro_graph& graph, const T* __restrict data) {
+    const node_t N = graph.max_nodes(); // this is already a bit of a stretch
+    auto names = graph.get_node_property_64(g_llama_property_names);
+    vector<pair<uint64_t, T>> output(N);
+
+    #pragma omp parallel for
+    for(node_t llama_node_id = 0; llama_node_id < N; llama_node_id++){
+        // first, does this node exist (or it's a gap?)
+        // this is a bit of a stretch: the impl~ from llama assumes that a node does not exist only if it does not have any incoming or outgoing edges.
+        if(!graph.node_exists(llama_node_id)) continue;
+
+        // second, what's it's real node ID, in the external domain (e.g. user id)
+        uint64_t external_node_id = names->get(llama_node_id);
+
+        // third, its score
+        T score = data[llama_node_id];
+
+        // finally, register the association
+        output[llama_node_id] = make_pair(external_node_id, score);
+    }
+
+    return output;
+}
+
+template <typename T, bool negative_scores>
+void LLAMAClass::save_results(const vector<pair<uint64_t, T>>& result, const char* dump2file) {
+    assert(dump2file != nullptr);
+    COUT_DEBUG("save the results to: " << dump2file);
+
+    fstream handle(dump2file, ios_base::out);
+    if (!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
+
+    for (const auto &p : result) {
+        handle << p.first << " ";
+
+        if(!negative_scores && p.second < 0){
+            handle << numeric_limits<T>::max();
+        } else {
+            handle << p.second;
+        }
+
+        handle << "\n";
+    }
+
+    handle.close();
+}
+
+// Explicitly instantiate the templates
+#define INSTANTIATE_TRANSLATE( TYPE ) template vector<pair<uint64_t, TYPE>> LLAMAClass::translate<TYPE>(ll_mlcsr_ro_graph& graph, const TYPE* __restrict data); \
+  template void LLAMAClass::save_results<TYPE, true>(const vector<pair<uint64_t, TYPE>>& result, const char* dump2file); \
+  template void LLAMAClass::save_results<TYPE, false>(const vector<pair<uint64_t, TYPE>>& result, const char* dump2file);
+
+INSTANTIATE_TRANSLATE( int64_t );
+INSTANTIATE_TRANSLATE( uint64_t );
+INSTANTIATE_TRANSLATE( double );
 
 /*****************************************************************************
  *                                                                           *

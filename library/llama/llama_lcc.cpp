@@ -434,53 +434,18 @@ void LLAMAClass::lcc(const char* dump2file){
     } else {
         llama_execute_lcc_undirected(timeout, graph, /* output */ scores);
     }
-
-    if(timeout.is_timeout()){
-        RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-    }
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // translate from llama vertex ids to external vertex ids
-    auto names = graph.get_node_property_64(g_llama_property_names);
-    assert(names != nullptr && "Wrong string ID to refer the property attached to the vertices");
-    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
-    #pragma omp parallel for
-    for(node_t llama_node_id = 0; llama_node_id < graph.max_nodes(); llama_node_id++){
-        // first, does this node exist (or it's a gap?)
-        // this is a bit of a stretch: the impl~ from llama assumes that a node does not exist only if it does not have any incoming or outgoing edges.
-        if(!graph.node_exists(llama_node_id)) continue;
-
-        // second, what's it's real node ID, in the external domain (e.g. user id)
-        uint64_t external_node_id = names->get(llama_node_id);
-
-        // third, its score
-        double score = scores[llama_node_id];
-
-        // finally, register the association
-        external_ids.insert(external_node_id, score);
-    }
-
-    if(timeout.is_timeout()){
-        RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
-    }
+    auto external_ids = translate(graph, scores);
+    if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
 #if defined(LL_COUNTERS)
     ll_print_counters(stdout);
 #endif
 
-    // store the results in the given file
-    if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file)
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
-    }
+    if(dump2file != nullptr) // store the results in the given file
+        save_results(external_ids, dump2file);
 }
 
 } // namespace

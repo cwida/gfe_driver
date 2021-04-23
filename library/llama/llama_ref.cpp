@@ -65,26 +65,6 @@ LLAMARef::~LLAMARef() { }
  *  Helpers                                                                   *
  *                                                                            *
  *****************************************************************************/
-
-template<typename T>
-static void save0(cuckoohash_map<uint64_t, T>& result, const char* dump2file){
-    assert(dump2file != nullptr);
-    COUT_DEBUG("save the results to: " << dump2file)
-
-    fstream handle(dump2file, ios_base::out);
-    if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-    auto list_entries = result.lock_table();
-
-    for(const auto& p : list_entries){
-        handle << p.first << " " << p.second << "\n";
-    }
-
-    list_entries.unlock();
-    handle.close();
-}
-
-
 static
 uint64_t _llama_outdegree(ll_mlcsr_ro_graph& snapshot, bool is_directed, int64_t llama_vertex_id){
     if(is_directed){
@@ -282,31 +262,6 @@ pvector<int64_t> do_bfs(ll_mlcsr_ro_graph& graph, bool is_directed, uint64_t num
 
 } // anon namespace
 
-static void save_bfs(cuckoohash_map<uint64_t, int64_t>& result, const char* dump2file){
-    assert(dump2file != nullptr);
-    COUT_DEBUG("save the results to: " << dump2file)
-
-    fstream handle(dump2file, ios_base::out);
-    if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-    auto list_entries = result.lock_table();
-
-    for(const auto& p : list_entries){
-        handle << p.first << " ";
-
-        // if  the vertex was not reached, the algorithm sets its distance to < 0
-        if(p.second < 0){
-            handle << numeric_limits<int64_t>::max();
-        } else {
-            handle << p.second;
-        }
-        handle << "\n";
-    }
-
-    list_entries.unlock();
-    handle.close();
-}
-
 void LLAMARef::bfs(uint64_t external_source_vertex_id, const char* dump2file){
 #if defined(LL_COUNTERS)
     ll_clear_counters();
@@ -329,34 +284,15 @@ void LLAMARef::bfs(uint64_t external_source_vertex_id, const char* dump2file){
     if(tcheck.is_timeout()){  RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // translate from llama vertex ids to external vertex ids
-    auto names = graph.get_node_property_64(g_llama_property_names);
-    assert(names != nullptr && "Wrong string ID to refer the property attached to the vertices");
-    cuckoohash_map</* external id */ uint64_t, /* distance */ int64_t> external_ids;
-    #pragma omp parallel for
-    for(node_t llama_node_id = 0; llama_node_id < graph.max_nodes(); llama_node_id++){
-        // first, does this node exist (or it's a gap?)
-        // this is a bit of a stretch: the impl~ from llama assumes that a node does not exist only if it does not have any incoming or outgoing edges.
-        if(!graph.node_exists(llama_node_id)) continue;
-
-        // second, what's it's real node ID, in the external domain (e.g. user id)
-        uint64_t external_node_id = names->get(llama_node_id);
-
-        // third, its distance
-        auto distance = result[llama_node_id];
-
-        // finally, register the association
-        external_ids.insert(external_node_id, distance);
-    }
-
+    auto external_ids = translate(graph, result.data());
     if(tcheck.is_timeout()) RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
 
 #if defined(LL_COUNTERS)
     ll_print_counters(stdout);
 #endif
 
-    // store the results in the given file
-    if(dump2file != nullptr)
-        save_bfs(external_ids, dump2file);
+    if(dump2file != nullptr) // store the results in the given file
+        save_results<int64_t, false>(external_ids, dump2file);
 }
 
 /******************************************************************************
@@ -462,21 +398,7 @@ void LLAMARef::pagerank(uint64_t num_iterations, double damping_factor, const ch
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // retrieve the external node ids
-    auto names = graph.get_node_property_64(g_llama_property_names);
-    assert(names != nullptr && "Wrong string ID to refer the property attached to the vertices");
-    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
-    #pragma omp parallel for
-    for(node_t llama_node_id = 0; llama_node_id < graph.max_nodes(); llama_node_id++){
-        // first, does this node exist (or it's a gap?)
-        // this is a bit of a stretch: the impl~ from llama assumes that a node does not exist only if it does not have any incoming or outgoing edges.
-        if(!graph.node_exists(llama_node_id)) continue;
-
-        // second, what's it's real node ID, in the external domain (e.g. user id)
-        uint64_t external_id = names->get(llama_node_id);
-
-        external_ids.insert(external_id, result[llama_node_id]);
-    }
-
+    auto external_ids = translate(graph, result.data());
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
 #if defined(LL_COUNTERS)
@@ -484,7 +406,7 @@ void LLAMARef::pagerank(uint64_t num_iterations, double damping_factor, const ch
 #endif
 
     if(dump2file != nullptr)
-        save0(external_ids, dump2file);
+        save_results(external_ids, dump2file);
 }
 
 /******************************************************************************
@@ -600,20 +522,7 @@ void LLAMARef::wcc(const char* dump2file) {
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // retrieve the external node ids
-    auto names = graph.get_node_property_64(g_llama_property_names);
-    assert(names != nullptr && "Wrong string ID to refer the property attached to the vertices");
-    cuckoohash_map</* external id */ uint64_t, /* component */ uint64_t> external_ids;
-    #pragma omp parallel for
-    for(node_t llama_node_id = 0; llama_node_id < graph.max_nodes(); llama_node_id++){
-        // first, does this node exist (or it's a gap?)
-        // this is a bit of a stretch: the impl~ from llama assumes that a node does not exist only if it does not have any incoming or outgoing edges.
-        if(!graph.node_exists(llama_node_id)) continue;
-
-        // second, what's it's real node ID, in the external domain (e.g. user id)
-        uint64_t external_id = names->get(llama_node_id);
-
-        external_ids.insert(external_id, result[llama_node_id]);
-    }
+    auto external_ids = translate(graph, result.data());
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
 #if defined(LL_COUNTERS)
@@ -621,7 +530,7 @@ void LLAMARef::wcc(const char* dump2file) {
 #endif
 
     if(dump2file != nullptr)
-        save0(external_ids, dump2file);
+        save_results(external_ids, dump2file);
 }
 
 
@@ -779,22 +688,7 @@ void LLAMARef::sssp(uint64_t external_source_vertex_id, const char* dump2file){
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // translate the vertex ids
-    auto names = graph.get_node_property_64(g_llama_property_names);
-    assert(names != nullptr && "Wrong string ID to refer the property attached to the vertices");
-    cuckoohash_map</* external id */ uint64_t, /* distance */ double> external_ids;
-    #pragma omp parallel for
-    for(node_t llama_node_id = 0; llama_node_id < graph.max_nodes(); llama_node_id++){
-        // first, does this node exist (or it's a gap?)
-        // this is a bit of a stretch: the impl~ from llama assumes that a node does not exist only if it does not have any incoming or outgoing edges.
-        if(!graph.node_exists(llama_node_id)) continue;
-
-        // second, what's it's real node ID, in the external domain (e.g. user id)
-        uint64_t external_id = names->get(llama_node_id);
-
-        COUT_DEBUG("Node map " << llama_node_id << " -> " << external_id);
-
-        external_ids.insert(external_id, result[llama_node_id]);
-    }
+    auto external_ids = translate(graph, result.data());
     if(tcheck.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
 #if defined(LL_COUNTERS)
@@ -802,7 +696,7 @@ void LLAMARef::sssp(uint64_t external_source_vertex_id, const char* dump2file){
 #endif
 
     if(dump2file != nullptr)
-        save0(external_ids, dump2file);
+        save_results(external_ids, dump2file);
 }
 
 

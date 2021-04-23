@@ -18,7 +18,6 @@
 
 #if defined(HAVE_LIVEGRAPH)
 
-
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -101,6 +100,6 @@ TEST(LiveGraph, PageRankInternalImpl) {
 #else
 #include <iostream>
 TEST(LiveGraph, Disabled) {
-    std::cout << "Tests disabled as the build does not contain the support for GraphOne." << std::endl;
+    std::cout << "Tests disabled as the build does not contain the support for LiveGraph.\n";
 }
 #endif

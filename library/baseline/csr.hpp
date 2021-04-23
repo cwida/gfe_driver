@@ -110,11 +110,11 @@ private:
 protected:
     // Helper, translate the logical into real vertices IDs. Materialization step at the end of a graphalytics algorithm
     template <typename T>
-    std::vector<std::pair<uint64_t, T>> translate(T* values, uint64_t N);
+    std::vector<std::pair<uint64_t, T>> translate(const T* __restrict values, uint64_t N);
 
     // Helper, save the content of the vector to the given output file
     template <typename T, bool negative_scores = true>
-    void save_results(std::vector<std::pair<uint64_t, T>>& result, const char* dump2file);
+    void save_results(const std::vector<std::pair<uint64_t, T>>& result, const char* dump2file);
 
 public:
     /**

@@ -236,10 +236,11 @@ vector<ImplementationManifest> implementations() {
     // v5 12/06/2020: OMP dynamic scheduling in the Graphalytics kernels
     // v6 25/06/2020: Updates, implicitly create a vertex referred in a new edge upon first reference with the method add_edge_v2
     // v7 14/04/2021: Fix the predicate in the TimeoutService
-    result.emplace_back("llama7", "LLAMA library", &generate_llama);
-    result.emplace_back("llama7-dv", "LLAMA with dense vertices", &generate_llama_dv);
-    result.emplace_back("llama7-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
-    result.emplace_back("llama7-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
+    // v8 23/04/2021: Materialization step with a vector
+    result.emplace_back("llama8", "LLAMA library", &generate_llama);
+    result.emplace_back("llama8-dv", "LLAMA with dense vertices", &generate_llama_dv);
+    result.emplace_back("llama8-dv-nobw", "LLAMA with dense vertices, no blind writes", &generate_llama_dv_nobw);
+    result.emplace_back("llama8-ref", "LLAMA with the GAPBS ref impl.", &generate_llama_ref);
 #endif
 
 #if defined(HAVE_STINGER)

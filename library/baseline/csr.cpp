@@ -438,7 +438,7 @@ void CSR::dump_ostream(std::ostream& out) const {
  *                                                                           *
  *****************************************************************************/
 template <typename T>
-vector<pair<uint64_t, T>> CSR::translate(T* values, uint64_t N) {
+vector<pair<uint64_t, T>> CSR::translate(const T* __restrict values, uint64_t N) {
     vector<pair<uint64_t , T>> logical_result(N);
 
     #pragma omp parallel for
@@ -449,7 +449,7 @@ vector<pair<uint64_t, T>> CSR::translate(T* values, uint64_t N) {
 }
 
 template <typename T, bool negative_scores>
-void CSR::save_results(vector<pair<uint64_t, T>> &result, const char *dump2file) {
+void CSR::save_results(const vector<pair<uint64_t, T>>& result, const char* dump2file) {
     assert(dump2file != nullptr);
     COUT_DEBUG("save the results to: " << dump2file);
 
