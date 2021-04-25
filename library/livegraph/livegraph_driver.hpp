@@ -46,6 +46,13 @@ protected:
     // Retrieve the internal vertex ID for the given internal vertex ID. If the vertex does not exist, it returns uint64_t::max()
     uint64_t int2ext(void* transaction, uint64_t internal_vertex_id) const;
 
+    // Helper for Graphalytics: translate the logical IDs into external IDs
+    template <typename T>
+    std::vector<std::pair<uint64_t, T>> translate(void* /* transaction object */ lgtxn, const T* __restrict data, uint64_t data_sz);
+
+    // Helper, save the content of the vector to the given output file
+    template <typename T, bool negative_scores = true>
+    void save_results(const std::vector<std::pair<uint64_t, T>>& result, const char* dump2file);
 public:
     /**
      * Create an instance of LiveGraph

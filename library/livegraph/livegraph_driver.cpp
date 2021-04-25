@@ -386,6 +386,53 @@ void LiveGraphDriver::dump_ostream(std::ostream& out) const {
 
 /*****************************************************************************
  *                                                                           *
+ *  Graphalytics Helpers                                                     *
+ *                                                                           *
+ *****************************************************************************/
+
+template <typename T>
+vector<pair<uint64_t, T>> LiveGraphDriver::translate(void* /* transaction object */ transaction, const T* __restrict data, uint64_t data_sz) {
+    assert(transaction != nullptr && "Transaction object not specified");
+    vector<pair<uint64_t, T>> output(data_sz);
+
+    for(uint64_t logical_id = 0; logical_id < data_sz; logical_id++){
+        uint64_t external_id = int2ext(transaction, logical_id);
+        if(external_id == numeric_limits<uint64_t>::max()) { // the vertex does not exist
+            output[logical_id] = make_pair(numeric_limits<uint64_t>::max(), numeric_limits<T>::max()); // special marker
+        } else {
+            output[logical_id] = make_pair(external_id, data[logical_id]);
+        }
+    }
+
+    return output;
+}
+
+template <typename T, bool negative_scores>
+void LiveGraphDriver::save_results(const vector<pair<uint64_t, T>>& result, const char* dump2file) {
+    assert(dump2file != nullptr);
+    COUT_DEBUG("save the results to: " << dump2file);
+
+    fstream handle(dump2file, ios_base::out);
+    if (!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
+
+    for (const auto &p : result) {
+        handle << p.first << " ";
+
+        if(!negative_scores && p.second < 0){
+            handle << numeric_limits<T>::max();
+        } else {
+            handle << p.second;
+        }
+
+        handle << "\n";
+    }
+
+    handle.close();
+}
+
+
+/*****************************************************************************
+ *                                                                           *
  *  BFS                                                                      *
  *                                                                           *
  *****************************************************************************/
@@ -630,46 +677,14 @@ void LiveGraphDriver::bfs(uint64_t external_source_id, const char* dump2file) {
     }
 
     // translate the logical vertex IDs into the external vertex IDs
-    int64_t* result = ptr_result.get();
-    cuckoohash_map</* external id */ uint64_t, /* distance */ int64_t> external_ids;
-
-    #pragma omp parallel for
-    for(uint64_t logical_id = 0; logical_id < max_vertex_id; logical_id++){
-        uint64_t external_id = int2ext(&transaction, logical_id);
-        if(external_id == numeric_limits<uint64_t>::max()) continue; // the vertex does not exist
-        int64_t distance = result[logical_id];
-        external_ids.insert(external_id, distance);
-    }
-
+    auto external_ids = translate(&transaction, ptr_result.get(), max_vertex_id);
     transaction.abort(); // not sure if strictly necessary
     if(timeout.is_timeout()){
         RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);
     }
 
-    // store the results in the given file
-    if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " ";
-            auto distance = keyvaluepair.second;
-
-            if(distance < 0){
-                handle << numeric_limits<int64_t>::max();
-            } else {
-                handle << distance;
-            }
-
-            handle << "\n";
-        }
-
-        handle.close();
-    }
-
+    if(dump2file != nullptr) // store the results in the given file
+        save_results<int64_t, false>(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -809,32 +824,14 @@ void LiveGraphDriver::pagerank(uint64_t num_iterations, double damping_factor, c
     unique_ptr<double[]> ptr_result = do_pagerank(transaction, num_vertices, max_vertex_id, num_iterations, damping_factor, timeout);
     if(timeout.is_timeout()){ transaction.abort(); RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
-    // retrieve the external node ids
-    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
-    double* __restrict result = ptr_result.get();
-    #pragma omp parallel for
-    for(uint64_t i = 0; i < max_vertex_id; i++){
-        if(transaction.get_vertex(i).empty()) continue; // check the vertex exists
-        external_ids.insert(int2ext(&transaction, i), result[i]);
-    }
-
+    // Retrieve the external node ids
+    auto external_ids = translate(&transaction, ptr_result.get(), max_vertex_id);
     transaction.abort(); // read-only transaction, abort == commit
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    // store the results in the given file
-    if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto list_entries = external_ids.lock_table();
-        for(const auto& p : list_entries){
-            handle << p.first << " " << p.second << "\n";
-        }
-
-        handle.close();
-    }
+    // Store the results in the given file
+    if(dump2file != nullptr)
+        save_results(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -979,31 +976,13 @@ void LiveGraphDriver::wcc(const char* dump2file) {
     if(timeout.is_timeout()){ transaction.abort(); RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // translate the vertex IDs
-    cuckoohash_map</* external id */ uint64_t, /* component */ uint64_t> external_ids;
-    uint64_t* __restrict components = ptr_components.get();
-    #pragma omp parallel for
-    for(uint64_t i = 0; i < max_vertex_id; i++){
-        if(components[i] == numeric_limits<uint64_t>::max()) continue; // the vertex does not exist
-
-        external_ids.insert(int2ext(&transaction, i), components[i]);
-    }
-    transaction.abort();
+    auto external_ids = translate(&transaction, ptr_components.get(), max_vertex_id);
+    transaction.abort(); // read-only transaction, abort == commit
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
     // store the results in the given file
-    if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
-    }
+    if(dump2file != nullptr)
+        save_results(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -1089,28 +1068,13 @@ void LiveGraphDriver::cdlp(uint64_t max_iterations, const char* dump2file) {
     if(timeout.is_timeout()){ transaction.abort(); RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs
-    cuckoohash_map</* external id */ uint64_t, /* label */ uint64_t> external_ids;
-    #pragma omp parallel for
-    for(uint64_t i = 0; i < max_vertex_id; i++){
-        if(labels[i] == numeric_limits<uint64_t>::max()) continue; // the vertex does not exist
-        external_ids.insert(int2ext(&transaction, i), labels[i]);
-    }
+    auto external_ids = translate(&transaction, labels.get(), max_vertex_id);
+    transaction.abort(); // read-only transaction, abort == commit
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    // store the results in the given file
-    if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
-    }
+    // Store the results in the given file
+    if(dump2file != nullptr)
+        save_results(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -1223,30 +1187,13 @@ void LiveGraphDriver::lcc(const char* dump2file) {
     if(timeout.is_timeout()){ transaction.abort(); RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs
-    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
-    #pragma omp parallel for
-    for(uint64_t i = 0; i < max_vertex_id; i++){
-        if(isnan(scores[i])) continue; // the vertex does not exist
-
-        external_ids.insert(int2ext(&transaction, i), scores[i]);
-    }
-    transaction.abort();
+    auto external_ids = translate(&transaction, scores.get(), max_vertex_id);
+    transaction.abort(); // read-only transaction, abort == commit
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    // store the results in the given file
-    if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
-    }
+    // Store the results in the given file
+    if(dump2file != nullptr)
+        save_results(external_ids, dump2file);
 }
 
 /*****************************************************************************
@@ -1391,29 +1338,13 @@ void LiveGraphDriver::sssp(uint64_t source_vertex_id, const char* dump2file) {
     if(timeout.is_timeout()){ transaction.abort(); RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer);  }
 
     // Translate the vertex IDs
-    cuckoohash_map</* external id */ uint64_t, /* score */ double> external_ids;
-    #pragma omp parallel for
-    for(uint64_t i = 0; i < max_vertex_id; i++){
-        if(transaction.get_vertex(i).empty()) continue; // the vertex does not exist
-        external_ids.insert(int2ext(&transaction, i), distances[i]);
-    }
-    transaction.abort(); // done
+    auto external_ids = translate(&transaction, distances.data(), max_vertex_id);
+    transaction.abort(); // read-only transaction, abort == commit
     if(timeout.is_timeout()){ RAISE_EXCEPTION(TimeoutError, "Timeout occurred after " << timer); }
 
-    // store the results in the given file
-    if(dump2file != nullptr){
-        COUT_DEBUG("save the results to: " << dump2file);
-        fstream handle(dump2file, ios_base::out);
-        if(!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
-
-        auto hashtable = external_ids.lock_table();
-
-        for(const auto& keyvaluepair : hashtable){
-            handle << keyvaluepair.first << " " << keyvaluepair.second << "\n";
-        }
-
-        handle.close();
-    }
+    // Store the results in the given file
+    if(dump2file != nullptr)
+        save_results(external_ids, dump2file);
 }
 
 } // namespace
