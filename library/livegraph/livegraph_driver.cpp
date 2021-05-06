@@ -416,6 +416,8 @@ void LiveGraphDriver::save_results(const vector<pair<uint64_t, T>>& result, cons
     if (!handle.good()) ERROR("Cannot save the result to `" << dump2file << "'");
 
     for (const auto &p : result) {
+        if(p.first == numeric_limits<uint64_t>::max()) continue; // invalid node
+
         handle << p.first << " ";
 
         if(!negative_scores && p.second < 0){
