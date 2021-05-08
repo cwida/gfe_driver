@@ -746,7 +746,7 @@ int64_t graphone_gapbs_bfs_BUStep(snap_t<lite_edge_t>* view, uint64_t v_count, i
         uint64_t neighbours_sz = 0;
 
         #pragma omp for schedule(dynamic, 1024)
-        for (int64_t u = 0; u < v_count; u++) {
+        for (uint64_t u = 0; u < v_count; u++) {
             if (distances[u] < 0){ // the node has not been visited yet
                 uint64_t degree = view->get_degree_in(u);
                 if(degree == 0) continue;
@@ -837,7 +837,7 @@ void graphone_gapbs_bfs_BitmapToQueue(snap_t<lite_edge_t>* view, uint64_t v_coun
     {
         gapbs::QueueBuffer<int64_t> lqueue(queue);
         #pragma omp for
-        for (int64_t n=0; n < v_count; n++)
+        for (uint64_t n = 0; n < v_count; n++)
             if (bm.get_bit(n))
                 lqueue.push_back(n);
         lqueue.flush();
@@ -880,7 +880,7 @@ unique_ptr<int64_t[]> graphone_gapbs_bfs(uint64_t v_count, uint64_t num_out_edge
     while (!timer.is_timeout() && !queue.empty()) {
 
         if (scout_count > edges_to_check / alpha) {
-            int64_t awake_count, old_awake_count;
+            uint64_t awake_count, old_awake_count;
             graphone_gapbs_bfs_QueueToBitmap(queue, front);
             awake_count = queue.size();
             queue.slide_window();
@@ -952,7 +952,7 @@ void GraphOne::bfs_gapbs(uint64_t source_vertex_id, const char* dump2file) {
 static unique_ptr<uint32_t[]> graphone_native_bfs(uint64_t v_count, uint64_t root, utility::TimeoutService& timeout){
     // Initialisation
     auto* view = create_static_view(get_graphone_graph(), SIMPLE_MASK | PRIVATE_MASK); // global
-    int level = 1;
+    uint32_t level = 1;
     int top_down = 1;
     sid_t frontier = 0;
 //    sid_t v_count = num_vertices(); // snaph->get_vcount(); // parameter
