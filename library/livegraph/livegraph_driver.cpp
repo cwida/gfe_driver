@@ -592,15 +592,19 @@ unique_ptr<int64_t[]> do_bfs_init_distances(lg::Transaction& transaction, uint64
         if(transaction.get_vertex(n).empty()){ // the vertex does not exist
             distances[n] = numeric_limits<int64_t>::max();
         } else { // the vertex exists
-            // Retrieve the out degree for the vertex n
-            uint64_t out_degree = 0;
-            auto iterator = transaction.get_edges(n, /* label */ 0);
-            while(iterator.valid()){
-                out_degree++;
-                iterator.next();
-            }
+            // this logic is too expensive and quite unnecessary for livegraph. The only purpose is to check if a node
+            // has any outgoing edges
+//            // Retrieve the out degree for the vertex n
+//            uint64_t out_degree = 0;
+//            auto iterator = transaction.get_edges(n, /* label */ 0);
+//            while(iterator.valid()){
+//                out_degree++;
+//                iterator.next();
+//            }
+//
+//            distances[n] = out_degree != 0 ? - out_degree : -1;
 
-            distances[n] = out_degree != 0 ? - out_degree : -1;
+            distances[n] = -1;
         }
     }
 
