@@ -274,9 +274,8 @@ vector<ImplementationManifest> implementations() {
 #if defined(HAVE_LIVEGRAPH)
     // v2 14/04/2021: Fix the predicate in the TimeoutService
     // v3 25/04/2021: Materialization step with a vector
-    // v4 08/05/2021: BFS only, avoid computing the node degree at the start
-    result.emplace_back("livegraph4_ro", "LiveGraph, use read-only transactions for the Graphalytics kernels", &generate_livegraph_ro);
-    result.emplace_back("livegraph4_rw", "LiveGraph, use read-write transactions for the Graphalytics kernels", &generate_livegraph_rw);
+    result.emplace_back("livegraph3_ro", "LiveGraph, use read-only transactions for the Graphalytics kernels", &generate_livegraph_ro);
+    result.emplace_back("livegraph3_rw", "LiveGraph, use read-write transactions for the Graphalytics kernels", &generate_livegraph_rw);
 #endif
 
 #if defined(HAVE_TESEO)
