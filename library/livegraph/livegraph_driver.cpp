@@ -628,7 +628,6 @@ unique_ptr<int64_t[]> do_bfs(lg::Transaction& transaction, uint64_t num_vertices
     front.reset();
     int64_t edges_to_check = num_edges; //g.num_edges_directed();
 
-
     int64_t scout_count = 0;
     { // retrieve the out degree of the root
         auto iterator = transaction.get_edges(root, 0);
