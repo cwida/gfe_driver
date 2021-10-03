@@ -294,8 +294,8 @@ vector<ImplementationManifest> implementations() {
     result.emplace_back("teseo.12", "Teseo", &generate_teseo);
     result.emplace_back("teseo-rw.12", "Teseo. Use read-write transactions for graphalytics, to measure their overhead", &generate_teseo_rw);
     result.emplace_back("teseo-lcc.12", "Teseo with a tuned implementation of the LCC kernel", &generate_teseo_lcc);
-    result.emplace_back("teseo-dv.12b", "Teseo, dense vertices", &generate_teseo_real_vtx);
-    result.emplace_back("teseo-lcc-dv.12b", "Teseo, dense vertices and sort-merge implementation of the LCC kernel", &generate_teseo_real_vtx_lcc);
+    result.emplace_back("teseo-dv.12", "Teseo, dense vertices", &generate_teseo_real_vtx);
+    result.emplace_back("teseo-lcc-dv.12", "Teseo, dense vertices and sort-merge implementation of the LCC kernel", &generate_teseo_real_vtx_lcc);
 #endif
 
     return result;
