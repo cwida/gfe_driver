@@ -124,7 +124,7 @@ void CSR::free_array(T* array){
         uint64_t allocation_size = start[0];
         numa_free(start, allocation_size);
 #else
-        return nullptr;
+        return; // nop
 #endif
     } else {
         delete[] array;
