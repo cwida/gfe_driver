@@ -161,6 +161,9 @@ bool TeseoDriver::remove_vertex(uint64_t vertex_id){
 }
 
 bool TeseoDriver::add_edge(gfe::graph::WeightedEdge e) {
+    if(e.source() == e.destination())
+        throw std::invalid_argument("Teseo does not support self-loop edges (e.g. same source, same destination)");
+
     auto tx = TESEO->start_transaction();
     try {
         tx.insert_edge(e.source(), e.destination(), e.weight());
@@ -174,6 +177,9 @@ bool TeseoDriver::add_edge(gfe::graph::WeightedEdge e) {
 }
 
 bool TeseoDriver::add_edge_v2(gfe::graph::WeightedEdge e){
+    if(e.source() == e.destination())
+        throw std::invalid_argument("Teseo does not support self-loop edges (e.g. same source, same destination)");
+
     static cuckoohash_map<uint64_t, bool> vertices;
 
     if(vertices.insert(e.source(), true)){ add_vertex(e.source()); }
