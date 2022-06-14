@@ -21,7 +21,6 @@ Initialise the sources and the configure script by:
 ```
 git clone https://github.com/cwida/gfe_driver
 cd gfe_driver
-git submodule update --init
 autoreconf -iv 
 ```
 

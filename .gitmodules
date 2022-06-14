@@ -1,4 +1,0 @@
-[submodule "third-party/libcommon"]
-	path = third-party/libcommon
-	url = https://github.com/whatsthecraic/libcommon
-	branch = master

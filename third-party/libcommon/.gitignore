@@ -1,0 +1,11 @@
+# Project files
+/.idea/
+
+# Build directories
+/Debug/
+/Release/
+/cmake-build-debug/
+
+# Dependencies automatically downloaded
+/lib/backtrace/
+/lib/google-test/
