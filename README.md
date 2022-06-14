@@ -2,7 +2,7 @@
 GFE Driver
 ---
 
-The GFE (Graph Framework Evaluation) Driver is the program used to run the experiments in the paper TBP,  measuring the throughput of updates in libraries supporting structural dynamic graphs and the completion times of the [Graphalytics kernels](https://github.com/ldbc/ldbc_graphalytics). The driver supports the following systems: [Teseo](https://github.com/cwida/teseo), [LLAMA](https://github.com/goatdb/llama), [GraphOne](https://github.com/the-data-lab/GraphOne), [Stinger](http://stingergraph.com/) and [LiveGraph](https://github.com/thu-pacman/LiveGraph-Binary). It can run three kinds experiments: insert all edges in a random permuted order from an input graph, execute the updates specified by a [graphlog file](https://github.com/whatsthecraic/graphlog) and run the kernels of the Graphalytics suite: BFS, PageRank (PR), local triangle counting (LCC), weighted shortest paths (SSSP), weakly connected components (WCC) and community detection through label propagation (CDLP).  
+The GFE (Graph Framework Evaluation) Driver is the program used to run the experiments in the paper [D. De Leo, P. Boncz, Teseo and the Analysis of Structural Dynamic Graphs, VLDB 2021](http://vldb.org/pvldb/vol14/p1053-leo.pdf) (+ [Errata](http://www.vldb.org/pvldb/vol14/p2271-leo.pdf)),  measuring the throughput of updates in libraries supporting structural dynamic graphs and the completion times of the [Graphalytics kernels](https://github.com/ldbc/ldbc_graphalytics). The driver supports the following systems: [Teseo](https://github.com/cwida/teseo), [LLAMA](https://github.com/goatdb/llama), [GraphOne](https://github.com/the-data-lab/GraphOne), [Stinger](http://stingergraph.com/) and [LiveGraph](https://github.com/thu-pacman/LiveGraph-Binary). It can run three kinds experiments: insert all edges in a random permuted order from an input graph, execute the updates specified by a [graphlog file](https://github.com/whatsthecraic/graphlog) and run the kernels of the Graphalytics suite: BFS, PageRank (PR), local triangle counting (LCC), weighted shortest paths (SSSP), weakly connected components (WCC) and community detection through label propagation (CDLP).  
 
 ### Build 
 
@@ -161,7 +161,7 @@ Type `./gfe_driver -h` for the full list of options and for the libraries that c
 in the library codes (e.g. teseo.**6**, stinger**3**) are unrelated to the versions of the systems evaluated, they were only used
 internally for development purposes.
 
-The database `output_results.sqlite3` will contain the final results. Refer to [this repository](https://github.com/whatsthecraic/gfe_notebooks) to see how to load and inspect the data within Jupyter notebooks and how to recreate the same plots of the paper.
+The database `output_results.sqlite3` will contain the final results. Refer to [this repository](https://github.com/whatsthecraic/gfe_notebooks) to see how to load and inspect the data within Jupyter notebooks and how to recreate the same plots of the paper (note that the repository does not contain the results from the errata yet).
 
 ### Repeating the experiments
 
@@ -171,15 +171,15 @@ These are the full commands to repeat the experiments in the paper:
 ```bash
 for NT in 1 2 4 6 8 10 12 14 16 18 20 40; do
     # Stinger, source code: library/stinger/{stinger.hpp, stinger_unsafe.cpp} 
-    ./gfe_driver -G /path/to/input/graph.properties -u -l stinger5-ref -w $NT -d results.sqlite3
+    ./gfe_driver -G /path/to/input/graph.properties -u -l stinger7-ref -w $NT -d results.sqlite3
     # LLAMA, source code: library/llama/llama_class.*
-    ./gfe_driver -G /path/to/input/graph.properties -u -l llama6-ref --build_frequency 10s -w $NT -d results.sqlite3
+    ./gfe_driver -G /path/to/input/graph.properties -u -l llama8-ref --build_frequency 10s -w $NT -d results.sqlite3
     # GraphOne, source code: library/graphone/*
-    ./gfe_driver -G /path/to/input/graph.properties -u -l g1_v4-ref-ignore-build -w $NT -d results.sqlite3
+    ./gfe_driver -G /path/to/input/graph.properties -u -l g1_v6-ref-ignore-build -w $NT -d results.sqlite3
     # LiveGraph, source code: library/livegraph/*
-    ./gfe_driver -G /path/to/input/graph.properties -u -l livegraph_ro -w $NT -d results.sqlite3
+    ./gfe_driver -G /path/to/input/graph.properties -u -l livegraph3_ro -w $NT -d results.sqlite3
     # Teseo, source code: library/teseo/teseo_driver.*
-    ./gfe_driver -G /path/to/input/graph.properties -u -l teseo.10 -w $NT -d results.sqlite3
+    ./gfe_driver -G /path/to/input/graph.properties -u -l teseo.12 -w $NT -d results.sqlite3
 done
 ```
 
@@ -188,15 +188,15 @@ done
 ```bash
 for NT in 1 2 4 6 8 10 12 14 16 18 20 40; do
     # Stinger, source code: library/stinger/{stinger.hpp, stinger_unsafe.cpp} 
-    ./gfe_driver -G /path/to/input/graph.properties -u --log /path/to/log/graph.graphlog -l stinger5-ref -w $NT -d results.sqlite3
+    ./gfe_driver -G /path/to/input/graph.properties -u --log /path/to/log/graph.graphlog -l stinger7-ref -w $NT -d results.sqlite3
     # LLAMA, source code: library/llama/llama_class.*
-    ./gfe_driver -G /path/to/input/graph.properties -u --log /path/to/log/graph.graphlog -l llama6-ref --build_frequency 10s --aging_timeout 4h -w $NT -d results.sqlite3
+    ./gfe_driver -G /path/to/input/graph.properties -u --log /path/to/log/graph.graphlog -l llama8-ref --build_frequency 10s --aging_timeout 4h -w $NT -d results.sqlite3
     # GraphOne, source code: library/graphone/*
-    ./gfe_driver -G /path/to/input/graph.properties -u --log /path/to/log/graph.graphlog -l g1_v4-ref-ignore-build -w $NT -d results.sqlite3
+    ./gfe_driver -G /path/to/input/graph.properties -u --log /path/to/log/graph.graphlog -l g1_v6-ref-ignore-build -w $NT -d results.sqlite3
     # LiveGraph, source code: library/livegraph/*
-    ./gfe_driver -G /path/to/input/graph.properties -u --log /path/to/log/graph.graphlog -l livegraph_ro -w $NT -d results.sqlite3
+    ./gfe_driver -G /path/to/input/graph.properties -u --log /path/to/log/graph.graphlog -l livegraph3_ro -w $NT -d results.sqlite3
     # Teseo, source code: library/teseo/teseo_driver.*
-    ./gfe_driver -G /path/to/input/graph.properties -u --log /path/to/log/graph.graphlog -l teseo.10 -w $NT -d results.sqlite3
+    ./gfe_driver -G /path/to/input/graph.properties -u --log /path/to/log/graph.graphlog -l teseo.12 -w $NT -d results.sqlite3
 done
 ```
 
@@ -207,25 +207,25 @@ For the experiment with the memory footprint of Figure 7d, add the arguments: `-
 
 ```
 # CSR, source code: library/baseline/csr.*
-./gfe_driver -G /path/to/input/graph.properties -u -l csr --load -R 5 -d results.sqlite3
+./gfe_driver -G /path/to/input/graph.properties -u -l csr3 --load -R 5 -d results.sqlite3
 # CSR, LCC (opt), source code: library/baseline/csr.*
-./gfe_driver -G /path/to/input/graph.properties -u -l csr-lcc --load -R 5 -d results.sqlite3
+./gfe_driver -G /path/to/input/graph.properties -u -l csr3-lcc --load -R 5 -d results.sqlite3
 # Stinger, source code: library/stinger/*
-./gfe_driver -G /path/to/input/graph.properties -u -l stinger5-ref -w 40 -R 5 -d results.sqlite3
+./gfe_driver -G /path/to/input/graph.properties -u -l stinger7-ref -w 40 -R 5 -d results.sqlite3
 # LLAMA, source code: library/llama/*
-./gfe_driver -G /path/to/input/graph.properties -u -l llama6-ref --build_frequency 10s -w 16 -R 5 -d results.sqlite3
+./gfe_driver -G /path/to/input/graph.properties -u -l llama8-ref --build_frequency 10s -w 16 -R 5 -d results.sqlite3
 # GraphOne, source code: library/graphone/*
-./gfe_driver -G /path/to/input/graph.properties -u -l g1_v4-ref-ignore-build -w 12 -R 5 -d results.sqlite3
+./gfe_driver -G /path/to/input/graph.properties -u -l g1_v6-ref-ignore-build -w 12 -R 5 -d results.sqlite3
 # LiveGraph, source code: library/livegraph/*
-./gfe_driver -G /path/to/input/graph.properties -u -l livegraph_ro -w 20 -R 5 -d results.sqlite3
+./gfe_driver -G /path/to/input/graph.properties -u -l livegraph3_ro -w 20 -R 5 -d results.sqlite3
 # Teseo (logical vertices), source code: library/teseo/teseo_driver.*
-./gfe_driver -G /path/to/input/graph.properties -u -l teseo.10 -w 40 -R 5 -d results.sqlite3
-./gfe_driver -G /path/to/input/graph.properties -u -l teseo-lcc.10 -w 40 -R 5 -d results.sqlite3 # LCC (opt) only
+./gfe_driver -G /path/to/input/graph.properties -u -l teseo.12 -w 40 -R 5 -d results.sqlite3
+./gfe_driver -G /path/to/input/graph.properties -u -l teseo-lcc.12 -w 40 -R 5 -d results.sqlite3 # LCC (opt) only
 # Teseo (real vertices), source code: library/teseo/teseo_real_vtx.*
-./gfe_driver -G /path/to/input/graph-dense.properties -u -l teseo-dv.10 -w 40 -R 5 -d results.sqlite3
+./gfe_driver -G /path/to/input/graph-dense.properties -u -l teseo-dv.12 -w 40 -R 5 -d results.sqlite3
 # Teseo (LCC opt), source code: library/teseo/*
-./gfe_driver -G /path/to/input/graph.properties -u -l teseo-lcc.10 -w 40 -R 5 --blacklist="bfs,cdlp,pagerank,sssp,wcc" -d results.sqlite3 
-./gfe_driver -G /path/to/input/graph-dense.properties -u -l teseo-lcc-dv.10 -w 40 -R 5 --blacklist="bfs,cdlp,pagerank,sssp,wcc" -d results.sqlite3 
+./gfe_driver -G /path/to/input/graph.properties -u -l teseo-lcc.12 -w 40 -R 5 --blacklist="bfs,cdlp,pagerank,sssp,wcc" -d results.sqlite3 
+./gfe_driver -G /path/to/input/graph-dense.properties -u -l teseo-lcc-dv.12 -w 40 -R 5 --blacklist="bfs,cdlp,pagerank,sssp,wcc" -d results.sqlite3 
 
 ```
 
