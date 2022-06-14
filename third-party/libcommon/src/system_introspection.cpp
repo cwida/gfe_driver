@@ -101,7 +101,7 @@ static string git_get_srcdir_from_makefile(){
         strtok(result, "\n");
     }
 
-    fclose(fp);
+    pclose(fp);
     return result;
 }
 
@@ -125,7 +125,7 @@ static string git_read_last_commit(){
         strtok(result, "\n");
     }
 
-    fclose(fp);
+    pclose(fp);
     return result;
 }
 
